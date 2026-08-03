@@ -1,0 +1,2325 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grimoire — Gestionnaire de campagne Shadowdark</title>
+</head>
+<body>
+<style>
+  :root{
+    --bg:#0e0d13; --bg2:#16141d; --panel:#1c1a26; --panel2:#242130;
+    --border:#332e44; --border2:#463f5e;
+    --text:#e8e3d5; --muted:#a49bb3; --faint:#6f6785;
+    --gold:#d8a24a; --gold2:#f0c674; --blood:#b5433a; --blood2:#d95a4f;
+    --link:#7fb2e6; --link-bad:#c86a6a; --green:#6fae6a;
+    --radius:10px; --shadow:0 6px 24px rgba(0,0,0,.45);
+    --font: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #201a2e 0%, transparent 60%),
+      radial-gradient(1000px 500px at -10% 110%, #1a1424 0%, transparent 55%),
+      var(--bg);
+    color:var(--text); font-family:var(--font); line-height:1.5;
+    min-height:100vh;
+  }
+  a{color:var(--link); text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font-family:var(--ui); cursor:pointer}
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky; top:0; z-index:50;
+    background:linear-gradient(180deg, #14121b 0%, #14121bf5 100%);
+    border-bottom:1px solid var(--border);
+    backdrop-filter:blur(6px);
+  }
+  .bar{
+    max-width:1100px; margin:0 auto; padding:.7rem 1rem;
+    display:flex; align-items:center; gap:1rem; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:.55rem; font-weight:700; letter-spacing:.5px}
+  .brand .rune{
+    font-size:1.5rem; color:var(--gold2);
+    filter:drop-shadow(0 0 8px rgba(216,162,74,.4));
+  }
+  .brand small{display:block; font-size:.62rem; color:var(--faint); font-family:var(--ui); letter-spacing:2px; text-transform:uppercase}
+  .search{position:relative; flex:1 1 260px; min-width:180px}
+  .search input{
+    width:100%; padding:.55rem .8rem .55rem 2.1rem; border-radius:20px;
+    background:var(--panel); border:1px solid var(--border2); color:var(--text);
+    font-family:var(--ui); font-size:.9rem; outline:none;
+  }
+  .search input:focus{border-color:var(--gold)}
+  .search .mag{position:absolute; left:.75rem; top:50%; transform:translateY(-50%); color:var(--faint)}
+  .search-results{
+    position:absolute; top:110%; left:0; right:0; background:var(--panel2);
+    border:1px solid var(--border2); border-radius:var(--radius); box-shadow:var(--shadow);
+    max-height:60vh; overflow:auto; z-index:60; display:none;
+  }
+  .search-results.open{display:block}
+  .sr-item{padding:.5rem .8rem; border-bottom:1px solid var(--border); cursor:pointer; font-family:var(--ui); font-size:.88rem}
+  .sr-item:last-child{border-bottom:none}
+  .sr-item:hover{background:var(--panel)}
+  .sr-item .tag{font-size:.65rem}
+  .sr-empty{padding:.8rem; color:var(--faint); font-family:var(--ui); font-size:.85rem}
+  .hbtns{display:flex; gap:.4rem}
+  .icon-btn{
+    background:var(--panel); border:1px solid var(--border2); color:var(--muted);
+    border-radius:8px; padding:.45rem .6rem; font-size:.8rem;
+  }
+  .icon-btn:hover{color:var(--gold2); border-color:var(--gold)}
+
+  /* ---------- Tabs ---------- */
+  nav.tabs{max-width:1100px; margin:0 auto; padding:0 1rem; display:flex; gap:.25rem; overflow-x:auto}
+  nav.tabs button{
+    background:transparent; border:none; color:var(--muted); font-size:.9rem; font-weight:600;
+    padding:.7rem .95rem; border-bottom:2px solid transparent; white-space:nowrap;
+  }
+  nav.tabs button .ic{margin-right:.35rem}
+  nav.tabs button:hover{color:var(--text)}
+  nav.tabs button.active{color:var(--gold2); border-bottom-color:var(--gold)}
+
+  /* ---------- Layout ---------- */
+  main{max-width:1100px; margin:0 auto; padding:1.2rem 1rem 4rem; overflow-x:clip}
+  .card h3, .card p, .prose, .bullets li, .sb-line, .detail h1, .group-head, table.tbl td{ overflow-wrap:anywhere; }
+  .page-head{display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; flex-wrap:wrap}
+  .page-head h1{font-size:1.5rem; margin:0; color:var(--gold2); font-weight:700}
+  .page-head .sub{color:var(--faint); font-family:var(--ui); font-size:.8rem}
+
+  .btn{
+    background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#2a1e08; border:none;
+    padding:.55rem .9rem; border-radius:8px; font-weight:700; font-size:.85rem;
+    box-shadow:0 2px 0 #8a6620;
+  }
+  .btn:hover{filter:brightness(1.06)}
+  .btn.ghost{background:var(--panel); color:var(--text); border:1px solid var(--border2); box-shadow:none}
+  .btn.ghost:hover{border-color:var(--gold)}
+  .btn.danger{background:var(--panel); color:var(--blood2); border:1px solid #5a2f2f; box-shadow:none}
+  .btn.danger:hover{background:#2a1a1a}
+  .btn.sm{padding:.35rem .6rem; font-size:.75rem}
+
+  /* ---------- Cards grid ---------- */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:.9rem}
+  .card{
+    background:linear-gradient(180deg,var(--panel2),var(--panel));
+    border:1px solid var(--border); border-radius:var(--radius); padding:1rem;
+    cursor:pointer; transition:border-color .15s, transform .1s;
+    position:relative; overflow:hidden;
+  }
+  .card:hover{border-color:var(--gold); transform:translateY(-2px)}
+  .card h3{margin:.1rem 0 .35rem; font-size:1.08rem; color:var(--text)}
+  .card p{margin:0; color:var(--muted); font-family:var(--ui); font-size:.82rem;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden}
+  .card .meta{margin-top:.6rem; display:flex; gap:.4rem; flex-wrap:wrap}
+  .tag{
+    font-family:var(--ui); font-size:.68rem; font-weight:700; letter-spacing:.4px;
+    padding:.15rem .5rem; border-radius:20px; text-transform:uppercase;
+    background:var(--panel); border:1px solid var(--border2); color:var(--muted);
+  }
+  .tag.creature{color:#e39b7b; border-color:#5a3b30}
+  .tag.event{color:#c79ae0; border-color:#4a3a5c}
+  .tag.table{color:#7fc9c1; border-color:#33534f}
+  .tag.session{color:#9db4e0; border-color:#37425c}
+  .tag.chaos{color:var(--blood2); border-color:#5a2f2f}
+  .tag.loyal{color:#6fae6a; border-color:#345234}
+  .tag.neutre{color:var(--muted)}
+  .tag.gold{color:var(--gold2); border-color:#5a4620}
+
+  .group-head{font-family:var(--ui); font-size:.95rem; color:var(--gold2); font-weight:700; letter-spacing:.3px;
+    margin:.2rem 0 .8rem; padding-bottom:.4rem; border-bottom:1px solid var(--border)}
+  .group-head .faint{font-weight:400; font-size:.82rem}
+
+  .empty{
+    text-align:center; padding:3rem 1rem; color:var(--faint); font-family:var(--ui);
+    border:1px dashed var(--border2); border-radius:var(--radius);
+  }
+  .empty .big{font-size:2.4rem; display:block; margin-bottom:.5rem; opacity:.6}
+
+  /* ---------- Detail ---------- */
+  .detail{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--border);
+    border-radius:var(--radius); padding:1.4rem; box-shadow:var(--shadow)}
+  .back{background:none; border:none; color:var(--muted); font-family:var(--ui); font-size:.85rem; padding:.2rem 0; margin-bottom:.8rem}
+  .back:hover{color:var(--gold2)}
+  .detail h1{margin:.1rem 0 .2rem; color:var(--gold2)}
+  .detail .actions{display:flex; gap:.5rem; margin:1rem 0; flex-wrap:wrap}
+  .section{margin-top:1.3rem}
+  .section > h2{
+    font-size:.8rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--gold);
+    font-family:var(--ui); font-weight:700; margin:0 0 .5rem; padding-bottom:.35rem;
+    border-bottom:1px solid var(--border);
+  }
+  .bullets{margin:0; padding-left:1.2rem}
+  .bullets li{margin:.25rem 0}
+  .prose{white-space:pre-wrap}
+  .muted{color:var(--muted)}
+  .faint{color:var(--faint)}
+
+  /* stat block */
+  .statblock{border:1px solid var(--border2); border-radius:var(--radius); padding:1rem; background:#141019;
+    background-image:linear-gradient(180deg, rgba(216,162,74,.05), transparent 30%)}
+  .sb-top{display:flex; gap:1rem; flex-wrap:wrap; align-items:baseline}
+  .sb-line{display:flex; gap:1.5rem; flex-wrap:wrap; margin:.6rem 0; font-family:var(--ui); font-size:.9rem}
+  .sb-line b{color:var(--gold2)}
+  .abilities-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:.4rem; margin:.8rem 0; text-align:center}
+  .ab{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:.4rem .2rem}
+  .ab .n{font-family:var(--ui); font-size:.62rem; letter-spacing:1px; color:var(--faint); text-transform:uppercase}
+  .ab .v{font-size:1.2rem; font-weight:700; color:var(--text)}
+  .attack-row{padding:.4rem 0; border-top:1px dashed var(--border); font-family:var(--ui); font-size:.88rem}
+  .attack-row:first-child{border-top:none}
+  hr.rule{border:none; border-top:1px solid var(--border); margin:.8rem 0}
+
+  /* backlinks */
+  .backlinks{margin-top:1.4rem; padding-top:1rem; border-top:1px solid var(--border)}
+  .backlinks h2{font-size:.8rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--gold); font-family:var(--ui)}
+  .bl-group{margin:.6rem 0}
+  .bl-group .lbl{font-family:var(--ui); font-size:.72rem; color:var(--faint); text-transform:uppercase; letter-spacing:1px}
+  .bl-chip{display:inline-block; margin:.25rem .3rem .1rem 0; padding:.3rem .6rem; border-radius:8px;
+    background:var(--panel); border:1px solid var(--border2); font-family:var(--ui); font-size:.83rem; cursor:pointer}
+  .bl-chip:hover{border-color:var(--gold)}
+
+  /* wiki links in prose */
+  a.wl{color:var(--link); border-bottom:1px dotted var(--link); cursor:pointer}
+  a.wl.bad{color:var(--link-bad); border-bottom-style:dashed}
+  a.wl.creature{color:#e39b7b; border-color:#e39b7b}
+  a.wl.event{color:#c79ae0; border-color:#c79ae0}
+  a.wl.table{color:#7fc9c1; border-color:#7fc9c1}
+  a.wl.session{color:#9db4e0; border-color:#9db4e0}
+
+  /* ---------- Forms ---------- */
+  .form{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--border);
+    border-radius:var(--radius); padding:1.4rem; box-shadow:var(--shadow)}
+  .form h1{margin-top:0; color:var(--gold2)}
+  .field{margin-bottom:1rem}
+  .field label{display:block; font-family:var(--ui); font-size:.78rem; font-weight:600; letter-spacing:.5px;
+    color:var(--muted); margin-bottom:.35rem; text-transform:uppercase}
+  .field .hint{font-weight:400; text-transform:none; color:var(--faint); letter-spacing:0}
+  input[type=text], input[type=number], input[type=date], textarea, select{
+    width:100%; padding:.6rem .7rem; background:var(--bg2); border:1px solid var(--border2);
+    border-radius:8px; color:var(--text); font-family:var(--ui); font-size:.9rem; outline:none;
+  }
+  input:focus, textarea:focus, select:focus{border-color:var(--gold)}
+  textarea{resize:vertical; min-height:90px; line-height:1.5}
+  .row{display:flex; gap:.8rem; flex-wrap:wrap}
+  .row > .field{flex:1 1 120px; margin-bottom:0}
+  .subgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(80px,1fr)); gap:.6rem}
+  .repeat-item{background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:.7rem; margin-bottom:.6rem}
+  .repeat-item .rrow{display:flex; gap:.5rem; flex-wrap:wrap; align-items:flex-end}
+  .form-actions{display:flex; gap:.6rem; margin-top:1.4rem; flex-wrap:wrap}
+  .link-help{font-family:var(--ui); font-size:.75rem; color:var(--faint); background:var(--bg2);
+    border:1px solid var(--border); border-radius:8px; padding:.5rem .7rem; margin-top:.4rem}
+  .link-help code{color:var(--gold2); font-family:ui-monospace,monospace}
+
+  /* dice result */
+  .roll-result{margin:.6rem 0; font-family:var(--ui); color:var(--gold2); font-weight:700}
+  tr.rolled{background:rgba(216,162,74,.14)}
+  table.tbl{width:100%; border-collapse:collapse; font-family:var(--ui); font-size:.9rem}
+  table.tbl th, table.tbl td{padding:.5rem .6rem; text-align:left; border-bottom:1px solid var(--border); vertical-align:top}
+  table.tbl th{color:var(--gold); font-size:.72rem; text-transform:uppercase; letter-spacing:1px}
+  table.tbl td.idx{width:2.5rem; color:var(--faint); font-variant-numeric:tabular-nums; text-align:right}
+
+  /* images */
+  .tag.npc{color:#e0c48a; border-color:#5a4c2a}
+  a.wl.npc{color:#e0c48a; border-color:#e0c48a}
+  .tag.pointcrawl{color:#89c0d8; border-color:#2a4a5a}
+  a.wl.pointcrawl{color:#89c0d8; border-color:#89c0d8}
+  .tag.pc{color:#8fce9b; border-color:#2f5a3a}
+  a.wl.pc{color:#8fce9b; border-color:#8fce9b}
+  .tag.trouvaille{color:#a7c0a0; border-color:#3a4a34}
+  .tag.relique{color:#c79ae0; border-color:#4a3a5c}
+  .tag.regalia{color:var(--gold2); border-color:#5a4620}
+  a.wl.treasure{color:#e0c06a; border-color:#e0c06a}
+
+  /* point crawl */
+  .crawl-toolbar{display:flex; gap:.5rem; flex-wrap:wrap; margin:.6rem 0 .2rem}
+  .btn.ghost.active-mode{background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#2a1e08; border-color:var(--gold)}
+  .crawl-help{font-family:var(--ui); font-size:.78rem; color:var(--faint); margin:.2rem 0 .7rem; line-height:1.4}
+  .crawl-map-scroll{overflow:auto; border:1px solid var(--border2); border-radius:var(--radius); max-height:66vh;
+    background:radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px) 0 0/24px 24px, var(--bg2)}
+  .crawl-canvas{position:relative; width:1400px; height:900px}
+  .crawl-canvas > svg{position:absolute; inset:0; width:100%; height:100%; pointer-events:none}
+  .crawl-canvas > svg line{stroke:var(--border2); stroke-width:3; pointer-events:stroke; cursor:pointer}
+  .crawl-canvas > svg line:hover{stroke:var(--gold)}
+  .crawl-canvas > svg text{fill:var(--muted); font-family:var(--ui); font-size:12px; pointer-events:none; paint-order:stroke; stroke:var(--bg2); stroke-width:4px}
+  .crawl-node{position:absolute; min-width:96px; max-width:180px; background:linear-gradient(180deg,var(--panel2),var(--panel));
+    border:1px solid var(--border2); border-radius:10px; padding:.5rem .6rem; cursor:grab; user-select:none;
+    font-family:var(--ui); font-size:.83rem; box-shadow:0 3px 10px rgba(0,0,0,.45); touch-action:none; z-index:1}
+  .crawl-node:hover{border-color:var(--gold)}
+  .crawl-node:active{cursor:grabbing}
+  .crawl-node.linkmode{cursor:pointer}
+  .crawl-node.linkfrom{border-color:var(--gold2); box-shadow:0 0 0 2px var(--gold), 0 3px 10px rgba(0,0,0,.45)}
+  .crawl-node.missing{opacity:.65; border-style:dashed}
+  .crawl-node .nt{display:inline-flex; align-items:center; justify-content:center; width:1.5em; height:1.5em; flex:0 0 auto;
+    border-radius:50%; background:var(--gold); color:#2a1e08; font-weight:700; font-size:.75rem; margin-right:.4rem; vertical-align:middle}
+
+  /* modal */
+  #modal{position:fixed; inset:0; background:rgba(0,0,0,.72); display:flex; align-items:center; justify-content:center; z-index:150; padding:1rem}
+  #modal .modal-box{background:var(--panel2); border:1px solid var(--border2); border-radius:var(--radius);
+    box-shadow:var(--shadow); max-width:580px; width:100%; max-height:86vh; overflow:auto; padding:1.3rem}
+  .modal-list{max-height:52vh; overflow:auto; margin-top:.6rem}
+  .modal-list .mli{padding:.55rem .7rem; border:1px solid var(--border); border-radius:8px; margin-bottom:.4rem; cursor:pointer; font-family:var(--ui); font-size:.88rem}
+  .modal-list .mli:hover{border-color:var(--gold); background:var(--panel)}
+
+  /* autocomplétion des liens [[…]] */
+  #ac-pop{position:fixed; z-index:300; background:var(--panel2); border:1px solid var(--gold); border-radius:8px;
+    box-shadow:var(--shadow); min-width:210px; max-width:330px; max-height:250px; overflow:auto; display:none; font-family:var(--ui)}
+  #ac-pop.open{display:block}
+  #ac-pop .aci{padding:.42rem .6rem; cursor:pointer; font-size:.85rem; display:flex; align-items:center; gap:.45rem; border-bottom:1px solid var(--border)}
+  #ac-pop .aci:last-of-type{border-bottom:none}
+  #ac-pop .aci.sel, #ac-pop .aci:hover{background:var(--panel)}
+  #ac-pop .aci .nm{color:var(--text)}
+  #ac-pop .ac-empty{padding:.55rem .6rem; color:var(--faint); font-size:.82rem}
+  #ac-pop .ac-hint{padding:.35rem .6rem; font-size:.68rem; color:var(--faint); border-top:1px solid var(--border); position:sticky; bottom:0; background:var(--panel2)}
+  .card .thumb{width:calc(100% + 2rem); height:130px; object-fit:cover; margin:-1rem -1rem .7rem; display:block; border-bottom:1px solid var(--border)}
+  .gallery{display:flex; flex-wrap:wrap; gap:.6rem; margin-top:.3rem}
+  .gallery .gimg{width:120px; height:120px; object-fit:cover; border-radius:8px; border:1px solid var(--border2); cursor:zoom-in; transition:transform .1s}
+  .gallery .gimg:hover{transform:scale(1.04); border-color:var(--gold)}
+  .img-thumb{position:relative; display:inline-block; margin:.3rem .3rem 0 0}
+  .img-thumb img{width:92px; height:92px; object-fit:cover; border-radius:8px; border:1px solid var(--border2)}
+  .img-del{position:absolute; top:-7px; right:-7px; background:var(--blood); color:#fff; border:none;
+    border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:.75rem; line-height:1; box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  #lightbox{position:fixed; inset:0; background:rgba(0,0,0,.88); display:flex; align-items:center; justify-content:center;
+    z-index:200; padding:2rem; cursor:zoom-out}
+  #lightbox img{max-width:100%; max-height:100%; border-radius:8px; box-shadow:var(--shadow)}
+
+  /* toast */
+  #toast{position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--panel2); border:1px solid var(--gold); color:var(--text); padding:.7rem 1.1rem;
+    border-radius:10px; font-family:var(--ui); font-size:.85rem; box-shadow:var(--shadow);
+    opacity:0; pointer-events:none; transition:.25s; z-index:100}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+  .session-entry{border-left:2px solid var(--border2); padding:.2rem 0 .2rem 1rem; margin:.9rem 0}
+  .session-entry .etitle{font-family:var(--ui); font-weight:700; color:var(--gold2); font-size:.9rem}
+
+  @media (max-width:640px){
+    .brand small{display:none}
+    .abilities-grid{grid-template-columns:repeat(3,1fr)}
+    main{padding:1rem .7rem 4rem}
+    .bar{gap:.5rem; padding:.6rem .7rem}
+    /* recherche sur sa propre ligne, pleine largeur */
+    .search{flex:1 1 100%; order:3}
+    /* onglets : passage à la ligne, tous visibles, en pastilles (fini le défilement horizontal) */
+    nav.tabs{flex-wrap:wrap; overflow:visible; gap:.4rem; padding:0 .5rem .5rem}
+    nav.tabs button{flex:1 1 auto; font-size:.95rem; font-weight:600; padding:.65rem .8rem; min-height:44px;
+      border-bottom:none; border-radius:10px; background:var(--panel); border:1px solid var(--border)}
+    nav.tabs button .ic{margin-right:.35rem; font-size:1.05rem}
+    nav.tabs button.active{background:var(--panel2); color:var(--gold2); border-color:var(--gold)}
+    /* cartes en une colonne */
+    .grid{grid-template-columns:1fr; gap:.7rem}
+    .card p{-webkit-line-clamp:2}
+    /* détails / formulaires moins d'air perdu */
+    .detail, .form{padding:1rem}
+    .page-head h1{font-size:1.3rem}
+    .detail h1{font-size:1.4rem}
+    /* plan du point crawl : hauteur raisonnable, boutons pleine largeur */
+    .crawl-map-scroll{max-height:56vh}
+    .crawl-toolbar{gap:.4rem}
+    .crawl-toolbar .btn{flex:1 1 40%}
+    /* modales presque plein écran */
+    #modal{padding:.5rem}
+    #modal .modal-box{padding:1rem}
+    /* pied de champs & lignes de stats plus compacts */
+    .sb-line{gap:.9rem}
+  }
+  .hidden{display:none !important}
+
+  /* ---------- Impression PDF d'un point crawl (fond blanc, économe en encre) ---------- */
+  #print-area{display:none}
+  @media print{
+    @page{ size:A4 portrait; margin:14mm; }
+    @page mapland{ size:A4 landscape; margin:11mm; }
+    header, main, #toast, #modal, #lightbox, #ac-pop{ display:none !important; }
+    html, body{ background:#fff !important; }
+    #print-area{ display:block !important; color:#241f18; font-family:var(--font);
+      -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    #print-area h1{ font-size:23pt; color:#4a3a1a; margin:0 0 3pt; text-wrap:balance; }
+    #print-area .pp-desc{ font-family:var(--ui); color:#555; font-size:10pt; margin:0 0 10pt; }
+    #print-area .pp-map{ page:mapland; break-after:page; }
+    #print-area .pp-svg{ width:100%; height:auto; max-height:118mm; display:block; margin:0 auto; }
+    #print-area .pp-svg line{ stroke:#8a744a; stroke-width:2; }
+    #print-area .pp-svg .elbl{ fill:#6a5a3a; font-family:var(--ui); font-size:11px; }
+    #print-area .pp-svg rect{ fill:#fff; stroke:#3a332a; stroke-width:1.4; }
+    #print-area .pp-svg .numc{ fill:#b8892f; }
+    #print-area .pp-svg .numt{ fill:#fff; font-family:var(--ui); font-weight:700; font-size:13px; }
+    #print-area .pp-svg .ptitle{ fill:#2a241c; font-family:var(--font); font-size:13px; }
+    #print-area .pp-legend{ margin-top:8pt; columns:3; column-gap:18pt; font-family:var(--ui); font-size:9pt; color:#333; break-inside:avoid; }
+    #print-area .pp-legend .lg{ break-inside:avoid; margin:1.5pt 0; }
+    #print-area .pp-legend .n{ display:inline-block; min-width:1.5em; font-weight:700; color:#b8892f; }
+    #print-area h2{ font-size:15pt; color:#4a3a1a; border-bottom:1.5pt solid #cbb27f; padding-bottom:3pt; margin:0 0 11pt; }
+    #print-area .pp-event{ break-inside:avoid; margin:0 0 11pt; padding-bottom:8pt; border-bottom:1px solid #e4dbc6; }
+    #print-area .pp-event:last-child{ border-bottom:none; }
+    #print-area .pp-event h3{ font-size:13pt; color:#2a241c; margin:0 0 5pt; display:flex; align-items:center; gap:7pt; flex-wrap:wrap; }
+    #print-area .pp-num{ display:inline-flex; align-items:center; justify-content:center; width:1.7em; height:1.7em;
+      border-radius:50%; background:#b8892f; color:#fff; font-family:var(--ui); font-size:10pt; font-weight:700; flex:0 0 auto; }
+    #print-area .pp-theme{ font-family:var(--ui); font-size:8pt; color:#8a7748; border:1px solid #d8c79a; border-radius:10px; padding:1pt 6pt; font-weight:600; }
+    #print-area .pp-sec{ margin:3pt 0; }
+    #print-area .pp-sec h4{ font-family:var(--ui); font-size:8pt; text-transform:uppercase; letter-spacing:.5pt; color:#9a7b3a; margin:5pt 0 2pt; }
+    #print-area .pp-sec ul{ margin:0; padding-left:15pt; }
+    #print-area .pp-sec li{ font-size:10.5pt; margin:1pt 0; line-height:1.35; }
+    #print-area .pp-link{ font-weight:700; text-decoration:underline; text-decoration-thickness:.5pt; text-underline-offset:1.5pt; }
+  }
+</style>
+
+
+<header>
+  <div class="bar">
+    <div class="brand">
+      <span class="rune">✦</span>
+      <span>Grimoire<small>Campagne Shadowdark</small></span>
+    </div>
+    <div class="search">
+      <span class="mag">🔍</span>
+      <input id="search" type="text" placeholder="Rechercher une créature, un événement, une table…" autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+    </div>
+    <div class="hbtns">
+      <button class="icon-btn" id="btn-export" title="Exporter toutes les données (JSON)">⭳ Export</button>
+      <button class="icon-btn" id="btn-import" title="Importer des données (JSON)">⭱ Import</button>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="sessions"><span class="ic">📜</span>Sessions</button>
+    <button data-tab="tables"><span class="ic">🎲</span>Tables aléatoires</button>
+    <button data-tab="events"><span class="ic">📖</span>Événements</button>
+    <button data-tab="pointcrawls"><span class="ic">🗺</span>Point Crawl</button>
+    <button data-tab="creatures"><span class="ic">🐲</span>Créatures</button>
+    <button data-tab="pcs"><span class="ic">🛡</span>PJ</button>
+    <button data-tab="npcs"><span class="ic">👤</span>PNJ</button>
+    <button data-tab="treasures"><span class="ic">💎</span>Trésor</button>
+  </nav>
+</header>
+
+<main id="app"></main>
+<div id="toast"></div>
+<input type="file" id="file-json" accept="application/json,.json" class="hidden">
+<input type="file" id="file-xml" accept="text/xml,application/xml,.xml" class="hidden">
+<input type="file" id="file-img" accept="image/*" multiple class="hidden">
+<div id="lightbox" class="hidden"><img alt=""></div>
+<div id="modal" class="hidden"><div class="modal-box"></div></div>
+<div id="ac-pop"></div>
+<div id="print-area"></div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   GRIMOIRE — Gestionnaire de campagne Shadowdark
+   Application 100% locale, sans dépendance. Persistance via localStorage.
+   Quatre entités : sessions, événements, créatures (stat blocs), tables.
+   Liens inter-entités via la syntaxe [[Nom]] + rétroliens (backlinks).
+   ========================================================================== */
+
+/* ----------------------------- Stockage ---------------------------------- */
+const STORE_KEY = "grimoire_shadowdark_v1";
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
+
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[] });
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return emptyDB();
+    const d = JSON.parse(raw);
+    return Object.assign(emptyDB(), d);
+  }catch(e){ console.error(e); return emptyDB(); }
+}
+let storageOK = true;
+function saveDB(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); storageOK = true; }
+  catch(e){
+    if(storageOK){ storageOK = false;
+      toast("Stockage local indisponible ici : les données ne seront pas conservées après fermeture. Utilisez « Export » pour les sauvegarder.");
+    }
+  }
+}
+let db = loadDB();
+
+/* --------------------------- État de navigation -------------------------- */
+let view = { tab:"sessions", mode:"list", id:null }; // mode: list | detail | edit | new
+let formImages = []; // état temporaire des images pendant l'édition d'une créature / PNJ
+let crawlState = { id:null, linkMode:false, linkFrom:null }; // état de l'éditeur de point crawl
+let eventThemeFilter = ""; // filtre de thème dans l'onglet Événements ("" = tous, "__none__" = sans thème)
+let creatureSort = "name";      // tri des créatures : name | lvlAsc | lvlDesc
+let creatureCatFilter = "";     // filtre de catégorie ("" = toutes/regroupées, "__none__" = sans catégorie)
+
+const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor" };
+const TABS = ["sessions","tables","events","pointcrawls","creatures","pcs","npcs","treasures"];
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure" };
+const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
+function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
+
+/* ------------------------------ Utilitaires ------------------------------ */
+const $ = s => document.querySelector(s);
+const app = $("#app");
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove("show"), 2600);
+}
+
+/* Résout un nom [[...]] vers une entité (insensible à la casse) */
+function findByName(name){
+  const n = name.trim().toLowerCase();
+  for(const c of db.creatures) if((c.name||"").toLowerCase()===n) return {type:"creature", id:c.id};
+  for(const e of db.events)    if((e.title||"").toLowerCase()===n) return {type:"event", id:e.id};
+  for(const t of db.tables)    if((t.title||"").toLowerCase()===n) return {type:"table", id:t.id};
+  for(const s of db.sessions)  if((s.title||"").toLowerCase()===n) return {type:"session", id:s.id};
+  for(const p of db.npcs)      if((p.name||"").toLowerCase()===n) return {type:"npc", id:p.id};
+  for(const pc of db.pointcrawls) if((pc.title||"").toLowerCase()===n) return {type:"pointcrawl", id:pc.id};
+  for(const pj of db.pcs)         if((pj.name||"").toLowerCase()===n) return {type:"pc", id:pj.id};
+  for(const tr of db.treasures)   if((tr.name||"").toLowerCase()===n) return {type:"treasure", id:tr.id};
+  return null;
+}
+const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures" };
+
+/* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
+function renderText(text){
+  if(!text) return "";
+  let html = esc(text);
+  html = html.replace(/\[\[([^\]]+)\]\]/g, (m, raw)=>{
+    const name = raw.trim();
+    const hit = findByName(name);
+    if(hit){
+      return `<a class="wl ${hit.type}" data-goto="${hit.type}:${hit.id}">${esc(name)}</a>`;
+    }
+    return `<a class="wl bad" title="Aucune entité nommée « ${esc(name)} »" data-create="${esc(name)}">${esc(name)}</a>`;
+  });
+  return html;
+}
+
+/* Transforme un texte multi-lignes en liste à puces (ignore les lignes vides) */
+function renderBullets(text){
+  const lines = String(text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return `<p class="faint">— (vide)</p>`;
+  return `<ul class="bullets">${lines.map(l=>`<li>${renderText(l)}</li>`).join("")}</ul>`;
+}
+/* Section à puces rendue seulement si elle contient quelque chose (sinon rien) */
+function bulletSection(label, text){
+  const has = String(text||"").split(/\r?\n/).some(l=>l.trim());
+  return has ? `<div class="section"><h2>${label}</h2>${renderBullets(text)}</div>` : "";
+}
+function eventSectionsHTML(e, opts){
+  const secs = bulletSection((opts&&opts.short?"① Description":"① Description & ambiance"), e.description)
+    + bulletSection((opts&&opts.short?"② Pièges":"② Pièges — conditions & conséquences"), e.traps)
+    + bulletSection("③ Secrets à découvrir", e.secrets)
+    + bulletSection("④ Informations accessibles", e.info);
+  return secs.trim() ? secs : `<p class="faint" style="font-family:var(--ui)">Aucun détail renseigné pour l'instant.</p>`;
+}
+
+/* Concatène tout le texte cherchable/liable d'une entité */
+function entityText(type, o){
+  if(type==="creature") return [o.name,o.category,o.desc,o.abilities,(o.attacks||[]).map(a=>a.name+" "+a.damage).join(" ")].join(" \n ");
+  if(type==="event")    return [o.title,o.theme,o.description,o.traps,o.secrets,o.info].join(" \n ");
+  if(type==="table")    return [o.title,o.context,(o.rows||[]).join(" \n ")].join(" \n ");
+  if(type==="session")  return [o.title,(o.entries||[]).map(e=>e.label+" "+e.notes).join(" \n ")].join(" \n ");
+  if(type==="npc")      return [o.name,o.description,o.physique,o.age,o.possessions,o.objectif,o.moyens,o.comportement].join(" \n ");
+  if(type==="pointcrawl") return [o.title,o.description,(o.nodes||[]).map(nd=>{const ev=getEntity("event",nd.eventId);return ev?ev.title:"";}).join(" ")].join(" \n ");
+  if(type==="pc")       return [o.name,o.ancestry,o.cls,o.info,o.skills,o.spells,o.inventory,(o.talents||[]).map(t=>t.text).join(" ")].join(" \n ");
+  if(type==="treasure") return [o.name,treasureCatLabel(o.category),o.description].join(" \n ");
+  return "";
+}
+function entityTitle(type,o){ return (type==="creature"||type==="npc"||type==="pc"||type==="treasure") ? o.name : o.title; }
+
+/* Extrait les noms référencés en [[...]] dans un texte */
+function extractLinks(text){
+  const out = []; const re = /\[\[([^\]]+)\]\]/g; let m;
+  while((m=re.exec(text||""))) out.push(m[1].trim().toLowerCase());
+  return out;
+}
+
+/* Calcule les rétroliens vers une entité cible : qui la mentionne en [[...]] ? */
+function backlinksTo(targetType, targetId){
+  const target = getEntity(targetType, targetId);
+  if(!target) return {};
+  const targetName = entityTitle(targetType, target).toLowerCase();
+  const groups = { event:[], table:[], session:[], creature:[], npc:[], pointcrawl:[], pc:[], treasure:[] };
+  const scan = (type, list)=>{
+    for(const o of list){
+      if(type===targetType && o.id===targetId) continue;
+      const links = extractLinks(entityText(type,o));
+      if(links.includes(targetName)) groups[type].push({type, id:o.id, title:entityTitle(type,o)});
+    }
+  };
+  scan("event", db.events); scan("table", db.tables);
+  scan("session", db.sessions); scan("creature", db.creatures); scan("npc", db.npcs); scan("pointcrawl", db.pointcrawls); scan("pc", db.pcs); scan("treasure", db.treasures);
+  return groups;
+}
+
+/* ------------------------------- CRUD ------------------------------------ */
+function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures }[type]; }
+function getEntity(type,id){ return collectionOf(type).find(o=>o.id===id); }
+function deleteEntity(type,id){
+  const c = collectionOf(type); const i = c.findIndex(o=>o.id===id);
+  if(i>=0){ c.splice(i,1); saveDB(); }
+}
+
+/* Renommage : met à jour tous les liens [[Ancien nom]] → [[Nouveau nom]] dans toute la base */
+function replaceLinksEverywhere(oldName, newName){
+  const from = String(oldName||"").trim().toLowerCase();
+  if(!from) return 0;
+  let count = 0;
+  const fix = s => s.replace(/\[\[([^\]]+)\]\]/g, (m, nm)=> nm.trim().toLowerCase()===from ? `[[${newName}]]` : m);
+  const walk = obj => {
+    if(Array.isArray(obj)){ obj.forEach(walk); return; }
+    if(obj && typeof obj==="object"){
+      for(const k in obj){
+        if(k==="images") continue;                 // on saute les données d'images (base64)
+        const v = obj[k];
+        if(typeof v==="string"){ if(v.indexOf("[[")>=0){ const nv=fix(v); if(nv!==v){ obj[k]=nv; count++; } } }
+        else if(v && typeof v==="object") walk(v);
+      }
+    }
+  };
+  walk(db);
+  return count;
+}
+function maybePropagate(oldName, newName){
+  if(!oldName || !newName || oldName===newName) return 0;
+  return replaceLinksEverywhere(oldName, newName);
+}
+
+/* =========================================================================
+   RENDU PRINCIPAL
+   ========================================================================= */
+function render(){
+  // onglets actifs
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active", b.dataset.tab===view.tab));
+  window.scrollTo({top:0});
+
+  if(view.mode==="detail") return renderDetail();
+  if(view.mode==="edit" || view.mode==="new") return renderForm();
+  return renderList();
+}
+
+/* ------------------------------- LISTES ---------------------------------- */
+function renderList(){
+  if(view.tab==="events")    return listEvents();
+  if(view.tab==="tables")    return listTables();
+  if(view.tab==="creatures") return listCreatures();
+  if(view.tab==="sessions")  return listSessions();
+  if(view.tab==="npcs")      return listNPCs();
+  if(view.tab==="pointcrawls") return listCrawls();
+  if(view.tab==="pcs")       return listPCs();
+  if(view.tab==="treasures") return listTreasures();
+}
+
+function pageHead(title, sub, newLabel){
+  return `<div class="page-head">
+    <div><h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div>
+    <button class="btn" data-new="1">✦ ${esc(newLabel)}</button>
+  </div>`;
+}
+function emptyState(icon, msg){ return `<div class="empty"><span class="big">${icon}</span>${esc(msg)}</div>`; }
+
+function eventThemes(){
+  const set = new Set();
+  db.events.forEach(e=>{ if(e.theme && e.theme.trim()) set.add(e.theme.trim()); });
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+// Suggestions de thèmes = thèmes existants + titres des point crawls (chaque plan est une catégorie)
+function themeSuggestions(){
+  const set = new Set(eventThemes());
+  db.pointcrawls.forEach(c=>{ if(c.title && c.title.trim()) set.add(c.title.trim()); });
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+function eventCard(e){
+  return `<div class="card" data-open="event:${e.id}">
+    <div class="meta"><span class="tag event">Événement</span>${e.theme?`<span class="tag gold">${esc(e.theme)}</span>`:""}</div>
+    <h3 style="margin-top:.5rem">${esc(e.title||"Sans titre")}</h3>
+    <p>${esc(firstLine(e.description)||"Pas de description")}</p>
+  </div>`;
+}
+function eventGrid(list){
+  return `<div class="grid" style="margin-bottom:1.4rem">${list.map(eventCard).join("")}</div>`;
+}
+function listEvents(){
+  const items = db.events;
+  const themes = eventThemes();
+  const head = pageHead("Événements", `${items.length} module(s) d'événement`, "Nouvel événement");
+
+  if(!items.length){ app.innerHTML = head + emptyState("📖","Aucun événement. Créez votre premier module."); return; }
+
+  // Filtre par thème (visible seulement dès qu'au moins un thème existe)
+  const filter = themes.length ? `<div style="margin-bottom:1.1rem">
+      <label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.5rem">Thème :</label>
+      <select data-event-filter style="width:auto;display:inline-block;min-width:160px">
+        <option value="">Tous (regroupés)</option>
+        ${themes.map(t=>`<option value="${esc(t)}" ${eventThemeFilter===t?"selected":""}>${esc(t)}</option>`).join("")}
+        <option value="__none__" ${eventThemeFilter==="__none__"?"selected":""}>(Sans thème)</option>
+      </select></div>` : "";
+
+  let body;
+  if(!themes.length){
+    body = eventGrid(items); // aucun thème encore : liste simple
+  } else if(eventThemeFilter){
+    const filtered = eventThemeFilter==="__none__"
+      ? items.filter(e=>!e.theme || !e.theme.trim())
+      : items.filter(e=>(e.theme||"").trim()===eventThemeFilter);
+    body = filtered.length ? eventGrid(filtered) : `<p class="faint" style="font-family:var(--ui)">Aucun événement pour ce thème.</p>`;
+  } else {
+    // Vue regroupée : une section par thème, puis « Sans thème »
+    const sections = [];
+    themes.forEach(t=>{
+      const list = items.filter(e=>(e.theme||"").trim()===t);
+      sections.push(`<h2 class="group-head">${esc(t)} <span class="faint">(${list.length})</span></h2>${eventGrid(list)}`);
+    });
+    const noTheme = items.filter(e=>!e.theme || !e.theme.trim());
+    if(noTheme.length) sections.push(`<h2 class="group-head">Sans thème <span class="faint">(${noTheme.length})</span></h2>${eventGrid(noTheme)}`);
+    body = sections.join("");
+  }
+  app.innerHTML = head + filter + body;
+}
+
+function listTables(){
+  const items = db.tables;
+  app.innerHTML = pageHead("Tables aléatoires", `${items.length} table(s)`, "Nouvelle table") +
+    (items.length ? `<div class="grid">${items.map(t=>`
+      <div class="card" data-open="table:${t.id}">
+        <span class="tag table">Table · d${(t.rows||[]).length||0}</span>
+        <h3>${esc(t.title||"Sans titre")}</h3>
+        <p>${esc(t.context||"Pas de contexte")}</p>
+      </div>`).join("")}</div>`
+    : emptyState("🎲","Aucune table. Créez une table aléatoire."));
+}
+
+function levelNum(l){
+  l = String(l||"").trim();
+  let m;
+  if((m = l.match(/^(\d+)\s*\/\s*(\d+)/))) return (+m[1])/(+m[2]);   // niveaux fractionnaires (1/2, 1/4…)
+  if((m = l.match(/-?\d+(\.\d+)?/))) return parseFloat(m[0]);
+  return -1;
+}
+function creatureCategories(){
+  const set = new Set();
+  db.creatures.forEach(c=>{ if(c.category && c.category.trim()) set.add(c.category.trim()); });
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+function sortCreatures(list){
+  const s = creatureSort;
+  const a = [...list];
+  if(s==="lvlAsc")  a.sort((x,y)=>levelNum(x.level)-levelNum(y.level) || (x.name||"").localeCompare(y.name||""));
+  else if(s==="lvlDesc") a.sort((x,y)=>levelNum(y.level)-levelNum(x.level) || (x.name||"").localeCompare(y.name||""));
+  else a.sort((x,y)=>(x.name||"").localeCompare(y.name||""));
+  return a;
+}
+function creatureCard(c){
+  return `<div class="card" data-open="creature:${c.id}">
+    ${(c.images&&c.images.length)?`<img class="thumb" src="${c.images[0].data}" alt="">`:""}
+    <div class="meta"><span class="tag creature">Créature</span>
+      <span class="tag ${c.alignment||'neutre'}">${esc(cap(c.alignment)||'—')}</span>
+      <span class="tag gold">Niv. ${esc(c.level||'?')}</span>
+      ${c.category?`<span class="tag">${esc(c.category)}</span>`:""}</div>
+    <h3 style="margin-top:.6rem">${esc(c.name||"Sans nom")}</h3>
+    ${c.desc?`<p>${esc(c.desc)}</p>`:""}
+    <div class="meta"><span class="tag">CA ${esc(c.ac||'?')}</span><span class="tag">PV ${esc(c.hp||'?')}</span></div>
+  </div>`;
+}
+function creatureGrid(list){ return `<div class="grid" style="margin-bottom:1.4rem">${sortCreatures(list).map(creatureCard).join("")}</div>`; }
+function listCreatures(){
+  const items = db.creatures;
+  const cats = creatureCategories();
+  const bar = `<div class="page-head">
+      <div><h1>Créatures</h1><div class="sub">${items.length} créature(s)</div></div>
+      <div class="hbtns">
+        <button class="btn ghost" data-import-xml="1">⭱ Import XML</button>
+        <button class="btn ghost" data-xml-sample="1">⭳ Modèle XML</button>
+        <button class="btn danger" data-purge="1">🗑 Vider</button>
+        <button class="btn" data-new="1">✦ Nouvelle créature</button>
+      </div>
+    </div>`;
+  if(!items.length){ app.innerHTML = bar + emptyState("🐲","Aucune créature. Créez-en une ou importez un fichier XML."); return; }
+
+  const sortSel = `<label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.4rem">Trier :</label>
+    <select data-crea-sort style="width:auto;display:inline-block;min-width:130px;margin-right:1rem">
+      <option value="name" ${creatureSort==="name"?"selected":""}>Nom (A→Z)</option>
+      <option value="lvlAsc" ${creatureSort==="lvlAsc"?"selected":""}>Niveau ↑</option>
+      <option value="lvlDesc" ${creatureSort==="lvlDesc"?"selected":""}>Niveau ↓</option>
+    </select>`;
+  const catSel = cats.length ? `<label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.4rem">Catégorie :</label>
+    <select data-crea-filter style="width:auto;display:inline-block;min-width:150px">
+      <option value="">Toutes (regroupées)</option>
+      ${cats.map(t=>`<option value="${esc(t)}" ${creatureCatFilter===t?"selected":""}>${esc(t)}</option>`).join("")}
+      <option value="__none__" ${creatureCatFilter==="__none__"?"selected":""}>(Sans catégorie)</option>
+    </select>` : "";
+  const toolbar = `<div style="margin-bottom:1.1rem;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${sortSel}${catSel}</div>`;
+
+  let body;
+  if(!cats.length){
+    body = creatureGrid(items);
+  } else if(creatureCatFilter){
+    const list = creatureCatFilter==="__none__" ? items.filter(c=>!c.category||!c.category.trim()) : items.filter(c=>(c.category||"").trim()===creatureCatFilter);
+    body = list.length ? creatureGrid(list) : `<p class="faint" style="font-family:var(--ui)">Aucune créature dans cette catégorie.</p>`;
+  } else {
+    const sections = [];
+    cats.forEach(t=>{
+      const list = items.filter(c=>(c.category||"").trim()===t);
+      sections.push(`<h2 class="group-head">${esc(t)} <span class="faint">(${list.length})</span></h2>${creatureGrid(list)}`);
+    });
+    const none = items.filter(c=>!c.category||!c.category.trim());
+    if(none.length) sections.push(`<h2 class="group-head">Sans catégorie <span class="faint">(${none.length})</span></h2>${creatureGrid(none)}`);
+    body = sections.join("");
+  }
+  app.innerHTML = bar + toolbar + body;
+}
+
+function listSessions(){
+  const items = [...db.sessions].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  app.innerHTML = pageHead("Historique des sessions", `${items.length} session(s) de jeu`, "Nouvelle session") +
+    (items.length ? `<div class="grid">${items.map(s=>`
+      <div class="card" data-open="session:${s.id}">
+        <div class="meta"><span class="tag session">Session</span>
+          ${s.date?`<span class="tag">${esc(s.date)}</span>`:""}
+          <span class="tag">${(s.entries||[]).length} entrée(s)</span></div>
+        <h3 style="margin-top:.6rem">${esc(s.title||"Session sans titre")}</h3>
+        <p>${esc(firstLine((s.entries||[])[0]?.notes)||"Pas encore de notes")}</p>
+      </div>`).join("")}</div>`
+    : emptyState("📜","Aucune session. Commencez votre journal de campagne."));
+}
+
+function listNPCs(){
+  const items = db.npcs;
+  app.innerHTML = pageHead("PNJ", `${items.length} personnage(s) non-joueur(s)`, "Nouveau PNJ") +
+    (items.length ? `<div class="grid">${items.map(n=>`
+      <div class="card" data-open="npc:${n.id}">
+        ${(n.images&&n.images.length)?`<img class="thumb" src="${n.images[0].data}" alt="">`:""}
+        <span class="tag npc">PNJ</span>
+        <h3>${esc(n.name||"Sans nom")}</h3>
+        <p>${esc(n.description||firstLine(n.objectif)||"Pas de description")}</p>
+        ${n.objectif?`<div class="meta"><span class="tag gold">🎯 ${esc(truncate(n.objectif,42))}</span></div>`:""}
+      </div>`).join("")}</div>`
+    : emptyState("👤","Aucun PNJ. Créez vos personnages à la volée."));
+}
+
+const firstLine = t => String(t||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean)[0] || "";
+const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
+const truncate = (s,n)=>{ s=String(s||"").replace(/\s+/g," ").trim(); return s.length>n?s.slice(0,n)+"…":s; };
+
+/* ------------------------------- DÉTAILS --------------------------------- */
+function renderDetail(){
+  const type = TYPE_OF_TAB[view.tab];
+  const o = getEntity(type, view.id);
+  if(!o){ view.mode="list"; return render(); }
+  if(type==="event")    return detailEvent(o);
+  if(type==="table")    return detailTable(o);
+  if(type==="creature") return detailCreature(o);
+  if(type==="session")  return detailSession(o);
+  if(type==="npc")      return detailNPC(o);
+  if(type==="pointcrawl") return detailCrawl(o);
+  if(type==="pc")       return detailPC(o);
+  if(type==="treasure") return detailTreasure(o);
+}
+
+function detailActions(type,id){
+  return `<div class="actions">
+    <button class="btn ghost sm" data-edit="${type}:${id}">✎ Modifier</button>
+    <button class="btn ghost sm" data-dup="${type}:${id}">⧉ Dupliquer</button>
+    <button class="btn danger sm" data-del="${type}:${id}">🗑 Supprimer</button>
+  </div>`;
+}
+function duplicateEntity(type,id){
+  const src = getEntity(type,id); if(!src) return;
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = uid();
+  // régénère les identifiants des sous-éléments pour éviter les collisions
+  (copy.entries||[]).forEach(x=>x.id=uid());
+  (copy.nodes||[]).forEach(x=>x.id=uid());
+  (copy.edges||[]).forEach(x=>x.id=uid());
+  (copy.images||[]).forEach(x=>x.id=uid());
+  if(type==="creature"||type==="npc"||type==="pc"||type==="treasure") copy.name = (copy.name||"Sans nom")+" (copie)";
+  if(type==="creature"){ copy.manual = true; delete copy.imported; }   // un doublon créé à la main est protégé du vidage
+  else copy.title = (copy.title||"Sans titre")+" (copie)";
+  collectionOf(type).push(copy);
+  saveDB(); view={tab:TAB_OF[type],mode:"detail",id:copy.id}; render(); toast("Dupliqué.");
+}
+
+function backlinksBlock(type,id){
+  const g = backlinksTo(type,id);
+  const order = [["event","Événements"],["session","Sessions"],["table","Tables"],["creature","Créatures"],["pc","PJ"],["npc","PNJ"],["pointcrawl","Point Crawl"],["treasure","Trésor"]];
+  const parts = order.filter(([k])=>g[k]&&g[k].length).map(([k,lbl])=>`
+    <div class="bl-group"><div class="lbl">${lbl}</div>
+      ${g[k].map(x=>`<span class="bl-chip" data-goto="${x.type}:${x.id}">${esc(x.title||"—")}</span>`).join("")}
+    </div>`).join("");
+  return `<div class="backlinks"><h2>⇠ Mentionné dans</h2>${parts || `<p class="faint">Aucune autre entité ne mentionne cet élément. Utilisez <code>[[${esc(entityTitle(type,getEntity(type,id)))}]]</code> ailleurs pour créer un lien.</p>`}</div>`;
+}
+
+function detailEvent(e){
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Événements</button>
+    <div class="meta"><span class="tag event">Événement</span>${e.theme?`<span class="tag gold">${esc(e.theme)}</span>`:""}</div>
+    <h1>${esc(e.title||"Sans titre")}</h1>
+    ${detailActions("event",e.id)}
+    ${eventSectionsHTML(e)}
+    ${crawlBacklinkBlock(e.id)}
+    ${backlinksBlock("event",e.id)}
+  </div>`;
+}
+function crawlBacklinkBlock(eventId){
+  const list = db.pointcrawls.filter(c=>(c.nodes||[]).some(n=>n.eventId===eventId));
+  if(!list.length) return "";
+  return `<div class="backlinks"><h2>🗺 Apparaît dans les plans (Point Crawl)</h2>
+    ${list.map(c=>`<span class="bl-chip" data-goto="pointcrawl:${c.id}">${esc(c.title||"—")}</span>`).join("")}</div>`;
+}
+
+function detailTable(t){
+  const rows = t.rows||[];
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Tables aléatoires</button>
+    <span class="tag table">Table · d${rows.length||0}</span>
+    <h1>${esc(t.title||"Sans titre")}</h1>
+    ${detailActions("table",t.id)}
+    ${t.context?`<div class="section"><h2>Contexte</h2><div class="prose">${renderText(t.context)}</div></div>`:""}
+    <div class="section">
+      <h2>Résultats (${rows.length})</h2>
+      <div style="margin:.3rem 0 .8rem"><button class="btn sm" data-roll="${t.id}">🎲 Lancer 1d${rows.length||0}</button>
+        <span id="roll-out" class="roll-result"></span></div>
+      <table class="tbl"><thead><tr><th style="width:2.5rem">#</th><th>Résultat</th></tr></thead>
+        <tbody id="table-body">
+        ${rows.map((r,i)=>`<tr data-rowidx="${i}"><td class="idx">${i+1}</td><td>${renderText(r)||'<span class="faint">—</span>'}</td></tr>`).join("")}
+        </tbody></table>
+    </div>
+    ${backlinksBlock("table",t.id)}
+  </div>`;
+}
+
+function detailCreature(c){
+  const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Créatures</button>
+    <div class="meta"><span class="tag creature">Créature</span>${c.category?`<span class="tag">${esc(c.category)}</span>`:""}</div>
+    <h1>${esc(c.name||"Sans nom")}</h1>
+    ${c.desc?`<p class="muted" style="font-family:var(--ui)">${renderText(c.desc)}</p>`:""}
+    ${detailActions("creature",c.id)}
+    <div class="statblock">
+      <div class="sb-line">
+        <span><b>CA</b> ${esc(c.ac||"—")}</span>
+        <span><b>PV</b> ${esc(c.hp||"—")}</span>
+        <span><b>Niveau</b> ${esc(c.level||"—")}</span>
+        <span><b>Alignement</b> ${esc(cap(c.alignment)||"—")}</span>
+      </div>
+      <div class="abilities-grid">
+        ${ab.map(([lbl,k])=>`<div class="ab"><div class="n">${lbl}</div><div class="v">${esc(fmtMod(c[k]))}</div></div>`).join("")}
+      </div>
+      <hr class="rule">
+      <h2 style="font-size:.75rem;letter-spacing:1.5px;color:var(--gold);font-family:var(--ui);text-transform:uppercase;margin:.2rem 0 .4rem">Attaques</h2>
+      ${(c.attacks&&c.attacks.length)?c.attacks.map(a=>`
+        <div class="attack-row"><b style="color:var(--gold2)">${esc(a.name||"Attaque")}</b>
+        ${a.bonus?` · toucher ${esc(a.bonus)}`:""}${a.damage?` · <b>${esc(a.damage)}</b> dégâts`:""}
+        ${a.range?` · <span class="faint">${esc(rangeLabel(a.range))}</span>`:""}</div>`).join("")
+        : `<p class="faint">Aucune attaque définie.</p>`}
+      ${c.abilities?`<hr class="rule"><h2 style="font-size:.75rem;letter-spacing:1.5px;color:var(--gold);font-family:var(--ui);text-transform:uppercase;margin:.2rem 0 .4rem">Capacités spéciales & immunités</h2><div class="prose" style="font-family:var(--ui);font-size:.9rem">${renderText(c.abilities)}</div>`:""}
+    </div>
+    ${(c.images&&c.images.length)?`<div class="section"><h2>Illustrations</h2>
+      <div class="gallery">${c.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
+    ${backlinksBlock("creature",c.id)}
+  </div>`;
+}
+
+function detailNPC(n){
+  const sec = (icon,label,val)=> (val&&val.trim())
+    ? `<div class="section"><h2>${icon} ${label}</h2><div class="prose" style="font-family:var(--ui);font-size:.92rem">${renderText(val)}</div></div>` : "";
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← PNJ</button>
+    <span class="tag npc">PNJ</span>
+    <h1>${esc(n.name||"Sans nom")}</h1>
+    ${n.description?`<p class="muted" style="font-family:var(--ui)">${renderText(n.description)}</p>`:""}
+    ${detailActions("npc",n.id)}
+    ${n.age?`<div class="faint" style="font-family:var(--ui);font-size:.88rem"><b style="color:var(--gold2)">Âge :</b> ${esc(n.age)}</div>`:""}
+    ${sec("👁","Apparence physique",n.physique)}
+    ${sec("🎒","Ce qu'il / elle a sur soi",n.possessions)}
+    ${sec("🎯","Objectif — ce qu'il / elle veut",n.objectif)}
+    ${sec("⚔","Moyens — prêt(e) à…",n.moyens)}
+    ${sec("🎭","Comportement / attitude",n.comportement)}
+    ${(n.images&&n.images.length)?`<div class="section"><h2>Portraits</h2>
+      <div class="gallery">${n.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
+    ${backlinksBlock("npc",n.id)}
+  </div>`;
+}
+
+function detailSession(s){
+  const entries = s.entries||[];
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Sessions</button>
+    <span class="tag session">Session</span>
+    <h1>${esc(s.title||"Session sans titre")}</h1>
+    ${s.date?`<div class="faint" style="font-family:var(--ui);font-size:.85rem">${esc(s.date)}</div>`:""}
+    ${detailActions("session",s.id)}
+    ${entries.length?entries.map(en=>`
+      <div class="session-entry">
+        <div class="etitle">${esc(en.label||"Moment")}</div>
+        <div class="prose" style="font-family:var(--ui);font-size:.92rem">${renderText(en.notes)||'<span class="faint">— (pas de notes)</span>'}</div>
+      </div>`).join("")
+      : `<p class="faint">Aucune entrée dans cette session.</p>`}
+    ${backlinksBlock("session",s.id)}
+  </div>`;
+}
+
+function fmtMod(v){
+  if(v===undefined||v===null||v==="") return "—";
+  const s = String(v).trim();
+  if(/^[+-]/.test(s)) return s;
+  const n = Number(s);
+  if(!isNaN(n)) return (n>=0?"+":"")+n;
+  return s;
+}
+const rangeLabel = r => ({close:"portée courte", near:"portée intermédiaire", far:"portée longue"}[r]||r);
+
+/* =========================================================================
+   FORMULAIRES (création / édition)
+   ========================================================================= */
+function renderForm(){
+  if(view.tab==="events")    return formEvent();
+  if(view.tab==="tables")    return formTable();
+  if(view.tab==="creatures") return formCreature();
+  if(view.tab==="sessions")  return formSession();
+  if(view.tab==="npcs")      return formNPC();
+  if(view.tab==="pointcrawls") return formCrawl();
+  if(view.tab==="pcs")       return formPC();
+  if(view.tab==="treasures") return formTreasure();
+}
+
+const LINK_HELP = `<div class="link-help">💡 Astuce liens : tapez <code>[[</code> pour ouvrir l'autocomplétion (ex : <code>[[gob</code> → Gobelin), ou <code>Ctrl+Espace</code> sur un mot pour le transformer en lien. ↑↓ pour choisir, ⏎ pour insérer. Le lien pointe vers n'importe quelle entité (créature, événement, table, session, PJ, PNJ, plan).</div>`;
+
+function formEvent(){
+  const e = view.mode==="edit" ? getEntity("event",view.id) : {title:"",description:"",traps:"",secrets:"",info:""};
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier":"Nouvel"} événement</h1>
+    <div class="field"><label>Titre</label><input type="text" id="f-title" value="${esc(e.title)}" placeholder="Le sanctuaire effondré"></div>
+    <div class="field"><label>Thème / groupe <span class="hint">(facultatif — pour regrouper, ex : « Catacombes », « Intrigue de cour »)</span></label>
+      <input type="text" id="f-theme" list="event-themes" value="${esc(e.theme||"")}" placeholder="Catacombes de Vol">
+      <datalist id="event-themes">${themeSuggestions().map(t=>`<option value="${esc(t)}"></option>`).join("")}</datalist></div>
+    <div class="field"><label>① Description & ambiance <span class="hint">(une ligne = un point)</span></label><textarea id="f-desc" placeholder="Odeur d'encens froid...&#10;Vitraux brisés au sol...">${esc(e.description)}</textarea></div>
+    <div class="field"><label>② Pièges — conditions & conséquences</label><textarea id="f-traps" placeholder="Dalle piégée (DEX DD 12) → fléchettes 1d4...">${esc(e.traps)}</textarea></div>
+    <div class="field"><label>③ Secrets à découvrir</label><textarea id="f-secrets" placeholder="Passage dissimulé derrière l'autel...">${esc(e.secrets)}</textarea></div>
+    <div class="field"><label>④ Informations accessibles</label><textarea id="f-info" placeholder="Le culte a fui vers [[Les Marais Noirs]]...">${esc(e.info)}</textarea></div>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="event">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+}
+
+function saveEvent(){
+  const o = view.mode==="edit" ? getEntity("event",view.id) : {id:uid()};
+  const _old = view.mode==="edit" ? o.title : null;
+  o.title = $("#f-title").value.trim();
+  o.theme = $("#f-theme").value.trim();
+  o.description = $("#f-desc").value;
+  o.traps = $("#f-traps").value;
+  o.secrets = $("#f-secrets").value;
+  o.info = $("#f-info").value;
+  if(!o.title){ toast("Le titre est requis."); return; }
+  if(view.mode==="new") db.events.push(o);
+  const _n = maybePropagate(_old, o.title);
+  saveDB(); toast("Événement enregistré."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"events",mode:"detail",id:o.id}; render();
+}
+
+function formTable(){
+  const t = view.mode==="edit" ? getEntity("table",view.id) : {title:"",context:"",rows:["",""]};
+  const rows = t.rows && t.rows.length ? t.rows : ["",""];
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier":"Nouvelle"} table aléatoire</h1>
+    <div class="field"><label>Titre</label><input type="text" id="f-title" value="${esc(t.title)}" placeholder="Rencontres dans la forêt"></div>
+    <div class="field"><label>Contexte / description</label><textarea id="f-context" placeholder="À lancer chaque nuit de voyage...">${esc(t.context)}</textarea></div>
+    <div class="field">
+      <label>Rangées <span class="hint">(nombre configurable — texte libre + liens [[…]])</span></label>
+      <div class="row" style="margin-bottom:.6rem; align-items:flex-end">
+        <div class="field" style="flex:0 0 140px"><label>Nombre</label><input type="number" id="row-count" min="1" max="100" value="${rows.length}"></div>
+        <button class="btn ghost sm" data-apply-count="1">Appliquer</button>
+        <button class="btn ghost sm" data-add-row="1">+ Ajouter une rangée</button>
+      </div>
+      <div id="rows-wrap">${rows.map((r,i)=>rowInput(r,i)).join("")}</div>
+    </div>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="table">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+}
+function rowInput(val,i){
+  return `<div class="repeat-item" data-rowitem>
+    <div class="rrow">
+      <div class="field" style="flex:0 0 2.5rem"><label>#${i+1}</label></div>
+      <div class="field" style="flex:1 1 200px"><input type="text" class="row-input" value="${esc(val)}" placeholder="Résultat…"></div>
+      <button class="btn danger sm" data-remove-row>✕</button>
+    </div></div>`;
+}
+function reindexRows(){
+  document.querySelectorAll("#rows-wrap .repeat-item").forEach((el,i)=>{ el.querySelector("label").textContent = "#"+(i+1); });
+  const cnt = document.querySelectorAll("#rows-wrap .repeat-item").length;
+  const rc = $("#row-count"); if(rc) rc.value = cnt;
+}
+function saveTable(){
+  const o = view.mode==="edit" ? getEntity("table",view.id) : {id:uid()};
+  const _old = view.mode==="edit" ? o.title : null;
+  o.title = $("#f-title").value.trim();
+  o.context = $("#f-context").value;
+  o.rows = [...document.querySelectorAll(".row-input")].map(i=>i.value);
+  if(!o.title){ toast("Le titre est requis."); return; }
+  if(view.mode==="new") db.tables.push(o);
+  const _n = maybePropagate(_old, o.title);
+  saveDB(); toast("Table enregistrée."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"tables",mode:"detail",id:o.id}; render();
+}
+
+function formCreature(){
+  const c = view.mode==="edit" ? getEntity("creature",view.id)
+    : {name:"",desc:"",ac:"",hp:"",level:"",alignment:"chaos",str:"",dex:"",con:"",int:"",wis:"",cha:"",abilities:"",attacks:[{name:"",bonus:"",damage:"",range:"close"}]};
+  const attacks = c.attacks && c.attacks.length ? c.attacks : [{name:"",bonus:"",damage:"",range:"close"}];
+  formImages = (c.images||[]).slice();
+  const alignOpt = a => ["loyal","neutre","chaos"].map(v=>`<option value="${v}" ${c.alignment===v?"selected":""}>${cap(v)}</option>`).join("");
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier":"Nouvelle"} créature</h1>
+    <div class="row">
+      <div class="field" style="flex:2 1 220px"><label>Nom</label><input type="text" id="f-name" value="${esc(c.name)}" placeholder="Gobelin des cavernes"></div>
+      <div class="field" style="flex:1 1 180px"><label>Catégorie <span class="hint">(libre : Animal, Mort-vivant…)</span></label>
+        <input type="text" id="f-category" list="crea-cats" value="${esc(c.category||"")}" placeholder="Humanoïde">
+        <datalist id="crea-cats">${creatureCategories().map(t=>`<option value="${esc(t)}"></option>`).join("")}</datalist></div>
+    </div>
+    <div class="field"><label>Description courte</label><textarea id="f-desc" style="min-height:60px" placeholder="Petit humanoïde fourbe...">${esc(c.desc)}</textarea></div>
+    <div class="row">
+      <div class="field"><label>Classe d'armure</label><input type="text" id="f-ac" value="${esc(c.ac)}" placeholder="13"></div>
+      <div class="field"><label>Points de vie</label><input type="text" id="f-hp" value="${esc(c.hp)}" placeholder="5"></div>
+      <div class="field"><label>Niveau (1–20)</label><input type="number" id="f-level" min="1" max="20" value="${esc(c.level)}"></div>
+      <div class="field"><label>Alignement</label><select id="f-align">${alignOpt()}</select></div>
+    </div>
+    <div class="field"><label>Caractéristiques <span class="hint">(modificateurs, ex : +2, -1)</span></label>
+      <div class="subgrid">
+        ${[["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]].map(([lbl,k])=>
+          `<div class="field" style="margin:0"><label>${lbl}</label><input type="text" id="f-${k}" value="${esc(c[k])}" placeholder="+0"></div>`).join("")}
+      </div>
+    </div>
+    <div class="field"><label>Attaques</label>
+      <div id="attacks-wrap">${attacks.map(a=>attackInput(a)).join("")}</div>
+      <button class="btn ghost sm" data-add-attack="1">+ Ajouter une attaque</button>
+    </div>
+    <div class="field"><label>Capacités spéciales & immunités</label><textarea id="f-abilities" placeholder="Vision dans le noir 18m.&#10;Immunité au poison.">${esc(c.abilities)}</textarea></div>
+    <div class="field"><label>Illustrations <span class="hint">(PNG, JPEG… stockées dans le navigateur)</span></label>
+      <div id="images-wrap"></div>
+      <button class="btn ghost sm" data-add-img="1" style="margin-top:.5rem">🖼 Ajouter une image</button>
+    </div>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="creature">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+  renderImageThumbs();
+}
+function renderImageThumbs(){
+  const w = document.getElementById("images-wrap"); if(!w) return;
+  if(!formImages.length){ w.innerHTML = `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0">Aucune image pour l'instant.</p>`; return; }
+  w.innerHTML = formImages.map((img,i)=>`<div class="img-thumb"><img src="${img.data}" alt="${esc(img.name||'')}">
+    <button class="img-del" data-remove-img="${i}" title="Retirer">✕</button></div>`).join("");
+}
+function processImage(file, cb){
+  if(!file.type || !file.type.startsWith("image/")){ toast("Fichier ignoré (pas une image)."); return; }
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const src = reader.result;
+    const im = new Image();
+    im.onload = ()=>{
+      const max = 1000; let w = im.width, h = im.height;
+      if(Math.max(w,h) <= max){ cb({id:uid(),name:file.name,data:src}); return; }
+      const scale = max/Math.max(w,h); w = Math.round(w*scale); h = Math.round(h*scale);
+      const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(im,0,0,w,h);
+      const mime = file.type.includes("png") ? "image/png" : "image/jpeg";
+      cb({id:uid(),name:file.name,data:canvas.toDataURL(mime, 0.85)});
+    };
+    im.onerror = ()=>toast("Image illisible.");
+    im.src = src;
+  };
+  reader.readAsDataURL(file);
+}
+function attackInput(a){
+  a = a||{};
+  const ropt = r => ["close","near","far"].map(v=>`<option value="${v}" ${a.range===v?"selected":""}>${rangeLabel(v)}</option>`).join("");
+  return `<div class="repeat-item" data-attackitem>
+    <div class="rrow">
+      <div class="field" style="flex:2 1 140px"><label>Nom</label><input type="text" class="atk-name" value="${esc(a.name)}" placeholder="Dague"></div>
+      <div class="field" style="flex:1 1 70px"><label>Toucher</label><input type="text" class="atk-bonus" value="${esc(a.bonus)}" placeholder="+2"></div>
+      <div class="field" style="flex:1 1 80px"><label>Dégâts</label><input type="text" class="atk-damage" value="${esc(a.damage)}" placeholder="1d6"></div>
+      <div class="field" style="flex:1 1 130px"><label>Portée</label><select class="atk-range">${ropt()}</select></div>
+      <button class="btn danger sm" data-remove-attack>✕</button>
+    </div></div>`;
+}
+function saveCreature(){
+  const o = view.mode==="edit" ? getEntity("creature",view.id) : {id:uid(), manual:true};
+  const _old = view.mode==="edit" ? o.name : null;
+  o.name = $("#f-name").value.trim();
+  o.category = $("#f-category").value.trim();
+  o.desc = $("#f-desc").value;
+  o.ac = $("#f-ac").value.trim();
+  o.hp = $("#f-hp").value.trim();
+  o.level = $("#f-level").value.trim();
+  o.alignment = $("#f-align").value;
+  ["str","dex","con","int","wis","cha"].forEach(k=> o[k]=$("#f-"+k).value.trim());
+  o.abilities = $("#f-abilities").value;
+  o.attacks = [...document.querySelectorAll("#attacks-wrap [data-attackitem]")].map(el=>({
+    name: el.querySelector(".atk-name").value.trim(),
+    bonus: el.querySelector(".atk-bonus").value.trim(),
+    damage: el.querySelector(".atk-damage").value.trim(),
+    range: el.querySelector(".atk-range").value
+  })).filter(a=>a.name||a.damage);
+  o.images = formImages.slice();
+  if(!o.name){ toast("Le nom est requis."); return; }
+  if(view.mode==="new") db.creatures.push(o);
+  const _n = maybePropagate(_old, o.name);
+  saveDB(); toast("Créature enregistrée."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"creatures",mode:"detail",id:o.id}; render();
+}
+
+function formSession(){
+  const s = view.mode==="edit" ? getEntity("session",view.id)
+    : {title:"",date:new Date().toISOString().slice(0,10),entries:[{id:uid(),label:"Jour 1",notes:""}]};
+  const entries = s.entries && s.entries.length ? s.entries : [{id:uid(),label:"Jour 1",notes:""}];
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier":"Nouvelle"} session</h1>
+    <div class="row">
+      <div class="field" style="flex:2 1 200px"><label>Titre de la session</label><input type="text" id="f-title" value="${esc(s.title)}" placeholder="Session 3 — La descente"></div>
+      <div class="field" style="flex:1 1 140px"><label>Date</label><input type="date" id="f-date" value="${esc(s.date)}"></div>
+    </div>
+    <div class="field"><label>Entrées <span class="hint">(un jour / point temporel par entrée)</span></label>
+      <div id="entries-wrap">${entries.map(e=>entryInput(e)).join("")}</div>
+      <button class="btn ghost sm" data-add-entry="1">+ Ajouter un jour / moment</button>
+    </div>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="session">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+}
+function entryInput(e){
+  e = e||{};
+  return `<div class="repeat-item" data-entryitem>
+    <div class="field" style="margin-bottom:.5rem"><label>Jour / moment</label>
+      <div class="rrow"><input type="text" class="entry-label" style="flex:1 1 auto" value="${esc(e.label)}" placeholder="Jour 1 — matin">
+      <button class="btn danger sm" data-remove-entry>✕</button></div></div>
+    <div class="field" style="margin:0"><label>Notes libres</label><textarea class="entry-notes" placeholder="Les héros rencontrent [[Le Marchand Borgne]]...">${esc(e.notes)}</textarea></div>
+  </div>`;
+}
+function saveSession(){
+  const o = view.mode==="edit" ? getEntity("session",view.id) : {id:uid()};
+  const _old = view.mode==="edit" ? o.title : null;
+  o.title = $("#f-title").value.trim();
+  o.date = $("#f-date").value;
+  o.entries = [...document.querySelectorAll("#entries-wrap [data-entryitem]")].map(el=>({
+    id: uid(),
+    label: el.querySelector(".entry-label").value.trim(),
+    notes: el.querySelector(".entry-notes").value
+  }));
+  if(!o.title){ toast("Le titre est requis."); return; }
+  if(view.mode==="new") db.sessions.push(o);
+  const _n = maybePropagate(_old, o.title);
+  saveDB(); toast("Session enregistrée."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"sessions",mode:"detail",id:o.id}; render();
+}
+
+function formNPC(){
+  const n = view.mode==="edit" ? getEntity("npc",view.id)
+    : {name:"",description:"",physique:"",age:"",possessions:"",objectif:"",moyens:"",comportement:""};
+  formImages = (n.images||[]).slice();
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier le":"Nouveau"} PNJ</h1>
+    <div class="field"><label>Nom</label><input type="text" id="f-name" value="${esc(n.name)}" placeholder="Mélinda la Rusée"></div>
+    <div class="field"><label>Description générale</label><textarea id="f-description" style="min-height:60px" placeholder="Aubergiste au sourire trop large…">${esc(n.description)}</textarea></div>
+    <div class="row">
+      <div class="field" style="flex:2 1 220px"><label>Apparence physique</label><textarea id="f-physique" style="min-height:60px" placeholder="Grande, cheveux gris tressés, mains calleuses…">${esc(n.physique)}</textarea></div>
+      <div class="field" style="flex:0 1 170px"><label>Âge</label><input type="text" id="f-age" value="${esc(n.age)}" placeholder="Âgée, ~60 ans"></div>
+    </div>
+    <div class="field"><label>Ce qu'il / elle a sur soi <span class="hint">(objets, possessions)</span></label><textarea id="f-possessions" style="min-height:60px" placeholder="Un trousseau de clés, une dague dissimulée, 12 po…">${esc(n.possessions)}</textarea></div>
+    <div class="field"><label>🎯 Objectif — ce qu'il / elle veut</label><textarea id="f-objectif" style="min-height:60px" placeholder="De l'or, coûte que coûte.">${esc(n.objectif)}</textarea></div>
+    <div class="field"><label>⚔ Moyens — ce qu'il / elle est prêt(e) à faire pour y parvenir</label><textarea id="f-moyens" style="min-height:60px" placeholder="Tuer, voler, tricher, trahir ses alliés…">${esc(n.moyens)}</textarea></div>
+    <div class="field"><label>🎭 Comportement / attitude</label><textarea id="f-comportement" style="min-height:60px" placeholder="Lâche face au danger, cruel face au plus faible…">${esc(n.comportement)}</textarea></div>
+    <div class="field"><label>Portraits / images <span class="hint">(PNG, JPEG… plusieurs possibles)</span></label>
+      <div id="images-wrap"></div>
+      <button class="btn ghost sm" data-add-img="1" style="margin-top:.5rem">🖼 Ajouter une image</button>
+    </div>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="npc">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+  renderImageThumbs();
+}
+function saveNPC(){
+  const o = view.mode==="edit" ? getEntity("npc",view.id) : {id:uid()};
+  const _old = view.mode==="edit" ? o.name : null;
+  o.name = $("#f-name").value.trim();
+  ["description","physique","age","possessions","objectif","moyens","comportement"].forEach(k=> o[k]=$("#f-"+k).value);
+  o.images = formImages.slice();
+  if(!o.name){ toast("Le nom est requis."); return; }
+  if(view.mode==="new") db.npcs.push(o);
+  const _n = maybePropagate(_old, o.name);
+  saveDB(); toast("PNJ enregistré."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"npcs",mode:"detail",id:o.id}; render();
+}
+
+/* =========================================================================
+   POINT CRAWL — carte de points (= événements) reliés par des segments
+   ========================================================================= */
+function listCrawls(){
+  const items = db.pointcrawls;
+  app.innerHTML = pageHead("Point Crawl", `${items.length} plan(s) de points d'intérêt`, "Nouveau point crawl") +
+    (items.length ? `<div class="grid">${items.map(c=>`
+      <div class="card" data-open="pointcrawl:${c.id}">
+        <span class="tag pointcrawl">Point Crawl · ${(c.nodes||[]).length} pt(s)</span>
+        <h3>${esc(c.title||"Sans titre")}</h3>
+        <p>${esc(c.description||"Pas de description")}</p>
+      </div>`).join("")}</div>`
+    : emptyState("🗺","Aucun point crawl. Créez une carte de lieux/événements reliés (donjon, zone…)."));
+}
+
+function formCrawl(){
+  const c = view.mode==="edit" ? getEntity("pointcrawl",view.id) : {title:"",description:""};
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier le":"Nouveau"} point crawl</h1>
+    <div class="field"><label>Titre</label><input type="text" id="f-title" value="${esc(c.title)}" placeholder="Les Catacombes de Vol"></div>
+    <div class="field"><label>Description / contexte</label><textarea id="f-description" placeholder="Un réseau de galeries sous la cité…">${esc(c.description)}</textarea></div>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="pointcrawl">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+}
+function saveCrawl(){
+  const isEdit = view.mode==="edit";
+  const o = isEdit ? getEntity("pointcrawl",view.id) : {id:uid(),nodes:[],edges:[]};
+  const oldTitle = o.title || "";
+  const newTitle = $("#f-title").value.trim();
+  if(!newTitle){ toast("Le titre est requis."); return; }
+  // Si le plan est renommé, renommer la catégorie sur ses événements classés sous l'ancien titre
+  if(isEdit && oldTitle && oldTitle!==newTitle){
+    (o.nodes||[]).forEach(n=>{ const ev=getEntity("event",n.eventId); if(ev && (ev.theme||"")===oldTitle) ev.theme=newTitle; });
+  }
+  o.title = newTitle;
+  o.description = $("#f-description").value;
+  if(!isEdit) db.pointcrawls.push(o);
+  const _n = isEdit ? maybePropagate(oldTitle, newTitle) : 0;
+  saveDB(); toast("Point crawl enregistré."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"pointcrawls",mode:"detail",id:o.id}; render();
+}
+
+function detailCrawl(c){
+  crawlState = { id:c.id, linkMode:false, linkFrom:null };
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Point Crawl</button>
+    <span class="tag pointcrawl">Point Crawl</span>
+    <h1>${esc(c.title||"Sans titre")}</h1>
+    ${c.description?`<p class="muted" style="font-family:var(--ui)">${renderText(c.description)}</p>`:""}
+    ${detailActions("pointcrawl",c.id)}
+    <div class="crawl-toolbar">
+      <button class="btn ghost sm" data-crawl-add="1">➕ Point existant</button>
+      <button class="btn ghost sm" data-crawl-new="1">✨ Nouveau point</button>
+      <button class="btn ghost sm" id="link-toggle" data-crawl-link="1">🔗 Mode liaison</button>
+      <button class="btn ghost sm" data-crawl-print="1">🖨 Imprimer / PDF</button>
+    </div>
+    <div class="crawl-help" id="crawl-help"></div>
+    <div class="crawl-map-scroll"><div class="crawl-canvas" id="crawl-canvas"></div></div>
+    ${backlinksBlock("pointcrawl",c.id)}
+  </div>`;
+  setCrawlHelp();
+  drawCrawl(c);
+  const canvas = $("#crawl-canvas");
+  canvas.addEventListener("pointerdown", e=>{ const n=e.target.closest(".crawl-node"); if(n) startNodeInteraction(e, c, n.dataset.node); });
+  canvas.addEventListener("click", e=>{ const l=e.target.closest("line[data-edge]"); if(l) onEdgeClick(c, l.dataset.edge); });
+}
+
+function setCrawlHelp(){
+  const h = $("#crawl-help"); if(!h) return;
+  h.innerHTML = crawlState.linkMode
+    ? `<b style="color:var(--gold2)">Mode liaison actif :</b> cliquez un premier point puis un second pour les relier • cliquez un segment pour le supprimer • re-cliquez le bouton pour terminer.`
+    : `Glissez les points pour les déplacer • cliquez un point pour <b>consulter son événement</b> en pleine partie • activez le <b>Mode liaison</b> pour relier deux points par un segment.`;
+}
+
+function drawCrawl(c){
+  const canvas = document.getElementById("crawl-canvas"); if(!canvas) return;
+  const nodesHtml = (c.nodes||[]).map((n,i)=>{
+    const ev = getEntity("event", n.eventId);
+    const title = ev ? ev.title : "(événement supprimé)";
+    const cls = `crawl-node ${ev?"":"missing"} ${crawlState.linkMode?"linkmode":""} ${crawlState.linkFrom===n.id?"linkfrom":""}`;
+    return `<div class="${cls}" data-node="${n.id}" style="left:${n.x||0}px;top:${n.y||0}px"><span class="nt">${i+1}</span>${esc(truncate(title,40))}</div>`;
+  }).join("");
+  const edgesHtml = (c.edges||[]).map(e=>
+    `<line data-edge="${e.id}" x1="0" y1="0" x2="0" y2="0"></line>${e.label?`<text data-edgelabel="${e.id}">${esc(e.label)}</text>`:""}`
+  ).join("");
+  canvas.innerHTML = `<svg>${edgesHtml}</svg>${nodesHtml}`;
+  updateAllEdges(c);
+}
+
+function updateAllEdges(c){
+  const canvas = document.getElementById("crawl-canvas"); if(!canvas) return;
+  const center = id=>{ const el = canvas.querySelector(`.crawl-node[data-node="${id}"]`); return el ? {x:el.offsetLeft+el.offsetWidth/2, y:el.offsetTop+el.offsetHeight/2} : null; };
+  (c.edges||[]).forEach(e=>{
+    const a = center(e.from), b = center(e.to);
+    const line = canvas.querySelector(`line[data-edge="${e.id}"]`);
+    if(line && a && b){ line.setAttribute("x1",a.x); line.setAttribute("y1",a.y); line.setAttribute("x2",b.x); line.setAttribute("y2",b.y); }
+    const t = canvas.querySelector(`text[data-edgelabel="${e.id}"]`);
+    if(t && a && b){ t.setAttribute("x",(a.x+b.x)/2); t.setAttribute("y",(a.y+b.y)/2 - 6); t.setAttribute("text-anchor","middle"); }
+  });
+}
+
+function startNodeInteraction(e, c, nodeId){
+  e.preventDefault();
+  if(crawlState.linkMode){ handleLinkClick(c, nodeId); return; }
+  const node = (c.nodes||[]).find(n=>n.id===nodeId); if(!node) return;
+  const nodeEl = document.querySelector(`.crawl-node[data-node="${nodeId}"]`);
+  const startX = e.clientX, startY = e.clientY, ox = node.x||0, oy = node.y||0; let moved = false;
+  const move = ev=>{
+    const dx = ev.clientX-startX, dy = ev.clientY-startY;
+    if(Math.abs(dx)>3 || Math.abs(dy)>3) moved = true;
+    node.x = Math.max(0, ox+dx); node.y = Math.max(0, oy+dy);
+    if(nodeEl){ nodeEl.style.left = node.x+"px"; nodeEl.style.top = node.y+"px"; }
+    updateAllEdges(c);
+  };
+  const up = ()=>{
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    if(moved) saveDB(); else openNodeInfo(c, node);
+  };
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+}
+
+function handleLinkClick(c, nodeId){
+  if(!crawlState.linkFrom){ crawlState.linkFrom = nodeId; drawCrawl(c); return; }
+  if(crawlState.linkFrom === nodeId){ crawlState.linkFrom = null; drawCrawl(c); return; }
+  const exists = (c.edges||[]).some(e=>(e.from===crawlState.linkFrom&&e.to===nodeId)||(e.from===nodeId&&e.to===crawlState.linkFrom));
+  if(!exists){ (c.edges||(c.edges=[])).push({id:uid(), from:crawlState.linkFrom, to:nodeId, label:""}); saveDB(); }
+  crawlState.linkFrom = null; drawCrawl(c);
+}
+
+function onEdgeClick(c, edgeId){
+  const e = (c.edges||[]).find(x=>x.id===edgeId); if(!e) return;
+  if(crawlState.linkMode){
+    confirmModal("Supprimer ce segment ?", ()=>{ c.edges = c.edges.filter(x=>x.id!==edgeId); saveDB(); drawCrawl(c); });
+    return;
+  }
+  promptModal("Étiquette du segment (ex : « porte verrouillée », « escalier nord ») :", e.label||"", (label)=>{
+    e.label = (label||"").trim(); saveDB(); drawCrawl(c);
+  });
+}
+
+function toggleLinkMode(){
+  crawlState.linkMode = !crawlState.linkMode; crawlState.linkFrom = null;
+  const c = getEntity("pointcrawl", crawlState.id); if(!c) return;
+  const btn = $("#link-toggle");
+  if(btn){ btn.classList.toggle("active-mode", crawlState.linkMode); btn.textContent = crawlState.linkMode ? "✓ Liaison active" : "🔗 Mode liaison"; }
+  setCrawlHelp(); drawCrawl(c);
+}
+
+function openNodeInfo(c, node){
+  const ev = getEntity("event", node.eventId);
+  if(!ev){
+    confirmModal("Cet événement n'existe plus. Retirer ce point du plan ?", ()=>removeNode(c, node.id));
+    return;
+  }
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+      <h2 style="margin:0;color:var(--gold2)">${esc(ev.title)}</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    ${eventSectionsHTML(ev, {short:true})}
+    <div class="form-actions">
+      <button class="btn" data-goto-event="${ev.id}">📖 Ouvrir la fiche complète</button>
+      <button class="btn ghost" data-edit-event="${ev.id}">✎ Modifier</button>
+      <button class="btn danger" data-remove-node="${node.id}">Retirer du plan</button>
+      <button class="btn ghost" data-modal-close="1">Fermer</button>
+    </div>`);
+}
+
+function removeNode(c, nodeId){
+  c.nodes = (c.nodes||[]).filter(n=>n.id!==nodeId);
+  c.edges = (c.edges||[]).filter(e=>e.from!==nodeId && e.to!==nodeId);
+  saveDB(); drawCrawl(c);
+}
+
+function addNodeForEvent(c, eventId, silent){
+  const i = (c.nodes||[]).length;
+  const x = 40 + (i%5)*190, y = 40 + Math.floor(i/5)*140;
+  (c.nodes||(c.nodes=[])).push({id:uid(), eventId, x, y});
+  const ev = getEntity("event", eventId);          // classer automatiquement sous le thème du plan
+  if(ev && c.title) ev.theme = c.title;
+  saveDB(); drawCrawl(c);
+  if(!silent) toast(c.title ? `Point ajouté et classé sous « ${c.title} ».` : "Point ajouté au plan.");
+}
+
+function openPickEventModal(c){
+  const buildList = (filter="")=>{
+    const f = filter.toLowerCase();
+    const list = db.events.filter(ev=>(ev.title||"").toLowerCase().includes(f));
+    return list.length
+      ? list.map(ev=>`<div class="mli" data-pick-event="${ev.id}"><b>${esc(ev.title||"Sans titre")}</b><div class="faint" style="font-size:.78rem">${esc(truncate(firstLine(ev.description),70))||"—"}</div></div>`).join("")
+      : `<p class="faint" style="font-family:var(--ui)">Aucun événement trouvé. Utilisez « Nouveau point » pour en créer un.</p>`;
+  };
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 style="margin:0;color:var(--gold2)">Ajouter un point existant</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <input type="text" id="pick-search" placeholder="Rechercher un événement…" style="margin-top:.7rem" autocomplete="off">
+    <div class="modal-list" id="pick-list">${buildList()}</div>`);
+  const inp = $("#pick-search"), listEl = $("#pick-list");
+  inp.addEventListener("input", ()=>{ listEl.innerHTML = buildList(inp.value); });
+  inp.focus();
+}
+
+function openNewEventModal(){
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 style="margin:0;color:var(--gold2)">Créer un point (nouvel événement)</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <div class="field" style="margin-top:.6rem"><label>Titre</label><input type="text" id="m-title" placeholder="Salle du trône"></div>
+    <div class="field"><label>① Description & ambiance</label><textarea id="m-desc"></textarea></div>
+    <div class="field"><label>② Pièges</label><textarea id="m-traps"></textarea></div>
+    <div class="field"><label>③ Secrets</label><textarea id="m-secrets"></textarea></div>
+    <div class="field"><label>④ Informations accessibles</label><textarea id="m-info"></textarea></div>
+    <div class="form-actions"><button class="btn" data-create-event-save="1">✓ Créer & placer</button><button class="btn ghost" data-modal-close="1">Annuler</button></div>`);
+  $("#m-title").focus();
+}
+function createEventFromModal(c){
+  const title = $("#m-title").value.trim();
+  if(!title){ toast("Le titre est requis."); return; }
+  const ev = { id:uid(), title, theme:c.title||"", description:$("#m-desc").value, traps:$("#m-traps").value, secrets:$("#m-secrets").value, info:$("#m-info").value };
+  db.events.push(ev);
+  addNodeForEvent(c, ev.id, true);
+  closeModal(); toast(c.title ? `Événement créé et classé sous « ${c.title} ».` : "Événement créé et placé sur le plan.");
+}
+
+/* Fenêtres modales génériques */
+function openModal(html){ const m=$("#modal"); m.querySelector(".modal-box").innerHTML = html; m.classList.remove("hidden"); }
+function closeModal(){ _modalCb = null; $("#modal").classList.add("hidden"); $("#modal").querySelector(".modal-box").innerHTML=""; }
+
+/* Confirmation / saisie internes (remplacent confirm()/prompt(), bloqués dans le sandbox des artefacts) */
+let _modalCb = null;
+let _importData = null;
+function confirmModal(message, onYes){
+  _modalCb = onYes;
+  openModal(`<p style="font-family:var(--ui);font-size:.95rem;margin:.2rem 0 1.1rem;line-height:1.5">${esc(message)}</p>
+    <div class="form-actions" style="margin-top:0">
+      <button class="btn danger" data-modal-yes="1">Confirmer</button>
+      <button class="btn ghost" data-modal-close="1">Annuler</button>
+    </div>`);
+}
+function promptModal(message, defVal, onOk){
+  _modalCb = onOk;
+  openModal(`<p style="font-family:var(--ui);font-size:.95rem;margin:.2rem 0 .6rem;line-height:1.5">${esc(message)}</p>
+    <input type="text" id="modal-prompt-input" value="${esc(defVal||"")}" autocomplete="off">
+    <div class="form-actions">
+      <button class="btn" data-modal-ok="1">Valider</button>
+      <button class="btn ghost" data-modal-close="1">Annuler</button>
+    </div>`);
+  setTimeout(()=>{ const i=$("#modal-prompt-input"); if(i){ i.focus(); i.select();
+    i.addEventListener("keydown", ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); const cb=_modalCb; const v=i.value; closeModal(); if(cb) cb(v); } });
+  } }, 30);
+}
+
+/* ---- Export PDF d'un point crawl (schéma numéroté + événements numérotés) ---- */
+function stripLinks(text){ return String(text||"").replace(/\[\[([^\]]+)\]\]/g, "$1"); }
+/* Rendu texte pour le PDF : échappe le HTML puis met en valeur les renvois [[Nom]] (gras + souligné) */
+function renderTextPrint(text){
+  return esc(String(text||"")).replace(/\[\[([^\]]+)\]\]/g, (m, nm)=>`<span class="pp-link">${nm.trim()}</span>`);
+}
+function printSection(label, text){
+  const lines = String(text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return "";   // on masque les sections vides pour un rendu épuré
+  return `<div class="pp-sec"><h4>${label}</h4><ul>${lines.map(l=>`<li>${renderTextPrint(l)}</li>`).join("")}</ul></div>`;
+}
+function crawlDiagramSVG(c){
+  const NW = 152, NH = 44, pad = 28, nodes = c.nodes||[];
+  if(!nodes.length) return "";
+  let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+  nodes.forEach(n=>{ const x=n.x||0, y=n.y||0; minX=Math.min(minX,x); minY=Math.min(minY,y); maxX=Math.max(maxX,x+NW); maxY=Math.max(maxY,y+NH); });
+  const ox=minX-pad, oy=minY-pad, w=(maxX-minX)+pad*2, h=(maxY-minY)+pad*2;
+  const byId = id=>nodes.find(n=>n.id===id);
+  const cx = n=>(n.x||0)+NW/2, cy = n=>(n.y||0)+NH/2;
+  const edges = (c.edges||[]).map(e=>{
+    const a=byId(e.from), b=byId(e.to); if(!a||!b) return "";
+    const mx=(cx(a)+cx(b))/2, my=(cy(a)+cy(b))/2;
+    return `<line x1="${cx(a)}" y1="${cy(a)}" x2="${cx(b)}" y2="${cy(b)}"/>${e.label?`<text class="elbl" x="${mx}" y="${my-4}" text-anchor="middle">${esc(e.label)}</text>`:""}`;
+  }).join("");
+  const boxes = nodes.map((n,i)=>{
+    const ev=getEntity("event",n.eventId), title=ev?ev.title:"(événement supprimé)", x=n.x||0, y=n.y||0;
+    return `<g class="pnode">
+      <rect x="${x}" y="${y}" width="${NW}" height="${NH}" rx="7"/>
+      <circle class="numc" cx="${x+16}" cy="${y+16}" r="11"/>
+      <text class="numt" x="${x+16}" y="${y+20.5}" text-anchor="middle">${i+1}</text>
+      <text class="ptitle" x="${x+32}" y="${y+29}">${esc(truncate(title,17))}</text>
+    </g>`;
+  }).join("");
+  return `<svg viewBox="${ox} ${oy} ${w} ${h}" class="pp-svg" xmlns="http://www.w3.org/2000/svg">${edges}${boxes}</svg>`;
+}
+function printCrawl(id){
+  const c = getEntity("pointcrawl", id); if(!c) return;
+  const nodes = c.nodes||[];
+  if(!nodes.length){ toast("Ajoutez au moins un point avant d'imprimer."); return; }
+  const legend = nodes.map((n,i)=>{ const ev=getEntity("event",n.eventId);
+    return `<div class="lg"><span class="n">${i+1}.</span> ${esc(ev?ev.title:"(événement supprimé)")}</div>`; }).join("");
+  const events = nodes.map((n,i)=>{
+    const ev=getEntity("event",n.eventId);
+    if(!ev) return `<div class="pp-event"><h3><span class="pp-num">${i+1}</span> <span>(événement supprimé)</span></h3></div>`;
+    return `<div class="pp-event">
+      <h3><span class="pp-num">${i+1}</span> <span>${esc(ev.title)}</span>${ev.theme?`<span class="pp-theme">${esc(ev.theme)}</span>`:""}</h3>
+      ${printSection("Description & ambiance", ev.description)}
+      ${printSection("Pièges — conditions & conséquences", ev.traps)}
+      ${printSection("Secrets à découvrir", ev.secrets)}
+      ${printSection("Informations accessibles", ev.info)}
+    </div>`;
+  }).join("");
+  $("#print-area").innerHTML = `
+    <section class="pp-map">
+      <h1>${esc(c.title||"Point Crawl")}</h1>
+      ${c.description?`<p class="pp-desc">${renderTextPrint(c.description)}</p>`:""}
+      ${crawlDiagramSVG(c)}
+      <div class="pp-legend">${legend}</div>
+    </section>
+    <section class="pp-events"><h2>Événements du plan (${nodes.length})</h2>${events}</section>`;
+  window.print();
+}
+
+/* =========================================================================
+   PJ — fiches de personnages-joueurs (stat bloc + inventaire + talents 2d6)
+   ========================================================================= */
+const DEFAULT_TALENTS = ()=>[{roll:"2",text:""},{roll:"3-6",text:""},{roll:"7-9",text:""},{roll:"10-11",text:""},{roll:"12",text:""}];
+const PC_CLASSES = ["Voleur","Magicien","Guerrier","Clerc"];
+
+function listPCs(){
+  const items = db.pcs;
+  app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ") +
+    (items.length ? `<div class="grid">${items.map(p=>`
+      <div class="card" data-open="pc:${p.id}">
+        ${(p.images&&p.images.length)?`<img class="thumb" src="${p.images[0].data}" alt="">`:""}
+        <div class="meta"><span class="tag pc">PJ</span>
+          ${p.cls?`<span class="tag">${esc(p.cls)}</span>`:""}
+          <span class="tag gold">Niv. ${esc(p.level||'?')}</span></div>
+        <h3 style="margin-top:.6rem">${esc(p.name||"Sans nom")}</h3>
+        <p>${esc([p.ancestry,p.cls].filter(Boolean).join(" · ")||"—")}</p>
+        <div class="meta"><span class="tag">CA ${esc(p.ac||'?')}</span><span class="tag">PV ${esc(p.hpCurrent||'?')}/${esc(p.hp||'?')}</span></div>
+      </div>`).join("")}</div>`
+    : emptyState("🛡","Aucun personnage-joueur. Créez la fiche de vos aventuriers."));
+}
+
+function formPC(){
+  const p = view.mode==="edit" ? getEntity("pc",view.id)
+    : {name:"",ancestry:"",cls:"",level:"1",alignment:"neutre",ac:"",hp:"",hpCurrent:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",skills:"",spells:"",inventory:"",info:"",talents:DEFAULT_TALENTS()};
+  const talents = p.talents && p.talents.length ? p.talents : DEFAULT_TALENTS();
+  formImages = (p.images||[]).slice();
+  const alignOpt = ["loyal","neutre","chaos"].map(v=>`<option value="${v}" ${p.alignment===v?"selected":""}>${cap(v)}</option>`).join("");
+  const stats = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier le":"Nouveau"} personnage-joueur</h1>
+    <div class="field"><label>Nom</label><input type="text" id="f-name" value="${esc(p.name)}" placeholder="Aldric le Vaillant"></div>
+    <div class="row">
+      <div class="field"><label>Ascendance</label><input type="text" id="f-ancestry" value="${esc(p.ancestry)}" placeholder="Elfe, Humain, Nain, Halfelin…"></div>
+      <div class="field"><label>Classe</label><input type="text" id="f-cls" list="pc-classes" value="${esc(p.cls)}" placeholder="Voleur, Magicien, Guerrier, Clerc"><datalist id="pc-classes">${PC_CLASSES.map(c=>`<option value="${esc(c)}"></option>`).join("")}</datalist></div>
+      <div class="field" style="flex:0 1 110px"><label>Niveau</label><input type="number" id="f-level" min="1" max="20" value="${esc(p.level)}"></div>
+      <div class="field" style="flex:0 1 140px"><label>Alignement</label><select id="f-align">${alignOpt}</select></div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 1 140px"><label>Classe d'armure</label><input type="text" id="f-ac" value="${esc(p.ac)}" placeholder="15"></div>
+      <div class="field" style="flex:0 1 130px"><label>PV actuels</label><input type="text" id="f-hpCurrent" value="${esc(p.hpCurrent)}" placeholder="8"></div>
+      <div class="field" style="flex:0 1 130px"><label>PV max</label><input type="text" id="f-hp" value="${esc(p.hp)}" placeholder="10"></div>
+    </div>
+    <div class="field"><label>Caractéristiques <span class="hint">(score ou modificateur, ex : 14 ou +2)</span></label>
+      <div class="subgrid">
+        ${stats.map(([lbl,k])=>`<div class="field" style="margin:0"><label>${lbl}</label><input type="text" id="f-${k}" value="${esc(p[k])}" placeholder="+0"></div>`).join("")}
+      </div>
+    </div>
+    <div class="field"><label>Compétences <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
+    <div class="field"><label>Sortilèges <span class="hint">(un par ligne)</span></label><textarea id="f-spells" placeholder="Lumière…&#10;Projectile magique…">${esc(p.spells)}</textarea></div>
+    <div class="field"><label>Inventaire <span class="hint">(un objet par ligne)</span></label><textarea id="f-inventory" placeholder="Épée longue…&#10;Corde (15m)…&#10;Rations x3">${esc(p.inventory)}</textarea></div>
+    <div class="field"><label>Informations / notes</label><textarea id="f-info" placeholder="Histoire, ascendance détaillée, liens avec des [[PNJ]]…">${esc(p.info)}</textarea></div>
+    <div class="field"><label>Talents — table 2d6 <span class="hint">(5 lignes ; à compléter selon la classe)</span></label>
+      <div id="talents-wrap">${talents.map(t=>talentInput(t)).join("")}</div>
+      <button class="btn ghost sm" data-add-talent="1" style="margin-top:.4rem">+ Ajouter une ligne</button>
+    </div>
+    <div class="field"><label>Portraits / images <span class="hint">(plusieurs possibles)</span></label>
+      <div id="images-wrap"></div>
+      <button class="btn ghost sm" data-add-img="1" style="margin-top:.5rem">🖼 Ajouter une image</button>
+    </div>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="pc">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+  renderImageThumbs();
+}
+function talentInput(t){
+  t = t||{};
+  return `<div class="repeat-item" data-talentitem>
+    <div class="rrow">
+      <div class="field" style="flex:0 1 90px"><label>2d6</label><input type="text" class="tal-roll" value="${esc(t.roll)}" placeholder="7-9"></div>
+      <div class="field" style="flex:1 1 200px"><label>Talent / évolution</label><input type="text" class="tal-text" value="${esc(t.text)}" placeholder="(à compléter)"></div>
+      <button class="btn danger sm" data-remove-talent>✕</button>
+    </div></div>`;
+}
+function savePC(){
+  const o = view.mode==="edit" ? getEntity("pc",view.id) : {id:uid()};
+  const _old = view.mode==="edit" ? o.name : null;
+  o.name = $("#f-name").value.trim();
+  o.ancestry = $("#f-ancestry").value.trim();
+  o.cls = $("#f-cls").value.trim();
+  o.level = $("#f-level").value.trim();
+  o.alignment = $("#f-align").value;
+  o.ac = $("#f-ac").value.trim();
+  o.hp = $("#f-hp").value.trim();
+  o.hpCurrent = $("#f-hpCurrent").value.trim();
+  ["str","dex","con","int","wis","cha"].forEach(k=> o[k]=$("#f-"+k).value.trim());
+  o.skills = $("#f-skills").value;
+  o.spells = $("#f-spells").value;
+  o.inventory = $("#f-inventory").value;
+  o.info = $("#f-info").value;
+  o.talents = [...document.querySelectorAll("#talents-wrap [data-talentitem]")].map(el=>({
+    roll: el.querySelector(".tal-roll").value.trim(),
+    text: el.querySelector(".tal-text").value.trim()
+  }));
+  o.images = formImages.slice();
+  if(!o.name){ toast("Le nom est requis."); return; }
+  if(view.mode==="new") db.pcs.push(o);
+  const _n = maybePropagate(_old, o.name);
+  saveDB(); toast("Personnage enregistré."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"pcs",mode:"detail",id:o.id}; render();
+}
+
+function detailPC(p){
+  const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+  const listSec = (icon,label,val)=> (val&&val.trim()) ? `<div class="section"><h2>${icon} ${label}</h2>${renderBullets(val)}</div>` : "";
+  const talents = (p.talents||[]).filter(t=>t.roll||t.text);
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← PJ</button>
+    <span class="tag pc">PJ</span>
+    <h1>${esc(p.name||"Sans nom")}</h1>
+    <p class="muted" style="font-family:var(--ui)">${esc([p.ancestry,p.cls].filter(Boolean).join(" · "))}${p.alignment?` · ${esc(cap(p.alignment))}`:""}</p>
+    ${detailActions("pc",p.id)}
+    <div class="statblock">
+      <div class="sb-line">
+        <span><b>CA</b> ${esc(p.ac||"—")}</span>
+        <span><b>PV</b> ${esc(p.hpCurrent||"—")} / ${esc(p.hp||"—")}</span>
+        <span><b>Niveau</b> ${esc(p.level||"—")}</span>
+        <span><b>Ascendance</b> ${esc(p.ancestry||"—")}</span>
+        <span><b>Classe</b> ${esc(p.cls||"—")}</span>
+      </div>
+      <div class="abilities-grid">
+        ${ab.map(([lbl,k])=>`<div class="ab"><div class="n">${lbl}</div><div class="v">${esc(p[k]||"—")}</div></div>`).join("")}
+      </div>
+    </div>
+    ${listSec("🎯","Compétences",p.skills)}
+    ${listSec("✨","Sortilèges",p.spells)}
+    ${listSec("🎒","Inventaire",p.inventory)}
+    ${p.info?`<div class="section"><h2>📝 Informations</h2><div class="prose" style="font-family:var(--ui)">${renderText(p.info)}</div></div>`:""}
+    ${talents.length?`<div class="section"><h2>⭐ Talents (2d6)</h2>
+      <div style="margin:.2rem 0 .7rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6</button> <span id="talent-roll-out" class="roll-result"></span></div>
+      <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Talent / évolution</th></tr></thead>
+        <tbody id="talents-body">${talents.map(t=>`<tr data-roll-range="${esc(t.roll)}"><td class="idx" style="text-align:center">${esc(t.roll||"—")}</td><td>${renderText(t.text)||'<span class="faint">(à compléter)</span>'}</td></tr>`).join("")}</tbody></table></div>`:""}
+    ${(p.images&&p.images.length)?`<div class="section"><h2>Portraits</h2>
+      <div class="gallery">${p.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
+    ${backlinksBlock("pc",p.id)}
+  </div>`;
+}
+
+function rollTalents(id){
+  const p = getEntity("pc",id); if(!p) return;
+  const total = (1+Math.floor(Math.random()*6)) + (1+Math.floor(Math.random()*6));
+  let matched = null;
+  document.querySelectorAll("#talents-body tr").forEach(tr=>{
+    const inRange = rangeContains(tr.dataset.rollRange, total);
+    tr.classList.toggle("rolled", inRange);
+    if(inRange) matched = tr;
+  });
+  const out = $("#talent-roll-out");
+  out.textContent = `→ 2d6 = ${total} : ${matched ? matched.children[1].textContent.trim() : "aucune ligne correspondante"}`;
+  if(matched) matched.scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+function rangeContains(range, n){
+  range = String(range||"").trim(); if(!range) return false;
+  let m;
+  if((m = range.match(/^(\d+)\s*[-–]\s*(\d+)$/))){ const a=+m[1], b=+m[2]; return n>=Math.min(a,b) && n<=Math.max(a,b); }
+  if((m = range.match(/^(\d+)\s*\+$/))) return n >= +m[1];
+  if(/^\d+$/.test(range)) return n === +range;
+  return false;
+}
+
+/* =========================================================================
+   TRÉSOR — objets, classés en 3 catégories (Trouvaille < Relique < Régalia)
+   ========================================================================= */
+function treasureCard(t){
+  return `<div class="card" data-open="treasure:${t.id}">
+    ${(t.images&&t.images.length)?`<img class="thumb" src="${t.images[0].data}" alt="">`:""}
+    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span></div>
+    <h3 style="margin-top:.5rem">${esc(t.name||"Sans nom")}</h3>
+    <p>${esc(firstLine(t.description)||"Pas de description")}</p>
+  </div>`;
+}
+function listTreasures(){
+  const items = db.treasures;
+  const head = pageHead("Trésor", `${items.length} objet(s)`, "Nouvel objet");
+  if(!items.length){ app.innerHTML = head + emptyState("💎","Aucun trésor. Répertoriez trouvailles, reliques et régalia."); return; }
+  const sections = TREASURE_CATS.map(([k,lbl])=>{
+    const list = items.filter(t=>(t.category||"trouvaille")===k);
+    if(!list.length) return "";
+    return `<h2 class="group-head">${esc(lbl)} <span class="faint">(${list.length})</span></h2>
+      <div class="grid" style="margin-bottom:1.4rem">${list.map(treasureCard).join("")}</div>`;
+  }).join("");
+  app.innerHTML = head + sections;
+}
+function formTreasure(){
+  const t = view.mode==="edit" ? getEntity("treasure",view.id) : {name:"",category:"trouvaille",description:""};
+  formImages = (t.images||[]).slice();
+  const catOpt = TREASURE_CATS.map(([k,lbl])=>`<option value="${k}" ${t.category===k?"selected":""}>${lbl}</option>`).join("");
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier l'":"Nouvel "}objet</h1>
+    <div class="row">
+      <div class="field" style="flex:2 1 200px"><label>Nom</label><input type="text" id="f-name" value="${esc(t.name)}" placeholder="Sceptre de l'Aube"></div>
+      <div class="field" style="flex:1 1 150px"><label>Catégorie</label><select id="f-category">${catOpt}</select></div>
+    </div>
+    <div class="field"><label>Description / effets <span class="hint">(une ligne par effet ; liens [[…]] possibles)</span></label>
+      <textarea id="f-description" style="min-height:120px" placeholder="Dégâts +1.&#10;Émet une lumière vive sur commande.&#10;Malédiction : …">${esc(t.description)}</textarea></div>
+    <div class="field"><label>Illustrations <span class="hint">(plusieurs possibles)</span></label>
+      <div id="images-wrap"></div>
+      <button class="btn ghost sm" data-add-img="1" style="margin-top:.5rem">🖼 Ajouter une image</button>
+    </div>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="treasure">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+  renderImageThumbs();
+}
+function saveTreasure(){
+  const o = view.mode==="edit" ? getEntity("treasure",view.id) : {id:uid()};
+  const _old = view.mode==="edit" ? o.name : null;
+  o.name = $("#f-name").value.trim();
+  o.category = $("#f-category").value;
+  o.description = $("#f-description").value;
+  o.images = formImages.slice();
+  if(!o.name){ toast("Le nom est requis."); return; }
+  if(view.mode==="new") db.treasures.push(o);
+  const _n = maybePropagate(_old, o.name);
+  saveDB(); toast("Objet enregistré."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"treasures",mode:"detail",id:o.id}; render();
+}
+function detailTreasure(t){
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Trésor</button>
+    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span></div>
+    <h1>${esc(t.name||"Sans nom")}</h1>
+    ${detailActions("treasure",t.id)}
+    ${(t.description&&t.description.trim())
+      ? `<div class="section"><h2>Description & effets</h2>${renderBullets(t.description)}</div>`
+      : `<p class="faint" style="font-family:var(--ui)">Aucune description.</p>`}
+    ${(t.images&&t.images.length)?`<div class="section"><h2>Illustrations</h2>
+      <div class="gallery">${t.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
+    ${backlinksBlock("treasure",t.id)}
+  </div>`;
+}
+
+/* =========================================================================
+   RECHERCHE GLOBALE
+   ========================================================================= */
+function runSearch(q){
+  const box = $("#search-results");
+  q = q.trim().toLowerCase();
+  if(!q){ box.classList.remove("open"); box.innerHTML=""; return; }
+  const results = [];
+  const push = (type, o)=>{
+    const hay = entityText(type,o).toLowerCase();
+    const idx = hay.indexOf(q);
+    if(idx>=0) results.push({type,id:o.id,title:entityTitle(type,o),snippet:snippet(entityText(type,o),q)});
+  };
+  db.creatures.forEach(o=>push("creature",o));
+  db.events.forEach(o=>push("event",o));
+  db.tables.forEach(o=>push("table",o));
+  db.sessions.forEach(o=>push("session",o));
+  db.npcs.forEach(o=>push("npc",o));
+  db.pointcrawls.forEach(o=>push("pointcrawl",o));
+  db.pcs.forEach(o=>push("pc",o));
+  db.treasures.forEach(o=>push("treasure",o));
+  if(!results.length){ box.innerHTML = `<div class="sr-empty">Aucun résultat pour « ${esc(q)} »</div>`; box.classList.add("open"); return; }
+  box.innerHTML = results.slice(0,25).map(r=>`
+    <div class="sr-item" data-goto="${r.type}:${r.id}">
+      <span class="tag ${r.type}">${TYPE_LABEL[r.type]}</span>
+      <b style="margin-left:.4rem">${esc(r.title||"—")}</b>
+      <div class="faint" style="font-size:.78rem;margin-top:.15rem">${esc(r.snippet)}</div>
+    </div>`).join("");
+  box.classList.add("open");
+}
+function snippet(text,q){
+  const t = String(text||"").replace(/\s+/g," ");
+  const i = t.toLowerCase().indexOf(q);
+  if(i<0) return t.slice(0,80);
+  const start = Math.max(0,i-30);
+  return (start>0?"…":"") + t.slice(start, i+q.length+40) + "…";
+}
+
+/* =========================================================================
+   IMPORT / EXPORT
+   ========================================================================= */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(db,null,2)], {type:"application/json"});
+  downloadBlob(blob, `grimoire-shadowdark-${new Date().toISOString().slice(0,10)}.json`);
+  toast("Données exportées.");
+}
+const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures"];
+function countItems(d){ return DB_COLS.reduce((n,c)=>n+((d[c]||[]).length),0); }
+function mergeDB(data){
+  let added = 0;
+  DB_COLS.forEach(col=>{
+    if(!db[col]) db[col] = [];
+    const seen = new Set(db[col].map(o=>o.id));
+    (data[col]||[]).forEach(o=>{ if(o && o.id && !seen.has(o.id)){ db[col].push(o); seen.add(o.id); added++; } });
+  });
+  return added;
+}
+function importJSON(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    let data;
+    try{ data = JSON.parse(r.result); if(!data || typeof data!=="object") throw 0; }
+    catch(e){ toast("Fichier JSON invalide."); return; }
+    _importData = data;
+    openModal(`<h2 style="margin:.1rem 0 .5rem;color:var(--gold2)">Importer des données</h2>
+      <p style="font-family:var(--ui);font-size:.9rem;line-height:1.5;color:var(--muted);margin:0 0 1rem">
+        Le fichier contient <b>${countItems(data)}</b> élément(s).<br>
+        <b style="color:var(--green)">Fusionner</b> : ajoute uniquement les éléments absents (sans toucher aux tiens).<br>
+        <b style="color:var(--blood2)">Remplacer tout</b> : efface la base actuelle et la remplace.</p>
+      <div class="form-actions" style="margin-top:0">
+        <button class="btn" data-import-merge="1">➕ Fusionner</button>
+        <button class="btn danger" data-import-replace="1">⟳ Remplacer tout</button>
+        <button class="btn ghost" data-modal-close="1">Annuler</button>
+      </div>`);
+  };
+  r.onerror = ()=>toast("Lecture du fichier impossible.");
+  r.readAsText(file);
+}
+function downloadBlob(blob, name){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---- Import XML des créatures (format libre & tolérant, avec gestion des doublons) ---- */
+let _xmlPending = null;
+function importXML(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const doc = new DOMParser().parseFromString(r.result, "application/xml");
+      if(doc.querySelector("parsererror")) throw new Error("XML mal formé");
+      const nodes = doc.getElementsByTagName("creature").length ? [...doc.getElementsByTagName("creature")]
+        : [...doc.documentElement.children].filter(n=>/creature|monster|stat/i.test(n.tagName));
+      if(!nodes.length) throw new Error("Aucune balise <creature> trouvée");
+      _xmlPending = nodes.map(parseCreatureNode).filter(c=>c.name);
+      const existing = new Set(db.creatures.map(c=>(c.name||"").toLowerCase()));
+      const dupes = _xmlPending.filter(c=>existing.has((c.name||"").toLowerCase())).length;
+      openModal(`<h2 style="margin:.1rem 0 .5rem;color:var(--gold2)">Importer ${_xmlPending.length} créature(s)</h2>
+        <p style="font-family:var(--ui);font-size:.9rem;line-height:1.55;color:var(--muted);margin:0 0 1rem">
+          ${dupes>0 ? `<b style="color:var(--gold2)">${dupes}</b> portent un nom déjà présent (doublons potentiels).<br>` : `Aucun doublon détecté.<br>`}
+          <b style="color:var(--green)">Ignorer les doublons</b> : n'ajoute que les nouvelles.<br>
+          <b style="color:var(--gold2)">Remplacer les doublons</b> : met à jour les fiches existantes (par nom), ajoute les nouvelles.<br>
+          <b>Tout ajouter</b> : ajoute tout, même en double.</p>
+        <div class="form-actions" style="margin-top:0;flex-wrap:wrap">
+          <button class="btn" data-xml-skip="1">⏭ Ignorer les doublons</button>
+          <button class="btn ghost" data-xml-replace="1">♻ Remplacer les doublons</button>
+          <button class="btn ghost" data-xml-all="1">➕ Tout ajouter</button>
+          <button class="btn ghost" data-modal-close="1">Annuler</button>
+        </div>`);
+    }catch(e){ toast("Import XML échoué : "+e.message); }
+  };
+  r.readAsText(file);
+}
+function applyXMLImport(mode){
+  if(!_xmlPending) return;
+  let added=0, replaced=0, skipped=0;
+  const byName = {}; db.creatures.forEach(c=>{ byName[(c.name||"").toLowerCase()] = c; });
+  _xmlPending.forEach(c=>{
+    const key = (c.name||"").toLowerCase();
+    const exist = byName[key];
+    if(exist && mode!=="all"){
+      if(mode==="replace"){
+        const id=exist.id, imgs=exist.images;
+        Object.keys(exist).forEach(k=>delete exist[k]);
+        Object.assign(exist, c); exist.id=id; exist.imported=true;
+        if((!c.images||!c.images.length) && imgs && imgs.length) exist.images=imgs;
+        replaced++;
+      } else skipped++;                       // mode "skip"
+    } else {
+      c.id=uid(); c.imported=true; db.creatures.push(c); byName[key]=c; added++;
+    }
+  });
+  _xmlPending=null; saveDB(); view={tab:"creatures",mode:"list",id:null}; render();
+  toast(`Import : ${added} ajoutée(s), ${replaced} remplacée(s), ${skipped} ignorée(s).`);
+}
+function openPurgeModal(){
+  const manual = db.creatures.filter(c=>c.manual).length;
+  const other = db.creatures.length - manual;
+  openModal(`<h2 style="margin:.1rem 0 .5rem;color:var(--blood2)">Vider les créatures</h2>
+    <p style="font-family:var(--ui);font-size:.9rem;line-height:1.55;color:var(--muted);margin:0 0 .9rem">
+      <b>${other}</b> créature(s) importée(s) ou non marquée(s) seront <b style="color:var(--blood2)">supprimées</b>.<br>
+      <b>${manual}</b> créée(s) à la main seront <b style="color:var(--green)">conservées</b>.</p>
+    <label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.88rem;margin-bottom:1.1rem;cursor:pointer">
+      <input type="checkbox" id="purge-manual" style="width:auto"> Supprimer aussi les ${manual} créature(s) créée(s) à la main</label>
+    <div class="form-actions" style="margin-top:0">
+      <button class="btn danger" data-purge-confirm="1">🗑 Vider</button>
+      <button class="btn ghost" data-modal-close="1">Annuler</button>
+    </div>`);
+}
+function purgeCreatures(all){
+  const before = db.creatures.length;
+  db.creatures = all ? [] : db.creatures.filter(c=>c.manual);
+  saveDB(); view={tab:"creatures",mode:"list",id:null}; render();
+  toast(`${before-db.creatures.length} créature(s) supprimée(s).`);
+}
+function parseCreatureNode(node){
+  const get = (sel)=>{ const el = node.querySelector(sel); return el ? el.textContent.trim() : ""; };
+  const attrOr = (sel, attr, fallbackSel)=>{
+    const el = node.querySelector(sel);
+    if(el && el.getAttribute(attr)!=null) return el.getAttribute(attr).trim();
+    return fallbackSel!=null ? get(fallbackSel) : "";
+  };
+  const c = {
+    name: get("name") || node.getAttribute("name") || "",
+    category: get("category") || get("categorie") || "",
+    desc: get("description") || get("desc") || "",
+    ac: get("ac") || get("armorclass") || attrOr("stats","ac"),
+    hp: get("hp") || get("hitpoints") || attrOr("stats","hp"),
+    level: get("level") || attrOr("stats","level"),
+    alignment: (get("alignment")||"chaos").toLowerCase(),
+    abilities: get("abilities") || get("special") || get("immunities") || "",
+    attacks: []
+  };
+  // Caractéristiques : soit <stats str=".."/>, soit balises individuelles <str>..</str>
+  const statsEl = node.querySelector("stats") || node.querySelector("abilities-scores");
+  const keys = {str:["str","strength"],dex:["dex","dexterity"],con:["con","constitution"],int:["int","intelligence"],wis:["wis","sag","wisdom","sagesse"],cha:["cha","charisma","charisme"]};
+  Object.entries(keys).forEach(([k,aliases])=>{
+    let v="";
+    if(statsEl){ for(const a of aliases){ if(statsEl.getAttribute(a)!=null){ v=statsEl.getAttribute(a); break; } } }
+    if(!v){ for(const a of aliases){ const el=node.querySelector(a); if(el){ v=el.textContent.trim(); break; } } }
+    c[k]=v;
+  });
+  // normaliser alignement
+  if(/cha|chaos/.test(c.alignment)) c.alignment="chaos";
+  else if(/loy|law/.test(c.alignment)) c.alignment="loyal";
+  else if(/neut/.test(c.alignment)) c.alignment="neutre";
+  // Attaques
+  node.querySelectorAll("attack").forEach(a=>{
+    const nm = a.getAttribute("name") || (a.querySelector("name")?.textContent) || a.textContent.trim();
+    c.attacks.push({
+      name: (nm||"").trim(),
+      bonus: a.getAttribute("bonus") || a.querySelector("bonus")?.textContent?.trim() || "",
+      damage: a.getAttribute("damage") || a.querySelector("damage")?.textContent?.trim() || "",
+      range: normRange(a.getAttribute("range") || a.querySelector("range")?.textContent?.trim() || "close")
+    });
+  });
+  return c;
+}
+function normRange(r){
+  r=(r||"").toLowerCase();
+  if(/far|long|lointain/.test(r)) return "far";
+  if(/near|inter|proche|moyen/.test(r)) return "near";
+  return "close";
+}
+function xmlSample(){
+  const sample = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- Modèle d'import de créatures Grimoire (Shadowdark).
+     Format libre et tolérant : les caractéristiques peuvent être données
+     soit en attributs de <stats/>, soit en balises individuelles.
+     L'alignement accepte : chaos / loyal / neutre. -->
+<creatures>
+  <creature>
+    <name>Gobelin des cavernes</name>
+    <description>Petit humanoïde fourbe qui chasse en meute.</description>
+    <ac>13</ac>
+    <hp>5</hp>
+    <level>1</level>
+    <alignment>chaos</alignment>
+    <stats str="-1" dex="+2" con="+1" int="+0" wis="-1" cha="-1"/>
+    <attacks>
+      <attack name="Dague rouillée" bonus="+2" damage="1d6-1" range="close"/>
+      <attack name="Fronde" bonus="+2" damage="1d4" range="far"/>
+    </attacks>
+    <abilities>Vision dans le noir 18m. Avantage en meute (3+).</abilities>
+  </creature>
+
+  <creature>
+    <name>Spectre du seuil</name>
+    <description>Ombre gardienne liée à une porte scellée.</description>
+    <ac>12</ac><hp>18</hp><level>4</level><alignment>chaos</alignment>
+    <!-- variante : caractéristiques en balises -->
+    <str>+0</str><dex>+3</dex><con>+2</con><int>+1</int><wis>+2</wis><cha>+3</cha>
+    <attacks>
+      <attack name="Toucher glacial" bonus="+4" damage="2d6" range="close"/>
+    </attacks>
+    <abilities>Immunité : poison, charme, épuisement. Insaisissable (traverse les murs).</abilities>
+  </creature>
+</creatures>`;
+  downloadBlob(new Blob([sample],{type:"application/xml"}), "modele-creatures-shadowdark.xml");
+  toast("Modèle XML téléchargé.");
+}
+
+/* =========================================================================
+   NAVIGATION & ÉVÉNEMENTS
+   ========================================================================= */
+function goto(type,id){
+  view = { tab: TAB_OF[type], mode:"detail", id };
+  $("#search").value=""; $("#search-results").classList.remove("open");
+  render();
+}
+
+// Onglets
+$("#tabs").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-tab]"); if(!b) return;
+  view = { tab:b.dataset.tab, mode:"list", id:null }; render();
+});
+
+// Filtre par thème dans l'onglet Événements
+app.addEventListener("change", e=>{
+  if(e.target.matches("[data-event-filter]")){ eventThemeFilter = e.target.value; renderList(); }
+  else if(e.target.matches("[data-crea-sort]")){ creatureSort = e.target.value; renderList(); }
+  else if(e.target.matches("[data-crea-filter]")){ creatureCatFilter = e.target.value; renderList(); }
+});
+
+// Clics globaux dans l'app (délégation)
+app.addEventListener("click", e=>{
+  const t = e.target;
+  const closest = (a)=>t.closest(`[${a}]`);
+  let el;
+  if((el=closest("data-open"))){ const [ty,id]=el.dataset.open.split(":"); goto(ty,id); return; }
+  if((el=closest("data-goto"))){ const [ty,id]=el.dataset.goto.split(":"); goto(ty,id); return; }
+  if((el=t.closest("[data-create]"))){ toast(`« ${el.dataset.create} » n'existe pas encore — créez cette entité pour activer le lien.`); return; }
+  if(closest("data-back")){ view.mode="list"; view.id=null; render(); return; }
+  if((el=closest("data-new"))){ view.mode="new"; view.id=null; render(); return; }
+  if((el=closest("data-edit"))){ const [ty,id]=el.dataset.edit.split(":"); view={tab:TAB_OF[ty],mode:"edit",id}; render(); return; }
+  if((el=closest("data-dup"))){ const [ty,id]=el.dataset.dup.split(":"); duplicateEntity(ty,id); return; }
+  if((el=closest("data-del"))){
+    const [ty,id]=el.dataset.del.split(":");
+    confirmModal("Supprimer définitivement cet élément ?", ()=>{ deleteEntity(ty,id); view.mode="list"; view.id=null; render(); toast("Supprimé."); });
+    return;
+  }
+  if((el=closest("data-save"))){
+    const ty = el.dataset.save;
+    if(ty==="event") saveEvent(); else if(ty==="table") saveTable();
+    else if(ty==="creature") saveCreature(); else if(ty==="session") saveSession();
+    else if(ty==="npc") saveNPC(); else if(ty==="pointcrawl") saveCrawl();
+    else if(ty==="pc") savePC(); else if(ty==="treasure") saveTreasure();
+    return;
+  }
+  // Répéteurs & lancer — talents PJ
+  if(closest("data-add-talent")){ $("#talents-wrap").insertAdjacentHTML("beforeend", talentInput({})); return; }
+  if((el=t.closest("[data-remove-talent]"))){ el.closest("[data-talentitem]").remove(); return; }
+  if((el=closest("data-roll-talents"))){ rollTalents(el.dataset.rollTalents); return; }
+  // Barre d'outils du point crawl
+  if(closest("data-crawl-add")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openPickEventModal(c); return; }
+  if(closest("data-crawl-new")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openNewEventModal(c); return; }
+  if(closest("data-crawl-link")){ toggleLinkMode(); return; }
+  if(closest("data-crawl-print")){ printCrawl(crawlState.id); return; }
+  // Images (formulaire créature) + agrandissement
+  if(closest("data-add-img")){ $("#file-img").click(); return; }
+  if((el=closest("data-remove-img"))){ formImages.splice(+el.dataset.removeImg,1); renderImageThumbs(); return; }
+  if((el=closest("data-lightbox"))){ openLightbox(el.dataset.lightbox); return; }
+  // Répéteurs — créatures
+  if(closest("data-add-attack")){ $("#attacks-wrap").insertAdjacentHTML("beforeend", attackInput({range:"close"})); return; }
+  if((el=t.closest("[data-remove-attack]"))){ el.closest("[data-attackitem]").remove(); return; }
+  // Répéteurs — sessions
+  if(closest("data-add-entry")){ $("#entries-wrap").insertAdjacentHTML("beforeend", entryInput({label:"Jour "+($("#entries-wrap").children.length+1)})); return; }
+  if((el=t.closest("[data-remove-entry]"))){ el.closest("[data-entryitem]").remove(); return; }
+  // Répéteurs — tables
+  if(closest("data-add-row")){ const w=$("#rows-wrap"); w.insertAdjacentHTML("beforeend", rowInput("", w.children.length)); reindexRows(); return; }
+  if((el=t.closest("[data-remove-row]"))){ const it=el.closest(".repeat-item"); if(it) it.remove(); reindexRows(); return; }
+  if(closest("data-apply-count")){ applyRowCount(); return; }
+  // Import / modèle XML (onglet créatures)
+  if(closest("data-import-xml")){ $("#file-xml").click(); return; }
+  if(closest("data-purge")){ openPurgeModal(); return; }
+  if(closest("data-xml-sample")){ xmlSample(); return; }
+  // Lancer de dé sur une table
+  if((el=closest("data-roll"))){ rollTable(el.dataset.roll); return; }
+});
+
+function applyRowCount(){
+  const n = Math.max(1, Math.min(100, parseInt($("#row-count").value)||1));
+  const w = $("#rows-wrap");
+  const current = [...w.querySelectorAll(".row-input")].map(i=>i.value);
+  const rows = [];
+  for(let i=0;i<n;i++) rows.push(current[i]!=null?current[i]:"");
+  w.innerHTML = rows.map((r,i)=>rowInput(r,i)).join("");
+}
+function rollTable(id){
+  const t = getEntity("table",id); if(!t||!t.rows.length) return;
+  const idx = Math.floor(Math.random()*t.rows.length);
+  document.querySelectorAll("#table-body tr").forEach(tr=>tr.classList.toggle("rolled", +tr.dataset.rowidx===idx));
+  const out = $("#roll-out"); out.textContent = `→ ${idx+1} : ${firstLine(t.rows[idx])||"(vide)"}`;
+  const tr = document.querySelector(`#table-body tr[data-rowidx="${idx}"]`);
+  if(tr) tr.scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+
+// Recherche
+const searchInput = $("#search");
+searchInput.addEventListener("input", ()=>runSearch(searchInput.value));
+searchInput.addEventListener("focus", ()=>{ if(searchInput.value) runSearch(searchInput.value); });
+$("#search-results").addEventListener("click", e=>{
+  const it = e.target.closest("[data-goto]"); if(!it) return;
+  const [ty,id]=it.dataset.goto.split(":"); goto(ty,id);
+});
+document.addEventListener("click", e=>{
+  if(!e.target.closest(".search")) $("#search-results").classList.remove("open");
+});
+
+// Export / Import JSON
+$("#btn-export").addEventListener("click", exportJSON);
+$("#btn-import").addEventListener("click", ()=>$("#file-json").click());
+$("#file-json").addEventListener("change", e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=""; });
+$("#file-xml").addEventListener("change", e=>{ if(e.target.files[0]) importXML(e.target.files[0]); e.target.value=""; });
+$("#file-img").addEventListener("change", e=>{
+  [...e.target.files].forEach(f=>processImage(f, img=>{ formImages.push(img); renderImageThumbs(); }));
+  e.target.value="";
+});
+
+// Lightbox (agrandissement des illustrations)
+function openLightbox(src){ const lb=$("#lightbox"); lb.querySelector("img").src=src; lb.classList.remove("hidden"); }
+$("#lightbox").addEventListener("click", ()=>$("#lightbox").classList.add("hidden"));
+
+// Fenêtres modales (point crawl : consulter un point, ajouter/créer un événement)
+$("#modal").addEventListener("click", e=>{
+  if(e.target.id==="modal"){ closeModal(); return; }        // clic sur le fond
+  let el;
+  if(e.target.closest("[data-modal-close]")){ closeModal(); return; }
+  if(e.target.closest("[data-modal-yes]")){ const cb=_modalCb; closeModal(); if(cb) cb(); return; }
+  if(e.target.closest("[data-purge-confirm]")){ const all=$("#purge-manual")&&$("#purge-manual").checked; closeModal(); purgeCreatures(all); return; }
+  if(e.target.closest("[data-xml-skip]")){ closeModal(); applyXMLImport("skip"); return; }
+  if(e.target.closest("[data-xml-replace]")){ closeModal(); applyXMLImport("replace"); return; }
+  if(e.target.closest("[data-xml-all]")){ closeModal(); applyXMLImport("all"); return; }
+  if(e.target.closest("[data-import-merge]")){ const d=_importData; closeModal(); if(d){ const n=mergeDB(d); saveDB(); view={tab:"sessions",mode:"list",id:null}; render(); toast(`Fusion : ${n} élément(s) ajouté(s).`); } return; }
+  if(e.target.closest("[data-import-replace]")){ const d=_importData; closeModal(); if(d){ db=Object.assign(emptyDB(), d); saveDB(); view={tab:"sessions",mode:"list",id:null}; render(); toast("Import : données remplacées."); } return; }
+  if(e.target.closest("[data-modal-ok]")){ const cb=_modalCb; const v=$("#modal-prompt-input")?$("#modal-prompt-input").value:""; closeModal(); if(cb) cb(v); return; }
+  if((el=e.target.closest("[data-goto-event]"))){ closeModal(); goto("event", el.dataset.gotoEvent); return; }
+  if((el=e.target.closest("[data-edit-event]"))){ closeModal(); view={tab:"events",mode:"edit",id:el.dataset.editEvent}; render(); return; }
+  if((el=e.target.closest("[data-remove-node]"))){ const c=getEntity("pointcrawl",crawlState.id); if(c) removeNode(c, el.dataset.removeNode); closeModal(); return; }
+  if((el=e.target.closest("[data-pick-event]"))){ const c=getEntity("pointcrawl",crawlState.id); if(c) addNodeForEvent(c, el.dataset.pickEvent); closeModal(); return; }
+  if(e.target.closest("[data-create-event-save]")){ const c=getEntity("pointcrawl",crawlState.id); if(c) createEventFromModal(c); return; }
+});
+
+/* =========================================================================
+   AUTOCOMPLÉTION DES LIENS [[…]]
+   Déclencheurs : taper "[[" (mode brackets) ou Ctrl+Espace sur un mot (mode word).
+   ========================================================================= */
+let ac = { open:false, field:null, mode:null, from:0, to:0, items:[], sel:0 };
+const AC_EXCLUDE = new Set(["search","pick-search"]);
+
+function acEntities(){
+  const out = [];
+  const add = (type,list)=> (list||[]).forEach(o=>{ const nm=entityTitle(type,o); if(nm) out.push({type, name:nm}); });
+  add("creature",db.creatures); add("event",db.events); add("table",db.tables);
+  add("session",db.sessions); add("pc",db.pcs); add("npc",db.npcs); add("pointcrawl",db.pointcrawls);
+  return out;
+}
+
+function isLinkField(f){ return f && f.matches && f.matches("textarea, input[type=text]") && !AC_EXCLUDE.has(f.id); }
+
+function openAC(field, query, from, to, mode){
+  const q = query.toLowerCase();
+  const items = acEntities().filter(it=>it.name.toLowerCase().includes(q))
+    .sort((a,b)=>{ const as=a.name.toLowerCase().startsWith(q)?0:1, bs=b.name.toLowerCase().startsWith(q)?0:1; return as-bs || a.name.localeCompare(b.name); });
+  if(mode==="word" && !items.length){ closeAC(); toast("Aucune entité ne correspond à ce mot."); return; }
+  ac = { open:true, field, mode, from, to, query, items:items.slice(0,8), sel:0 };
+  renderAC(); positionAC(field, to);
+}
+function renderAC(){
+  const pop = $("#ac-pop");
+  if(!ac.items.length){ pop.innerHTML = `<div class="ac-empty">Aucune entité — continuez à taper</div>`; }
+  else pop.innerHTML = ac.items.map((it,i)=>
+      `<div class="aci ${i===ac.sel?"sel":""}" data-ac="${i}"><span class="tag ${it.type}">${TYPE_LABEL[it.type]}</span><span class="nm">${esc(it.name)}</span></div>`
+    ).join("") + `<div class="ac-hint">↑↓ naviguer · ⏎/Tab insérer · Échap fermer</div>`;
+  pop.classList.add("open");
+}
+function positionAC(field, caretPos){
+  const c = getCaretCoordinates(field, caretPos);
+  const r = field.getBoundingClientRect();
+  const pop = $("#ac-pop");
+  let left = r.left + c.left - field.scrollLeft;
+  let top = r.top + c.top - field.scrollTop + c.height + 3;
+  left = Math.max(6, Math.min(left, window.innerWidth - 340));
+  if(top > window.innerHeight - 150) top = Math.max(6, top - c.height - pop.offsetHeight - 8);
+  pop.style.left = left + "px"; pop.style.top = top + "px";
+}
+function moveAC(delta){ if(!ac.items.length) return; ac.sel = (ac.sel + delta + ac.items.length) % ac.items.length; renderAC(); }
+function acceptAC(){
+  if(!ac.open || !ac.items.length){ closeAC(); return; }
+  const it = ac.items[ac.sel], f = ac.field, v = f.value, insert = `[[${it.name}]]`;
+  f.value = v.slice(0, ac.from) + insert + v.slice(ac.to);
+  const caret = ac.from + insert.length;
+  f.focus(); f.setSelectionRange(caret, caret);
+  closeAC();
+}
+function closeAC(){ ac.open = false; $("#ac-pop").classList.remove("open"); }
+
+function onFieldInput(e){
+  const f = e.target;
+  if(!isLinkField(f)) return;
+  const pos = f.selectionStart;
+  const before = f.value.slice(0, pos);
+  const m = before.match(/\[\[([^\[\]\n]*)$/);   // "[[" non fermé avant le curseur
+  if(m) openAC(f, m[1], m.index, pos, "brackets");
+  else if(ac.open && ac.mode==="brackets") closeAC();
+}
+function acWordTrigger(f){
+  const pos = f.selectionStart;
+  const before = f.value.slice(0, pos);
+  const m = before.match(/([\wÀ-ÿ'’\-]+)$/);
+  openAC(f, m ? m[1] : "", m ? pos - m[1].length : pos, pos, "word");
+}
+function onFieldKeydown(e){
+  const f = e.target;
+  if(isLinkField(f) && e.ctrlKey && (e.code==="Space" || e.key===" ")){ e.preventDefault(); acWordTrigger(f); return; }
+  if(!ac.open) return;
+  if(e.key==="ArrowDown"){ e.preventDefault(); moveAC(1); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); moveAC(-1); }
+  else if(e.key==="Enter" || e.key==="Tab"){ e.preventDefault(); acceptAC(); }
+  else if(e.key==="Escape"){ e.preventDefault(); closeAC(); }
+}
+
+document.addEventListener("input", onFieldInput);
+document.addEventListener("keydown", onFieldKeydown, true);
+document.addEventListener("scroll", ()=>{ if(ac.open) closeAC(); }, true);
+document.addEventListener("mousedown", e=>{ if(ac.open && !e.target.closest("#ac-pop") && e.target!==ac.field) closeAC(); });
+$("#ac-pop").addEventListener("mousedown", e=>{ const it=e.target.closest("[data-ac]"); if(it){ e.preventDefault(); ac.sel=+it.dataset.ac; acceptAC(); } });
+
+/* Coordonnées du curseur dans un textarea/input (technique du "miroir") */
+function getCaretCoordinates(element, position){
+  const isInput = element.nodeName === "INPUT";
+  const div = document.createElement("div");
+  const computed = getComputedStyle(element);
+  const s = div.style;
+  s.position = "absolute"; s.visibility = "hidden"; s.whiteSpace = "pre-wrap";
+  if(!isInput) s.wordWrap = "break-word"; else { s.whiteSpace = "pre"; s.overflow = "hidden"; }
+  ["boxSizing","width","height","overflowX","overflowY","borderTopWidth","borderRightWidth","borderBottomWidth","borderLeftWidth",
+   "paddingTop","paddingRight","paddingBottom","paddingLeft","fontStyle","fontVariant","fontWeight","fontStretch","fontSize",
+   "lineHeight","fontFamily","textAlign","textTransform","textIndent","letterSpacing","wordSpacing","tabSize"]
+    .forEach(p=>{ s[p] = computed[p]; });
+  document.body.appendChild(div);
+  div.textContent = element.value.substring(0, position);
+  if(isInput) div.textContent = div.textContent.replace(/\s/g, " ");
+  const span = document.createElement("span");
+  span.textContent = element.value.substring(position) || ".";
+  div.appendChild(span);
+  const coords = { top: span.offsetTop + parseInt(computed.borderTopWidth), left: span.offsetLeft + parseInt(computed.borderLeftWidth), height: parseInt(computed.lineHeight) || parseInt(computed.fontSize) };
+  document.body.removeChild(div);
+  return coords;
+}
+
+/* --------------------------- Données de démo ----------------------------- */
+function seedIfEmpty(){
+  const total = db.events.length+db.tables.length+db.creatures.length+db.sessions.length;
+  if(total>0) return;
+  const gob = {id:uid(),name:"Gobelin des cavernes",desc:"Petit humanoïde fourbe qui chasse en meute.",ac:"13",hp:"5",level:"1",alignment:"chaos",str:"-1",dex:"+2",con:"+1",int:"+0",wis:"-1",cha:"-1",abilities:"Vision dans le noir 18m. Avantage quand il attaque en groupe.",attacks:[{name:"Dague rouillée",bonus:"+2",damage:"1d6-1",range:"close"}]};
+  db.creatures.push(gob);
+  db.events.push({id:uid(),title:"Le sanctuaire effondré",
+    description:"Odeur d'encens froid et de pierre humide.\nVitraux brisés jonchent le sol.\nUn autel fissuré au centre.",
+    traps:"Dalle piégée devant l'autel (DEX DD 12) → fléchettes 1d4.",
+    secrets:"Passage dissimulé derrière l'autel menant à la crypte.",
+    info:"Le culte a fui. Des [[Gobelin des cavernes]] ont depuis investi les lieux."});
+  db.tables.push({id:uid(),title:"Rencontres dans les ruines",context:"À lancer à chaque exploration prolongée.",
+    rows:["Rien — un silence pesant","1d4 [[Gobelin des cavernes]] en maraude","Un piège oublié se déclenche","Un survivant terrifié se cache"]});
+  db.sessions.push({id:uid(),title:"Session 1 — L'appel",date:new Date().toISOString().slice(0,10),
+    entries:[{id:uid(),label:"Jour 1 — soir",notes:"Les héros atteignent [[Le sanctuaire effondré]] et affrontent des [[Gobelin des cavernes]]. Ils négocient avec [[Pleurnichou le gobelin]]."}]});
+  db.npcs.push({id:uid(),name:"Pleurnichou le gobelin",
+    description:"Gobelin geignard et opportuniste, toujours à se plaindre de son sort.",
+    physique:"Petit, peau verdâtre, une oreille déchirée, vêtements rapiécés et crasseux.",
+    age:"Adulte (jeune pour un gobelin)",
+    possessions:"Une bourse presque vide, un couteau ébréché, un porte-bonheur volé.",
+    objectif:"Amasser de l'or, toujours plus d'or.",
+    moyens:"Prêt à tuer, voler et tricher pour parvenir à ses fins.",
+    comportement:"Lâche face à plus fort que lui, fourbe et cruel face à plus faible."});
+  saveDB();
+}
+
+/* ------------------------------- Démarrage ------------------------------- */
+seedIfEmpty();
+render();
+</script>
+
+</body>
+</html>
