@@ -16,7 +16,9 @@
     --radius:10px; --shadow:0 6px 24px rgba(0,0,0,.45);
     --font: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
     --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --blackletter: "JSL Blackletter", var(--font);
   }
+  @font-face{ font-family:"JSL Blackletter"; src:url("jsl_blackletter/JBLACK.TTF") format("truetype"); font-weight:normal; font-style:normal; font-display:swap; }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{
@@ -337,19 +339,16 @@
     html, body{ background:#fff !important; }
     #print-area{ display:block !important; color:#241f18; font-family:var(--font);
       -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    #print-area h1{ font-size:23pt; color:#4a3a1a; margin:0 0 3pt; text-wrap:balance; }
+    #print-area h1{ font-family:var(--blackletter); font-size:30pt; font-weight:normal; color:#4a3a1a; margin:0 0 5pt; text-wrap:balance; }
     #print-area .pp-desc{ font-family:var(--ui); color:#555; font-size:10pt; margin:0 0 10pt; }
-    #print-area .pp-map{ page:mapland; break-after:page; }
-    #print-area .pp-svg{ width:100%; height:auto; max-height:118mm; display:block; margin:0 auto; }
+    #print-area .pp-map{ page:mapland; break-after:page; height:186mm; display:flex; flex-direction:column; }
+    #print-area .pp-svg{ width:100%; flex:1 1 auto; min-height:0; display:block; margin:0 auto; }
     #print-area .pp-svg line{ stroke:#8a744a; stroke-width:2; }
     #print-area .pp-svg .elbl{ fill:#6a5a3a; font-family:var(--ui); font-size:11px; }
     #print-area .pp-svg rect{ fill:#fff; stroke:#3a332a; stroke-width:1.4; }
     #print-area .pp-svg .numc{ fill:#b8892f; }
     #print-area .pp-svg .numt{ fill:#fff; font-family:var(--ui); font-weight:700; font-size:13px; }
     #print-area .pp-svg .ptitle{ fill:#2a241c; font-family:var(--font); font-size:13px; }
-    #print-area .pp-legend{ margin-top:8pt; columns:3; column-gap:18pt; font-family:var(--ui); font-size:9pt; color:#333; break-inside:avoid; }
-    #print-area .pp-legend .lg{ break-inside:avoid; margin:1.5pt 0; }
-    #print-area .pp-legend .n{ display:inline-block; min-width:1.5em; font-weight:700; color:#b8892f; }
     #print-area h2{ font-size:15pt; color:#4a3a1a; border-bottom:1.5pt solid #cbb27f; padding-bottom:3pt; margin:0 0 11pt; }
     #print-area .pp-event{ break-inside:avoid; margin:0 0 11pt; padding-bottom:8pt; border-bottom:1px solid #e4dbc6; }
     #print-area .pp-event:last-child{ border-bottom:none; }
@@ -1542,8 +1541,6 @@ function printCrawl(id){
   const c = getEntity("pointcrawl", id); if(!c) return;
   const nodes = c.nodes||[];
   if(!nodes.length){ toast("Ajoutez au moins un point avant d'imprimer."); return; }
-  const legend = nodes.map((n,i)=>{ const ev=getEntity("event",n.eventId);
-    return `<div class="lg"><span class="n">${i+1}.</span> ${esc(ev?ev.title:"(événement supprimé)")}</div>`; }).join("");
   const events = nodes.map((n,i)=>{
     const ev=getEntity("event",n.eventId);
     if(!ev) return `<div class="pp-event"><h3><span class="pp-num">${i+1}</span> <span>(événement supprimé)</span></h3></div>`;
@@ -1560,7 +1557,6 @@ function printCrawl(id){
       <h1>${esc(c.title||"Point Crawl")}</h1>
       ${c.description?`<p class="pp-desc">${renderTextPrint(c.description)}</p>`:""}
       ${crawlDiagramSVG(c)}
-      <div class="pp-legend">${legend}</div>
     </section>
     <section class="pp-events"><h2>Événements du plan (${nodes.length})</h2>${events}</section>`;
   window.print();
@@ -1842,7 +1838,7 @@ function snippet(text,q){
 function exportJSON(){
   const blob = new Blob([JSON.stringify(db,null,2)], {type:"application/json"});
   downloadBlob(blob, `grimoire-shadowdark-${new Date().toISOString().slice(0,10)}.json`);
-  toast("Données exportées.");
+  toast("Données exportées. Le fichier est téléchargé sur votre appareil, généralement dans votre dossier Téléchargements.");
 }
 const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures"];
 function countItems(d){ return DB_COLS.reduce((n,c)=>n+((d[c]||[]).length),0); }
