@@ -3814,17 +3814,23 @@ const SHADOWDARK_DEFAULT_TABLES = [
 
 /* Tables dynamiques par défaut : pas de `rows`, elles tirent en direct dans une collection de l'appli
    (voir DYNAMIC_TABLE_SOURCES plus haut). `source` = clé de collection, `sourceFilter` optionnel (pour
-   Trésor : "trouvaille" | "relique" | "regalia"). Vides tant que le GM n'a rien créé dans la collection visée.
+   Trésor : "trouvaille" | "relique" | "regalia" — les 3 catégories de TREASURE_CATS ont chacune leur table).
+   Vides tant que le GM n'a rien créé dans la collection visée.
    NB : pas de table "Sort" ici — l'appli ne gère pas encore les sorts comme des entités listables (le champ
-   « Sortilèges » des PJ est juste du texte libre), donc rien à tirer au sort pour l'instant. Voir le résumé
-   de session pour les options envisagées. */
+   « Sortilèges » des PJ est juste du texte libre sur la fiche PJ, pas une collection à part). Ajouter cette
+   table nécessiterait d'abord un vrai onglet Sorts (formulaire, liste, stockage) — décision à prendre avec
+   Tristan, pas juste une table dynamique de plus. */
 const SHADOWDARK_DEFAULT_DYNAMIC_TABLES = [
   { title:"Créature au hasard (bestiaire)", category:"Bestiaire", source:"creature",
     context:"Tire une créature au hasard parmi celles de votre bestiaire (onglet Créatures). Se remplit automatiquement à mesure que vous ajoutez des créatures — vide tant qu'aucune n'est créée." },
   { title:"PNJ au hasard", category:"PNJ", source:"npc",
     context:"Tire un PNJ au hasard parmi ceux que vous avez créés (onglet PNJ). Se remplit automatiquement — vide tant qu'aucun PNJ n'est créé." },
   { title:"Relique / objet magique au hasard", category:"Trésors & Objets", source:"treasure", sourceFilter:"relique",
-    context:"Tire un trésor au hasard parmi ceux classés « Relique » dans l'onglet Trésor. Se remplit automatiquement — vide tant qu'aucune relique n'est enregistrée." }
+    context:"Tire un trésor au hasard parmi ceux classés « Relique » dans l'onglet Trésor. Se remplit automatiquement — vide tant qu'aucune relique n'est enregistrée." },
+  { title:"Trouvaille au hasard", category:"Trésors & Objets", source:"treasure", sourceFilter:"trouvaille",
+    context:"Tire un trésor au hasard parmi ceux classés « Trouvaille » dans l'onglet Trésor. Se remplit automatiquement — vide tant qu'aucune trouvaille n'est enregistrée." },
+  { title:"Régalia au hasard", category:"Trésors & Objets", source:"treasure", sourceFilter:"regalia",
+    context:"Tire un trésor au hasard parmi ceux classés « Régalia » dans l'onglet Trésor. Se remplit automatiquement — vide tant qu'aucun régalia n'est enregistré." }
 ];
 
 /* Ajoute les tables par défaut manquantes (dédoublonnage par titre, insensible à la casse) — n'écrase jamais
