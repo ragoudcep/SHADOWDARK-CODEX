@@ -379,7 +379,7 @@
       <span class="rune">✦</span>
       <span>Codex<small>Campagne Shadowdark</small></span>
     </div>
-    <div class="search">
+    <div class="search" id="search-wrap">
       <span class="mag">🔍</span>
       <input id="search" type="text" placeholder="Rechercher une créature, un événement, une table…" autocomplete="off">
       <div id="search-results" class="search-results"></div>
@@ -2475,6 +2475,8 @@ function applyRoleUI(){
   const exp = document.getElementById("btn-export"), imp = document.getElementById("btn-import");
   if(exp) exp.classList.toggle("hidden", myRole!=="gm");
   if(imp) imp.classList.toggle("hidden", myRole!=="gm");
+  const searchWrap = document.getElementById("search-wrap");
+  if(searchWrap) searchWrap.classList.toggle("hidden", myRole!=="gm");
 }
 
 async function startApp(){
