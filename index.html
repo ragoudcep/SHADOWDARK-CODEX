@@ -3988,7 +3988,7 @@ async function fetchMyRole(){
 
 /* Cache les onglets et actions réservés au MJ pour un compte joueur */
 function applyRoleUI(){
-  const PLAYER_VISIBLE_TABS = ["roadbook","hexmaps"];
+  const PLAYER_VISIBLE_TABS = ["roadbook","hexmaps","spells"];
   document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{
     b.classList.toggle("hidden", myRole!=="gm" && !PLAYER_VISIBLE_TABS.includes(b.dataset.tab));
   });
