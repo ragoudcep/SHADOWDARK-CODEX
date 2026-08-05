@@ -175,6 +175,8 @@
   .tag.spell{color:#9db4ff; border-color:#3c4a8a; background:rgba(157,180,255,.13)}
   .tag.priest{color:#ffe9b8; border-color:#8a7a3a; background:rgba(255,233,184,.13)}
   .tag.wizard{color:#c9a3f7; border-color:#6a4a8f; background:rgba(201,163,247,.13)}
+  .tag.seer{color:#a8d8b9; border-color:#3a6a4a; background:rgba(168,216,185,.13)}
+  .tag.witch{color:#f0a8a3; border-color:#8a3a3a; background:rgba(240,168,163,.13)}
   .tag.chaos{color:#ff6b6b; border-color:#8f3a3a; background:rgba(255,107,107,.13)}
   .tag.loyal{color:#6fe06a; border-color:#3a7a37; background:rgba(111,224,106,.13)}
   .tag.neutre{color:var(--muted)}
@@ -2332,7 +2334,7 @@ function detailTreasure(t){
    sort — donc affichée comme rappel calculé (DD = 10 + rang×2), pas suivie
    par PJ (les PJ n'ont qu'une liste de sorts en texte libre pour l'instant).
    ========================================================================= */
-const SPELL_CLASSES = [["priest","Prêtre"],["wizard","Magicien"]];
+const SPELL_CLASSES = [["priest","Prêtre"],["wizard","Magicien"],["seer","Augure"],["witch","Sorcier"]];
 function spellClassLabel(k){ const f=SPELL_CLASSES.find(c=>c[0]===k); return f?f[1]:(k||"Sort"); }
 function spellCastDC(tier){ return 10 + (parseInt(tier)||1)*2; }
 function sortSpellList(list){ return [...list].sort((a,b)=>(parseInt(a.tier)||0)-(parseInt(b.tier)||0) || (a.name||"").localeCompare(b.name||"")); }
