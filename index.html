@@ -172,6 +172,9 @@
   .tag.event{color:#c9a3f7; border-color:#6a4a8f; background:rgba(201,163,247,.13)}
   .tag.table{color:#5fe6d8; border-color:#2e7a70; background:rgba(95,230,216,.12)}
   .tag.session{color:#9fc4ff; border-color:#3e5c9e; background:rgba(159,196,255,.13)}
+  .tag.spell{color:#9db4ff; border-color:#3c4a8a; background:rgba(157,180,255,.13)}
+  .tag.priest{color:#ffe9b8; border-color:#8a7a3a; background:rgba(255,233,184,.13)}
+  .tag.wizard{color:#c9a3f7; border-color:#6a4a8f; background:rgba(201,163,247,.13)}
   .tag.chaos{color:#ff6b6b; border-color:#8f3a3a; background:rgba(255,107,107,.13)}
   .tag.loyal{color:#6fe06a; border-color:#3a7a37; background:rgba(111,224,106,.13)}
   .tag.neutre{color:var(--muted)}
@@ -599,6 +602,7 @@
     <button data-tab="events">Événements</button>
     <button data-tab="pointcrawls">Point Crawl</button>
     <button data-tab="creatures">Créatures</button>
+    <button data-tab="spells">Sorts</button>
     <button data-tab="pcs">PJ</button>
     <button data-tab="npcs">PNJ</button>
     <button data-tab="treasures">Trésor</button>
@@ -664,7 +668,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], roadbook:[], hexmaps:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], roadbook:[], hexmaps:[], spells:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -735,9 +739,9 @@ let creatureCatFilter = "";     // filtre de catégorie ("" = toutes/regroupées
 let tableCatFilter = "";        // filtre de catégorie des tables aléatoires (même principe que creatureCatFilter)
 let readingMode = false; // "mode table de jeu" : masque les contrôles GM, agrandit le texte des fiches
 
-const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route", hexmap:"Hexcrawl" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","pcs","npcs","treasures","roadbook","hexmaps"];
-const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook", hexmaps:"hexmap" };
+const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route", hexmap:"Hexcrawl", spell:"Sort" };
+const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","roadbook","hexmaps"];
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook", hexmaps:"hexmap" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
@@ -763,9 +767,10 @@ function findByName(name){
   for(const pc of db.pointcrawls) if((pc.title||"").toLowerCase()===n) return {type:"pointcrawl", id:pc.id};
   for(const pj of db.pcs)         if((pj.name||"").toLowerCase()===n) return {type:"pc", id:pj.id};
   for(const tr of db.treasures)   if((tr.name||"").toLowerCase()===n) return {type:"treasure", id:tr.id};
+  for(const sp of db.spells)      if((sp.name||"").toLowerCase()===n) return {type:"spell", id:sp.id};
   return null;
 }
-const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook", hexmap:"hexmaps" };
+const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook", hexmap:"hexmaps", spell:"spells" };
 
 /* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
 function renderText(text){
@@ -810,9 +815,10 @@ function entityText(type, o){
   if(type==="pointcrawl") return [o.title,o.description,(o.nodes||[]).map(nd=>{const ev=getEntity("event",nd.eventId);return ev?ev.title:"";}).join(" ")].join(" \n ");
   if(type==="pc")       return [o.name,o.ancestry,o.cls,o.info,o.skills,o.spells,o.inventory,(o.talents||[]).map(t=>t.text).join(" ")].join(" \n ");
   if(type==="treasure") return [o.name,treasureCatLabel(o.category),o.description].join(" \n ");
+  if(type==="spell")    return [o.name,spellClassLabel(o.class),o.tier?"rang "+o.tier:"",o.range,o.duration,o.effect].join(" \n ");
   return "";
 }
-function entityTitle(type,o){ return (type==="creature"||type==="npc"||type==="pc"||type==="treasure") ? o.name : o.title; }
+function entityTitle(type,o){ return (type==="creature"||type==="npc"||type==="pc"||type==="treasure"||type==="spell") ? o.name : o.title; }
 
 /* Extrait les noms référencés en [[...]] dans un texte */
 function extractLinks(text){
@@ -824,7 +830,7 @@ function extractLinks(text){
 /* Calcule les rétroliens vers une entité cible : qui la mentionne en [[...]] ? */
 function findBrokenLinks(){
   const results = [];
-  const collections = [["event",db.events],["table",db.tables],["session",db.sessions],["creature",db.creatures],["npc",db.npcs],["pointcrawl",db.pointcrawls],["pc",db.pcs],["treasure",db.treasures]];
+  const collections = [["event",db.events],["table",db.tables],["session",db.sessions],["creature",db.creatures],["npc",db.npcs],["pointcrawl",db.pointcrawls],["pc",db.pcs],["treasure",db.treasures],["spell",db.spells]];
   for(const [type,list] of collections){
     for(const o of list){
       const links = extractLinks(entityText(type,o));
@@ -862,7 +868,7 @@ function backlinksTo(targetType, targetId){
   const target = getEntity(targetType, targetId);
   if(!target) return {};
   const targetName = entityTitle(targetType, target).toLowerCase();
-  const groups = { event:[], table:[], session:[], creature:[], npc:[], pointcrawl:[], pc:[], treasure:[] };
+  const groups = { event:[], table:[], session:[], creature:[], npc:[], pointcrawl:[], pc:[], treasure:[], spell:[] };
   const scan = (type, list)=>{
     for(const o of list){
       if(type===targetType && o.id===targetId) continue;
@@ -871,12 +877,12 @@ function backlinksTo(targetType, targetId){
     }
   };
   scan("event", db.events); scan("table", db.tables);
-  scan("session", db.sessions); scan("creature", db.creatures); scan("npc", db.npcs); scan("pointcrawl", db.pointcrawls); scan("pc", db.pcs); scan("treasure", db.treasures);
+  scan("session", db.sessions); scan("creature", db.creatures); scan("npc", db.npcs); scan("pointcrawl", db.pointcrawls); scan("pc", db.pcs); scan("treasure", db.treasures); scan("spell", db.spells);
   return groups;
 }
 
 /* ------------------------------- CRUD ------------------------------------ */
-function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, roadbook:db.roadbook, hexmap:db.hexmaps }[type]; }
+function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, roadbook:db.roadbook, hexmap:db.hexmaps, spell:db.spells }[type]; }
 function getEntity(type,id){ return collectionOf(type).find(o=>o.id===id); }
 function deleteEntity(type,id){
   const c = collectionOf(type); const i = c.findIndex(o=>o.id===id);
@@ -928,6 +934,7 @@ function renderList(){
   if(view.tab==="events")    return listEvents();
   if(view.tab==="tables")    return listTables();
   if(view.tab==="creatures") return listCreatures();
+  if(view.tab==="spells")    return listSpells();
   if(view.tab==="sessions")  return listSessions();
   if(view.tab==="npcs")      return listNPCs();
   if(view.tab==="pointcrawls") return listCrawls();
@@ -1032,7 +1039,8 @@ function diceIcon(n){
 const DYNAMIC_TABLE_SOURCES = {
   creature: { tab:"creatures", hasCategoryFilter:false },
   npc:      { tab:"npcs",      hasCategoryFilter:false },
-  treasure: { tab:"treasures", hasCategoryFilter:true }
+  treasure: { tab:"treasures", hasCategoryFilter:true },
+  spell:    { tab:"spells",    hasCategoryFilter:false }
 };
 function dynamicSourceItems(t){
   const meta = DYNAMIC_TABLE_SOURCES[t.source];
@@ -1220,6 +1228,7 @@ function renderDetail(){
   if(type==="event")    return detailEvent(o);
   if(type==="table")    return detailTable(o);
   if(type==="creature") return detailCreature(o);
+  if(type==="spell")    return detailSpell(o);
   if(type==="session")  return detailSession(o);
   if(type==="npc")      return detailNPC(o);
   if(type==="pointcrawl") return detailCrawl(o);
@@ -1248,7 +1257,7 @@ function duplicateEntity(type,id){
   (copy.nodes||[]).forEach(x=>x.id=uid());
   (copy.edges||[]).forEach(x=>x.id=uid());
   (copy.images||[]).forEach(x=>x.id=uid());
-  if(type==="creature"||type==="npc"||type==="pc"||type==="treasure") copy.name = (copy.name||"Sans nom")+" (copie)";
+  if(type==="creature"||type==="npc"||type==="pc"||type==="treasure"||type==="spell") copy.name = (copy.name||"Sans nom")+" (copie)";
   if(type==="creature"){ copy.manual = true; delete copy.imported; }   // un doublon créé à la main est protégé du vidage
   else copy.title = (copy.title||"Sans titre")+" (copie)";
   collectionOf(type).push(copy);
@@ -1257,7 +1266,7 @@ function duplicateEntity(type,id){
 
 function backlinksBlock(type,id){
   const g = backlinksTo(type,id);
-  const order = [["event","Événements"],["session","Sessions"],["table","Tables"],["creature","Créatures"],["pc","PJ"],["npc","PNJ"],["pointcrawl","Point Crawl"],["treasure","Trésor"]];
+  const order = [["event","Événements"],["session","Sessions"],["table","Tables"],["creature","Créatures"],["spell","Sorts"],["pc","PJ"],["npc","PNJ"],["pointcrawl","Point Crawl"],["treasure","Trésor"]];
   const parts = order.filter(([k])=>g[k]&&g[k].length).map(([k,lbl])=>`
     <div class="bl-group"><div class="lbl">${lbl}</div>
       ${g[k].map(x=>`<span class="bl-chip" data-goto="${x.type}:${x.id}">${esc(x.title||"—")}</span>`).join("")}
@@ -1402,6 +1411,7 @@ function renderForm(){
   if(view.tab==="events")    return formEvent();
   if(view.tab==="tables")    return formTable();
   if(view.tab==="creatures") return formCreature();
+  if(view.tab==="spells")    return formSpell();
   if(view.tab==="sessions")  return formSession();
   if(view.tab==="npcs")      return formNPC();
   if(view.tab==="pointcrawls") return formCrawl();
@@ -2316,6 +2326,91 @@ function detailTreasure(t){
 }
 
 /* =========================================================================
+   SORTS — répertoire de sorts, classés par Classe (Prêtre / Magicien) puis
+   triés par Rang puis Nom. Le "sort perdu" (échec du jet d'incantation de
+   5+ ou 1 naturel) est une règle de résolution en jeu, pas une propriété du
+   sort — donc affichée comme rappel calculé (DD = 10 + rang×2), pas suivie
+   par PJ (les PJ n'ont qu'une liste de sorts en texte libre pour l'instant).
+   ========================================================================= */
+const SPELL_CLASSES = [["priest","Prêtre"],["wizard","Magicien"]];
+function spellClassLabel(k){ const f=SPELL_CLASSES.find(c=>c[0]===k); return f?f[1]:(k||"Sort"); }
+function spellCastDC(tier){ return 10 + (parseInt(tier)||1)*2; }
+function sortSpellList(list){ return [...list].sort((a,b)=>(parseInt(a.tier)||0)-(parseInt(b.tier)||0) || (a.name||"").localeCompare(b.name||"")); }
+function spellCard(s){
+  return `<div class="card" data-open="spell:${s.id}">
+    <div class="meta"><span class="tag ${s.class||'wizard'}">${esc(spellClassLabel(s.class))}</span><span class="tag gold">Rang ${esc(s.tier||'?')}</span></div>
+    <h3 style="margin-top:.5rem">${esc(s.name||"Sans nom")}</h3>
+    <p>${esc(firstLine(s.effect)||"Pas d'effet renseigné")}</p>
+  </div>`;
+}
+function listSpells(){
+  const items = db.spells;
+  const head = pageHead("Sorts", `${items.length} sort(s)`, "Nouveau sort", xmlToolbarHTML("spell"));
+  if(!items.length){ app.innerHTML = head + emptyState("✨","Aucun sort. Répertoriez les sorts de Prêtre et de Magicien."); return; }
+  const allKeys = SPELL_CLASSES.map(([k])=>"spells:"+k).filter(key=>items.some(s=>(s.class||"wizard")===key.split(":")[1]));
+  const allOpen = allKeys.length && allKeys.every(k=>expandedGroups.has(k));
+  const toggleBar = `<div style="margin-bottom:.8rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button></div>`;
+  const sections = SPELL_CLASSES.map(([k,lbl])=>{
+    const list = sortSpellList(items.filter(s=>(s.class||"wizard")===k));
+    if(!list.length) return "";
+    const key = "spells:"+k, closed = !expandedGroups.has(key);
+    return `<h2 class="group-head${closed?' collapsed':''}" data-toggle-group="${esc(key)}">${esc(lbl)} <span class="faint">(${list.length})</span><span class="grp-arrow">▾</span></h2>
+      <div class="group-body${closed?' collapsed':''}"><div class="grid" style="margin-bottom:1.4rem">${list.map(spellCard).join("")}</div></div>`;
+  }).join("");
+  app.innerHTML = head + toggleBar + sections;
+}
+function formSpell(){
+  const s = view.mode==="edit" ? getEntity("spell",view.id) : {name:"",class:"wizard",tier:1,range:"",duration:"",effect:""};
+  const classOpt = SPELL_CLASSES.map(([k,lbl])=>`<option value="${k}" ${s.class===k?"selected":""}>${lbl}</option>`).join("");
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier le":"Nouveau"} sort</h1>
+    <div class="row">
+      <div class="field" style="flex:2 1 200px"><label>Nom</label><input type="text" id="f-name" value="${esc(s.name)}" placeholder="Boule de feu"></div>
+      <div class="field" style="flex:1 1 140px"><label>Classe</label><select id="f-class">${classOpt}</select></div>
+      <div class="field" style="flex:0 0 110px"><label>Rang (1–5)</label><input type="number" id="f-tier" min="1" max="5" value="${esc(s.tier||1)}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Portée</label><input type="text" id="f-range" value="${esc(s.range)}" placeholder="Proche"></div>
+      <div class="field"><label>Durée</label><input type="text" id="f-duration" value="${esc(s.duration)}" placeholder="Instantanée"></div>
+    </div>
+    <div class="field"><label>Effet <span class="hint">(une ligne par effet ; liens [[…]] possibles)</span></label>
+      <textarea id="f-effect" style="min-height:120px" placeholder="Inflige 4d6 dégâts de feu dans une zone de 3m...">${esc(s.effect)}</textarea></div>
+    <p class="hint" style="margin:-.3rem 0 .8rem">DD pour lancer : 10 + rang×2. En cas d'échec de 5 ou plus (ou 1 naturel), le sort est perdu jusqu'au prochain repos — règle de jeu, pas suivie automatiquement par l'appli.</p>
+    ${LINK_HELP}
+    <div class="form-actions"><button class="btn" data-save="spell">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+}
+function saveSpell(){
+  const o = view.mode==="edit" ? getEntity("spell",view.id) : {id:uid()};
+  const _old = view.mode==="edit" ? o.name : null;
+  o.name = $("#f-name").value.trim();
+  o.class = $("#f-class").value;
+  o.tier = Math.max(1, Math.min(5, parseInt($("#f-tier").value)||1));
+  o.range = $("#f-range").value.trim();
+  o.duration = $("#f-duration").value.trim();
+  o.effect = $("#f-effect").value;
+  if(!o.name){ toast("Le nom est requis."); return; }
+  if(view.mode==="new") db.spells.push(o);
+  const _n = maybePropagate(_old, o.name);
+  saveDB(); toast("Sort enregistré."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"spells",mode:"detail",id:o.id}; render();
+}
+function detailSpell(s){
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Sorts</button>
+    <div class="meta"><span class="tag spell">Sort</span><span class="tag ${s.class||'wizard'}">${esc(spellClassLabel(s.class))}</span><span class="tag gold">Rang ${esc(s.tier||'?')}</span></div>
+    <h1>${esc(s.name||"Sans nom")}</h1>
+    ${detailActions("spell",s.id)}
+    <div class="meta" style="margin-top:.6rem">${s.range?`<span class="tag">Portée : ${esc(s.range)}</span>`:""}${s.duration?`<span class="tag">Durée : ${esc(s.duration)}</span>`:""}</div>
+    ${(s.effect&&s.effect.trim())
+      ? `<div class="section"><h2>Effet</h2>${renderBullets(s.effect)}</div>`
+      : `<p class="faint" style="font-family:var(--ui)">Aucun effet renseigné.</p>`}
+    <p class="faint" style="font-family:var(--ui);font-size:.82rem">DD pour lancer : ${spellCastDC(s.tier)} (10 + rang×2). Échec de 5 ou plus (ou 1 naturel) : le sort est perdu jusqu'au prochain repos — à suivre manuellement, non tracké par l'appli pour l'instant.</p>
+    ${backlinksBlock("spell",s.id)}
+  </div>`;
+}
+
+/* =========================================================================
    CARNET DE ROUTE — onglet en lecture seule pour un joueur invité
    ========================================================================= */
 function listRoadbook(){
@@ -2819,6 +2914,7 @@ function runSearch(q){
   db.pointcrawls.forEach(o=>push("pointcrawl",o));
   db.pcs.forEach(o=>push("pc",o));
   db.treasures.forEach(o=>push("treasure",o));
+  db.spells.forEach(o=>push("spell",o));
   results.sort((a,b)=>(a.fuzzy===b.fuzzy)?0:(a.fuzzy?1:-1));
   if(!results.length){ box.innerHTML = `<div class="sr-empty">Aucun résultat pour « ${esc(q)} »</div>`; box.classList.add("open"); return; }
   box.innerHTML = results.slice(0,25).map(r=>`
@@ -2845,7 +2941,7 @@ function exportJSON(){
   downloadBlob(blob, `grimoire-shadowdark-${new Date().toISOString().slice(0,10)}.json`);
   toast("Données exportées. Le fichier est téléchargé sur votre appareil, généralement dans votre dossier Téléchargements.");
 }
-const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","roadbook","hexmaps"];
+const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","roadbook","hexmaps","spells"];
 function countItems(d){ return DB_COLS.reduce((n,c)=>n+((d[c]||[]).length),0); }
 function mergeDB(data){
   let added = 0;
@@ -3080,7 +3176,9 @@ const XML_TYPES = {
   table: { tag:"table", tagAlt:/table/i, label:"table", col:"tables", nameField:"title",
     fields:["title","context"], rowsField:"rows" },
   pointcrawl: { tag:"pointcrawl", tagAlt:/pointcrawl|crawl/i, label:"point crawl", col:"pointcrawls", nameField:"title",
-    fields:["title","description"] }
+    fields:["title","description"] },
+  spell: { tag:"spell", tagAlt:/spell|sort/i, label:"sort", col:"spells", nameField:"name",
+    fields:["name","class","tier","range","duration","effect"] }
 };
 let _xmlImportTarget = "creature";
 let _xmlPendingGeneric = null;
@@ -3245,6 +3343,7 @@ app.addEventListener("click", e=>{
     else if(ty==="creature") saveCreature(); else if(ty==="session") saveSession();
     else if(ty==="npc") saveNPC(); else if(ty==="pointcrawl") saveCrawl();
     else if(ty==="pc") savePC(); else if(ty==="treasure") saveTreasure();
+    else if(ty==="spell") saveSpell();
     else if(ty==="roadbook") saveRoadbook();
     else if(ty==="hexmap") saveHexmap();
     return;
@@ -3815,11 +3914,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
 /* Tables dynamiques par défaut : pas de `rows`, elles tirent en direct dans une collection de l'appli
    (voir DYNAMIC_TABLE_SOURCES plus haut). `source` = clé de collection, `sourceFilter` optionnel (pour
    Trésor : "trouvaille" | "relique" | "regalia" — les 3 catégories de TREASURE_CATS ont chacune leur table).
-   Vides tant que le GM n'a rien créé dans la collection visée.
-   NB : pas de table "Sort" ici — l'appli ne gère pas encore les sorts comme des entités listables (le champ
-   « Sortilèges » des PJ est juste du texte libre sur la fiche PJ, pas une collection à part). Ajouter cette
-   table nécessiterait d'abord un vrai onglet Sorts (formulaire, liste, stockage) — décision à prendre avec
-   Tristan, pas juste une table dynamique de plus. */
+   Vides tant que le GM n'a rien créé dans la collection visée. */
 const SHADOWDARK_DEFAULT_DYNAMIC_TABLES = [
   { title:"Créature au hasard (bestiaire)", category:"Bestiaire", source:"creature",
     context:"Tire une créature au hasard parmi celles de votre bestiaire (onglet Créatures). Se remplit automatiquement à mesure que vous ajoutez des créatures — vide tant qu'aucune n'est créée." },
@@ -3830,7 +3925,9 @@ const SHADOWDARK_DEFAULT_DYNAMIC_TABLES = [
   { title:"Trouvaille au hasard", category:"Trésors & Objets", source:"treasure", sourceFilter:"trouvaille",
     context:"Tire un trésor au hasard parmi ceux classés « Trouvaille » dans l'onglet Trésor. Se remplit automatiquement — vide tant qu'aucune trouvaille n'est enregistrée." },
   { title:"Régalia au hasard", category:"Trésors & Objets", source:"treasure", sourceFilter:"regalia",
-    context:"Tire un trésor au hasard parmi ceux classés « Régalia » dans l'onglet Trésor. Se remplit automatiquement — vide tant qu'aucun régalia n'est enregistré." }
+    context:"Tire un trésor au hasard parmi ceux classés « Régalia » dans l'onglet Trésor. Se remplit automatiquement — vide tant qu'aucun régalia n'est enregistré." },
+  { title:"Sort au hasard", category:"Sorts", source:"spell",
+    context:"Tire un sort au hasard parmi ceux de l'onglet Sorts (Prêtre et Magicien confondus). Se remplit automatiquement — vide tant qu'aucun sort n'est créé." }
 ];
 
 /* Ajoute les tables par défaut manquantes (dédoublonnage par titre, insensible à la casse) — n'écrase jamais
