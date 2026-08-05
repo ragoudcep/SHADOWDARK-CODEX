@@ -1022,14 +1022,38 @@ function diceIcon(n){
   else shape = `<circle cx="7" cy="7" r="6.2" ${s}/>`;
   return `<svg width="14" height="14" viewBox="0 0 14 14" style="vertical-align:-2px;margin-right:.3rem">${shape}</svg>`;
 }
+/* ------------------ Tables dynamiques (tirent parmi une collection existante de l'appli) ------------------
+   Une table "dynamique" (t.kind==="dynamic") ne stocke pas de contenu figé dans t.rows : à la place, elle
+   pointe vers une collection de l'appli (t.source, ex. "creature") et, en option, un filtre (t.sourceFilter,
+   utile pour les trésors classés par catégorie). Son "d-quelque-chose" et son contenu sont recalculés en
+   direct à chaque affichage/tirage à partir de ce qui existe alors dans `db` — elle grossit toute seule au
+   fil de la campagne, et est vide tant que rien n'a été créé dans la collection visée. `tab` ci-dessous est
+   à la fois la clé de `db` et le nom de l'onglet (creatures/npcs/treasures partagent les deux). */
+const DYNAMIC_TABLE_SOURCES = {
+  creature: { tab:"creatures", hasCategoryFilter:false },
+  npc:      { tab:"npcs",      hasCategoryFilter:false },
+  treasure: { tab:"treasures", hasCategoryFilter:true }
+};
+function dynamicSourceItems(t){
+  const meta = DYNAMIC_TABLE_SOURCES[t.source];
+  if(!meta) return [];
+  let list = db[meta.tab] || [];
+  if(t.sourceFilter){
+    list = list.filter(x => (x.category || (meta.tab==="treasures" ? "trouvaille" : "")) === t.sourceFilter);
+  }
+  return list;
+}
+function tableSize(t){ return t.kind==="dynamic" ? dynamicSourceItems(t).length : (t.rows||[]).length; }
+
 function tableCategories(){
   const set = new Set();
   db.tables.forEach(t=>{ if(t.category && t.category.trim()) set.add(t.category.trim()); });
   return [...set].sort((a,b)=>a.localeCompare(b));
 }
 function tableCard(t){
+  const size = tableSize(t);
   return `<div class="card" data-open="table:${t.id}">
-    <div class="meta"><span class="tag table">${diceIcon((t.rows||[]).length||0)}d${(t.rows||[]).length||0}</span>${t.category?`<span class="tag gold">${esc(t.category)}</span>`:""}</div>
+    <div class="meta"><span class="tag table">${diceIcon(size)}d${size}</span>${t.kind==="dynamic"?`<span class="tag gold">⚡ Dynamique</span>`:""}${t.category?`<span class="tag gold">${esc(t.category)}</span>`:""}</div>
     <h3 style="margin-top:.6rem">${esc(t.title||"Sans titre")}</h3>
     <p>${esc(t.context||"Pas de contexte")}</p>
   </div>`;
@@ -1260,23 +1284,31 @@ function crawlBacklinkBlock(eventId){
 }
 
 function detailTable(t){
-  const rows = t.rows||[];
-  app.innerHTML = `<div class="detail">
-    <button class="back" data-back="1">← Tables aléatoires</button>
-    <div class="meta"><span class="tag table">Table · d${rows.length||0}</span>${t.category?`<span class="tag gold">${esc(t.category)}</span>`:""}</div>
-    <h1>${esc(t.title||"Sans titre")}</h1>
-    ${detailActions("table",t.id)}
-    ${t.context?`<div class="section"><h2>Contexte</h2><div class="prose">${renderText(t.context)}</div></div>`:""}
-    <div class="section">
+  const isDynamic = t.kind==="dynamic";
+  const srcMeta = isDynamic ? DYNAMIC_TABLE_SOURCES[t.source] : null;
+  const rows = isDynamic ? dynamicSourceItems(t).map(x=>x.name||x.title||"Sans nom") : (t.rows||[]);
+  const resultsBlock = (isDynamic && !rows.length)
+    ? `<div class="section"><p class="faint" style="font-family:var(--ui)">
+        Cette table est vide pour l'instant : elle tire au hasard parmi vos « ${esc(TYPE_LABEL[t.source]||t.source||"?")} », et vous n'en avez pas encore créé.
+        ${srcMeta ? `<br><button class="btn ghost sm" style="margin-top:.5rem" data-goto-tab="${srcMeta.tab}">→ Aller à l'onglet ${esc(TYPE_LABEL[t.source]||"")}</button>` : ""}
+      </p></div>`
+    : `<div class="section">
       <h2>Résultats (${rows.length})</h2>
       <div style="margin:.3rem 0 .8rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap"><button class="btn sm" data-roll="${t.id}">🎲 Lancer 1d${rows.length||0}</button>
         <span id="roll-out" class="roll-result"></span>
         <button class="btn ghost sm hidden" id="roll-add-session">+ Ajouter à la session en cours</button></div>
       <table class="tbl"><thead><tr><th style="width:2.5rem">#</th><th>Résultat</th></tr></thead>
         <tbody id="table-body">
-        ${rows.map((r,i)=>`<tr data-rowidx="${i}"><td class="idx">${i+1}</td><td>${renderText(r)||'<span class="faint">—</span>'}</td></tr>`).join("")}
+        ${rows.map((r,i)=>`<tr data-rowidx="${i}"><td class="idx">${i+1}</td><td>${(isDynamic?renderText(`[[${r}]]`):renderText(r))||'<span class="faint">—</span>'}</td></tr>`).join("")}
         </tbody></table>
-    </div>
+    </div>`;
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Tables aléatoires</button>
+    <div class="meta"><span class="tag table">Table · d${rows.length||0}</span>${isDynamic?`<span class="tag gold">⚡ Dynamique</span>`:""}${t.category?`<span class="tag gold">${esc(t.category)}</span>`:""}</div>
+    <h1>${esc(t.title||"Sans titre")}</h1>
+    ${detailActions("table",t.id)}
+    ${t.context?`<div class="section"><h2>Contexte</h2><div class="prose">${renderText(t.context)}</div></div>`:""}
+    ${resultsBlock}
     ${backlinksBlock("table",t.id)}
   </div>`;
 }
@@ -1416,8 +1448,12 @@ function saveEvent(){
 }
 
 function formTable(){
-  const t = view.mode==="edit" ? getEntity("table",view.id) : {title:"",category:"",context:"",rows:["",""]};
+  const t = view.mode==="edit" ? getEntity("table",view.id) : {title:"",category:"",context:"",kind:"static",rows:["",""]};
+  const isDynamic = t.kind==="dynamic";
   const rows = t.rows && t.rows.length ? t.rows : ["",""];
+  const sourceOpt = Object.keys(DYNAMIC_TABLE_SOURCES).map(k=>`<option value="${k}" ${t.source===k?"selected":""}>${esc(TYPE_LABEL[k]||k)}</option>`).join("");
+  const sourceIsTreasure = (t.source||"creature")==="treasure";
+  const treasureFilterOpt = `<option value="">Toutes catégories</option>`+TREASURE_CATS.map(([k,lbl])=>`<option value="${k}" ${t.sourceFilter===k?"selected":""}>${esc(lbl)}</option>`).join("");
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
     <h1>${view.mode==="edit"?"Modifier":"Nouvelle"} table aléatoire</h1>
@@ -1427,8 +1463,23 @@ function formTable(){
         <input type="text" id="f-category" list="table-cats" value="${esc(t.category||"")}" placeholder="PNJ">
         <datalist id="table-cats">${tableCategories().map(c=>`<option value="${esc(c)}"></option>`).join("")}</datalist></div>
     </div>
+    <div class="field"><label>Type de table</label>
+      <select id="f-kind">
+        <option value="static" ${!isDynamic?"selected":""}>Statique — contenu écrit à l'avance</option>
+        <option value="dynamic" ${isDynamic?"selected":""}>Dynamique — tire au hasard parmi une collection existante de l'appli</option>
+      </select>
+    </div>
+    <div id="dynamic-source-wrap" class="${isDynamic?"":"hidden"}">
+      <div class="row">
+        <div class="field" style="flex:1 1 200px"><label>Source</label><select id="f-source">${sourceOpt}</select></div>
+        <div class="field${sourceIsTreasure?"":" hidden"}" style="flex:1 1 200px" id="dynamic-filter-wrap">
+          <label>Filtre <span class="hint">(pour Trésor uniquement)</span></label>
+          <select id="f-source-filter">${treasureFilterOpt}</select></div>
+      </div>
+      <p class="hint" style="margin:-.3rem 0 .8rem">La table tire au hasard, à chaque jet, parmi les entités déjà créées dans cette collection — elle se remplit automatiquement au fil de la campagne et affiche un message tant qu'elle est vide.</p>
+    </div>
     <div class="field"><label>Contexte / description</label><textarea id="f-context" placeholder="À lancer chaque nuit de voyage...">${esc(t.context)}</textarea></div>
-    <div class="field">
+    <div class="field${isDynamic?" hidden":""}" id="rows-section">
       <label>Rangées <span class="hint">(nombre configurable — texte libre + liens [[…]])</span></label>
       <div class="row" style="margin-bottom:.6rem; align-items:flex-end">
         <div class="field" style="flex:0 0 140px"><label>Nombre</label><input type="number" id="row-count" min="1" max="100" value="${rows.length}"></div>
@@ -1460,7 +1511,15 @@ function saveTable(){
   o.title = $("#f-title").value.trim();
   o.category = $("#f-category").value.trim();
   o.context = $("#f-context").value;
-  o.rows = [...document.querySelectorAll(".row-input")].map(i=>i.value);
+  o.kind = $("#f-kind").value==="dynamic" ? "dynamic" : "static";
+  if(o.kind==="dynamic"){
+    o.source = $("#f-source").value;
+    o.sourceFilter = o.source==="treasure" ? $("#f-source-filter").value : "";
+    o.rows = [];
+  } else {
+    o.rows = [...document.querySelectorAll(".row-input")].map(i=>i.value);
+    delete o.source; delete o.sourceFilter;
+  }
   if(!o.title){ toast("Le titre est requis."); return; }
   if(view.mode==="new") db.tables.push(o);
   const _n = maybePropagate(_old, o.title);
@@ -1942,11 +2001,13 @@ function printTreasureBlock(t){
   </div>`;
 }
 function printTableBlock(t){
-  const rows = (t.rows||[]).map((r,i)=>`<li>${i+1}. ${renderTextPrint(r)}</li>`).join("");
+  // Pour une table dynamique, imprime un instantané de son contenu actuel (elle n'a pas de rows stockées).
+  const rowsArr = t.kind==="dynamic" ? dynamicSourceItems(t).map(x=>x.name||x.title||"Sans nom") : (t.rows||[]);
+  const rows = rowsArr.map((r,i)=>`<li>${i+1}. ${renderTextPrint(r)}</li>`).join("");
   return `<div class="pp-event">
     <h3><span>${esc(t.title||"Sans titre")}</span></h3>
     ${t.context?`<div class="pp-sec"><h4>Contexte</h4><ul><li>${renderTextPrint(t.context)}</li></ul></div>`:""}
-    ${rows?`<div class="pp-sec"><h4>Résultats (d${(t.rows||[]).length})</h4><ul>${rows}</ul></div>`:""}
+    ${rows?`<div class="pp-sec"><h4>Résultats (d${rowsArr.length})</h4><ul>${rows}</ul></div>`:""}
   </div>`;
 }
 function buildPrintAppendix(nodes){
@@ -3142,6 +3203,16 @@ app.addEventListener("change", e=>{
   else if(e.target.matches("[data-crea-sort]")){ creatureSort = e.target.value; renderList(); }
   else if(e.target.matches("[data-crea-filter]")){ creatureCatFilter = e.target.value; renderList(); }
   else if(e.target.matches("[data-table-filter]")){ tableCatFilter = e.target.value; renderList(); }
+  else if(e.target.matches("#f-kind")){
+    const dyn = e.target.value==="dynamic";
+    const srcWrap = document.getElementById("dynamic-source-wrap"), rowsSec = document.getElementById("rows-section");
+    if(srcWrap) srcWrap.classList.toggle("hidden", !dyn);
+    if(rowsSec) rowsSec.classList.toggle("hidden", dyn);
+  }
+  else if(e.target.matches("#f-source")){
+    const filterWrap = document.getElementById("dynamic-filter-wrap");
+    if(filterWrap) filterWrap.classList.toggle("hidden", e.target.value!=="treasure");
+  }
 });
 
 // Clics globaux dans l'app (délégation)
@@ -3233,6 +3304,8 @@ app.addEventListener("click", e=>{
   // Lancer de dé sur une table
   if((el=closest("data-roll"))){ rollTable(el.dataset.roll); return; }
   if(t.id==="roll-add-session" && lastTableRoll){ addRollToCurrentSession(lastTableRoll); return; }
+  // Table dynamique vide : lien direct vers l'onglet source (liste, pas une fiche précise)
+  if((el=closest("data-goto-tab"))){ editReturnTo=null; view={tab:el.dataset.gotoTab, mode:"list", id:null}; render(); return; }
 });
 
 function applyRowCount(){
@@ -3245,14 +3318,19 @@ function applyRowCount(){
 }
 let lastTableRoll = null; // { tableTitle, text } — dernier tirage, pour l'ajout aux notes de session
 function rollTable(id){
-  const t = getEntity("table",id); if(!t||!t.rows.length) return;
-  const idx = Math.floor(Math.random()*t.rows.length);
+  const t = getEntity("table",id); if(!t) return;
+  const isDynamic = t.kind==="dynamic";
+  const items = isDynamic ? dynamicSourceItems(t) : null;
+  const count = isDynamic ? items.length : t.rows.length;
+  if(!count) return;
+  const idx = Math.floor(Math.random()*count);
   document.querySelectorAll("#table-body tr").forEach(tr=>tr.classList.toggle("rolled", +tr.dataset.rowidx===idx));
-  const text = `${t.title||"Table"} → ${idx+1} : ${firstLine(t.rows[idx])||"(vide)"}`;
-  const out = $("#roll-out"); out.textContent = `→ ${idx+1} : ${firstLine(t.rows[idx])||"(vide)"}`;
+  const plain = isDynamic ? (items[idx].name||items[idx].title||"Sans nom") : (firstLine(t.rows[idx])||"(vide)");
+  const linked = isDynamic ? `[[${plain}]]` : plain; // lien cliquable une fois collé dans les notes de session
+  const out = $("#roll-out"); out.textContent = `→ ${idx+1} : ${plain}`;
   const tr = document.querySelector(`#table-body tr[data-rowidx="${idx}"]`);
   if(tr) tr.scrollIntoView({block:"nearest",behavior:"smooth"});
-  lastTableRoll = text;
+  lastTableRoll = `${t.title||"Table"} → ${idx+1} : ${linked}`;
   const addBtn = $("#roll-add-session"); if(addBtn) addBtn.classList.remove("hidden");
 }
 function currentSession(){
@@ -3734,21 +3812,42 @@ const SHADOWDARK_DEFAULT_TABLES = [
     ] }
 ];
 
+/* Tables dynamiques par défaut : pas de `rows`, elles tirent en direct dans une collection de l'appli
+   (voir DYNAMIC_TABLE_SOURCES plus haut). `source` = clé de collection, `sourceFilter` optionnel (pour
+   Trésor : "trouvaille" | "relique" | "regalia"). Vides tant que le GM n'a rien créé dans la collection visée.
+   NB : pas de table "Sort" ici — l'appli ne gère pas encore les sorts comme des entités listables (le champ
+   « Sortilèges » des PJ est juste du texte libre), donc rien à tirer au sort pour l'instant. Voir le résumé
+   de session pour les options envisagées. */
+const SHADOWDARK_DEFAULT_DYNAMIC_TABLES = [
+  { title:"Créature au hasard (bestiaire)", category:"Bestiaire", source:"creature",
+    context:"Tire une créature au hasard parmi celles de votre bestiaire (onglet Créatures). Se remplit automatiquement à mesure que vous ajoutez des créatures — vide tant qu'aucune n'est créée." },
+  { title:"PNJ au hasard", category:"PNJ", source:"npc",
+    context:"Tire un PNJ au hasard parmi ceux que vous avez créés (onglet PNJ). Se remplit automatiquement — vide tant qu'aucun PNJ n'est créé." },
+  { title:"Relique / objet magique au hasard", category:"Trésors & Objets", source:"treasure", sourceFilter:"relique",
+    context:"Tire un trésor au hasard parmi ceux classés « Relique » dans l'onglet Trésor. Se remplit automatiquement — vide tant qu'aucune relique n'est enregistrée." }
+];
+
 /* Ajoute les tables par défaut manquantes (dédoublonnage par titre, insensible à la casse) — n'écrase jamais
    le contenu d'une table existante. Complète seulement la `category` d'une table déjà présente si elle n'en
    a pas encore (ex : tables ajoutées avant l'introduction du champ catégorie), sans toucher au reste. */
 function seedShadowdarkDefaultTables(){
   const byTitle = new Map(db.tables.map(t=>[(t.title||"").trim().toLowerCase(), t]));
   let added = 0, categorized = 0;
-  SHADOWDARK_DEFAULT_TABLES.forEach(tpl=>{
+  const seedOne = (tpl, isDynamic) => {
     const existing = byTitle.get(tpl.title.toLowerCase());
     if(existing){
       if(!existing.category && tpl.category){ existing.category = tpl.category; categorized++; }
       return;
     }
-    db.tables.push({ id:uid(), title:tpl.title, category:tpl.category||"", context:tpl.context, rows:[...tpl.rows] });
+    const o = { id:uid(), title:tpl.title, category:tpl.category||"", context:tpl.context };
+    if(isDynamic){ o.kind="dynamic"; o.source=tpl.source; o.sourceFilter=tpl.sourceFilter||""; o.rows=[]; }
+    else { o.kind="static"; o.rows=[...tpl.rows]; }
+    db.tables.push(o);
+    byTitle.set(tpl.title.toLowerCase(), o);
     added++;
-  });
+  };
+  SHADOWDARK_DEFAULT_TABLES.forEach(tpl=>seedOne(tpl,false));
+  SHADOWDARK_DEFAULT_DYNAMIC_TABLES.forEach(tpl=>seedOne(tpl,true));
   return { added, categorized };
 }
 
