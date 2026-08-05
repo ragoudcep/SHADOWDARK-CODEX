@@ -304,6 +304,7 @@
   .hexcell polygon{ stroke:#1a1510; stroke-width:1; }
   .hex-editable{ cursor:pointer; }
   .hex-editable:hover polygon:first-child{ filter:brightness(1.3); }
+  .hex-placing .hex-editable{ cursor:crosshair; }
   .hex-icon{ font-size:14px; pointer-events:none; user-select:none; }
   .hex-fog{ fill:#0c0a08; }
   .hex-fog-gm{ fill:#0c0a08; opacity:.55; pointer-events:none; }
@@ -2151,6 +2152,7 @@ function hexCorners(cx,cy,size){
 }
 let hexmapCurrentId = null;
 let hexPointsVisible = true;
+let hexPlacingPoint = false;
 
 function listHexmaps(){
   const items = db.hexmaps;
@@ -2227,6 +2229,7 @@ function buildHexSVG(m){
   return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
 function detailHexmap(m){
+  if(hexmapCurrentId !== m.id) hexPlacingPoint = false;
   hexmapCurrentId = m.id;
   const total = (m.hexes||[]).length;
   const revealed = (m.hexes||[]).filter(h=>h.fogState!=="hidden").length;
@@ -2238,13 +2241,14 @@ function detailHexmap(m){
     ${myRole==="gm" ? `<div class="crawl-toolbar">
       <button class="btn ghost sm" data-hex-reveal-all="1">👁 Tout révéler</button>
       <button class="btn ghost sm" data-hex-hide-all="1">🌫 Tout masquer</button>
+      <button class="btn ghost sm${hexPlacingPoint?' active-mode':''}" data-hex-add-point="1">📍 ${hexPlacingPoint?"Clique un hexagone…":"Ajouter un point"}</button>
       <button class="btn ghost sm" data-hex-import="1">⭱ Importer / remplacer le JSON</button>
     </div>
-    <div class="crawl-help">Clique un hexagone pour le révéler ou le recacher aux joueurs · ${revealed}/${total} révélé(s).</div>` : ""}
+    <div class="crawl-help">${hexPlacingPoint ? "Clique l'hexagone où placer le nouveau point d'intérêt (ou re-clique le bouton pour annuler)." : `Clique un hexagone pour le révéler ou le recacher aux joueurs · ${revealed}/${total} révélé(s).`}</div>` : ""}
     ${total && (m.points||[]).length ? `<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:.5rem 0 0;cursor:pointer">
       <input type="checkbox" id="hex-points-toggle" ${hexPointsVisible?"checked":""} style="width:auto"> Afficher les points d'intérêt
     </label>` : ""}
-    <div class="crawl-map-scroll">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${myRole==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
+    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${myRole==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
   </div>`;
   const hpt = document.getElementById("hex-points-toggle");
   if(hpt) hpt.addEventListener("change", e=>{
@@ -2267,26 +2271,67 @@ function revealAllHexes(reveal){
 function openHexPointModal(pointId){
   const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
   const p = (m.points||[]).find(x=>x.id===pointId); if(!p) return;
-  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
-      <h2 style="margin:0;color:var(--gold2)">${esc(p.name||"Point d'intérêt")}</h2>
-      <button class="icon-btn" data-modal-close="1">✕</button></div>
-    ${p.type?`<p class="faint" style="font-family:var(--ui);margin:.3rem 0 0">${esc(p.type)}</p>`:""}
-    ${(p.description&&p.description.trim())?`<div style="margin-top:.7rem">${renderBullets(p.description)}</div>`:`<p class="faint" style="font-family:var(--ui);margin-top:.7rem">Pas de description.</p>`}
-    ${myRole==="gm" ? `<label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin-top:.9rem;padding-top:.8rem;border-top:1px solid var(--line,#382f22);cursor:pointer">
-      <input type="checkbox" id="hexpoint-visible-toggle" ${p.dmOnly?"":"checked"} style="width:auto"> Visible aux joueurs
-    </label>` : ""}
-    <div class="form-actions"><button class="btn ghost" data-modal-close="1">Fermer</button></div>`);
-  if(myRole==="gm"){
-    const cbx = document.getElementById("hexpoint-visible-toggle");
-    if(cbx) cbx.addEventListener("change", e=>{
-      p.dmOnly = !e.target.checked;
-      saveDB();
-      toast(p.dmOnly ? "Point masqué aux joueurs." : "Point visible pour les joueurs.");
-      closeModal();
-      const mm = getEntity("hexmap", hexmapCurrentId);
-      if(mm) detailHexmap(mm);
-    });
+  if(myRole!=="gm"){
+    openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+        <h2 style="margin:0;color:var(--gold2)">${esc(p.name||"Point d'intérêt")}</h2>
+        <button class="icon-btn" data-modal-close="1">✕</button></div>
+      ${p.type?`<p class="faint" style="font-family:var(--ui);margin:.3rem 0 0">${esc(p.type)}</p>`:""}
+      ${(p.description&&p.description.trim())?`<div style="margin-top:.7rem">${renderBullets(p.description)}</div>`:`<p class="faint" style="font-family:var(--ui);margin-top:.7rem">Pas de description.</p>`}
+      <div class="form-actions"><button class="btn ghost" data-modal-close="1">Fermer</button></div>`);
+    return;
   }
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+      <h2 style="margin:0;color:var(--gold2)">Point d'intérêt</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <div class="field"><label>Nom</label><input type="text" id="hp-name" value="${esc(p.name||"")}" placeholder="La tour effondrée"></div>
+    <div class="field"><label>Type <span class="hint">(facultatif)</span></label><input type="text" id="hp-type" value="${esc(p.type||"")}" placeholder="Ville, ruine, danger…"></div>
+    <div class="field"><label>Description</label><textarea id="hp-description" rows="5" placeholder="Ce que le MJ (et éventuellement les joueurs) doivent savoir…">${esc(p.description||"")}</textarea></div>
+    <label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin-top:.3rem;cursor:pointer">
+      <input type="checkbox" id="hp-visible" ${p.dmOnly?"":"checked"} style="width:auto"> Visible aux joueurs
+    </label>
+    <div class="form-actions" style="justify-content:space-between">
+      <button class="btn danger sm" id="hp-delete">🗑 Supprimer</button>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn ghost" data-modal-close="1">Annuler</button>
+        <button class="btn" id="hp-save">✓ Enregistrer</button>
+      </div>
+    </div>`);
+  const btnSave = document.getElementById("hp-save");
+  if(btnSave) btnSave.addEventListener("click", ()=>{
+    p.name = document.getElementById("hp-name").value.trim() || "Point d'intérêt";
+    p.type = document.getElementById("hp-type").value.trim();
+    p.description = document.getElementById("hp-description").value;
+    p.dmOnly = !document.getElementById("hp-visible").checked;
+    saveDB();
+    closeModal();
+    toast("Point enregistré.");
+    const mm = getEntity("hexmap", hexmapCurrentId);
+    if(mm) detailHexmap(mm);
+  });
+  const btnDel = document.getElementById("hp-delete");
+  if(btnDel) btnDel.addEventListener("click", ()=>{
+    if(!confirm(`Supprimer le point « ${p.name||"sans nom"} » ?`)) return;
+    m.points = (m.points||[]).filter(x=>x.id!==p.id);
+    saveDB();
+    closeModal();
+    toast("Point supprimé.");
+    detailHexmap(m);
+  });
+}
+function toggleHexPlacingPoint(){
+  hexPlacingPoint = !hexPlacingPoint;
+  const m = getEntity("hexmap", hexmapCurrentId);
+  if(m) detailHexmap(m);
+}
+function createHexPointAt(q,r){
+  const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
+  if(!m.points) m.points=[];
+  const p = { id:uid(), name:"Nouveau point", description:"", type:"", hex:{q,r}, color:"", size:"medium", dmOnly:false };
+  m.points.push(p);
+  hexPlacingPoint = false;
+  saveDB();
+  detailHexmap(m);
+  openHexPointModal(p.id);
 }
 let _hexImportTarget = null; // null = nouvelle carte, sinon id de la carte à remplacer
 function importHexmapJSON(file){
@@ -2802,10 +2847,17 @@ app.addEventListener("click", e=>{
   if(closest("data-crawl-link")){ toggleLinkMode(); return; }
   if(closest("data-crawl-print")){ printCrawl(crawlState.id); return; }
   // Hexcrawl
-  if((el=t.closest("[data-hexq]"))){ if(myRole==="gm") toggleHexFog(+el.dataset.hexq, +el.dataset.hexr); return; }
+  if((el=t.closest("[data-hexq]"))){
+    if(myRole==="gm"){
+      if(hexPlacingPoint) createHexPointAt(+el.dataset.hexq, +el.dataset.hexr);
+      else toggleHexFog(+el.dataset.hexq, +el.dataset.hexr);
+    }
+    return;
+  }
   if((el=t.closest("[data-point-id]"))){ openHexPointModal(el.dataset.pointId); return; }
   if(closest("data-hex-reveal-all")){ revealAllHexes(true); return; }
   if(closest("data-hex-hide-all")){ revealAllHexes(false); return; }
+  if(closest("data-hex-add-point")){ toggleHexPlacingPoint(); return; }
   if(closest("data-hex-import")){ _hexImportTarget = hexmapCurrentId; $("#file-hexjson").click(); return; }
   if(closest("data-hex-import-new")){ _hexImportTarget = null; $("#file-hexjson").click(); return; }
   // Images (formulaire créature) + agrandissement
