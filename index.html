@@ -816,7 +816,7 @@ function entityText(type, o){
   if(type==="npc")      return [o.name,o.description,o.physique,o.age,o.possessions,o.objectif,o.moyens,o.comportement].join(" \n ");
   if(type==="pointcrawl") return [o.title,o.description,(o.nodes||[]).map(nd=>{const ev=getEntity("event",nd.eventId);return ev?ev.title:"";}).join(" ")].join(" \n ");
   if(type==="pc")       return [o.name,o.ancestry,o.cls,o.info,o.skills,o.spells,o.inventory,(o.talents||[]).map(t=>t.text).join(" ")].join(" \n ");
-  if(type==="treasure") return [o.name,treasureCatLabel(o.category),o.description].join(" \n ");
+  if(type==="treasure") return [o.name,treasureCatLabel(o.category),o.description,o.bonus,o.boon,o.curse,o.personality].join(" \n ");
   if(type==="spell")    return [o.name,spellClassLabel(o.class),o.tier?"rang "+o.tier:"",o.range,o.duration,o.effect].join(" \n ");
   return "";
 }
@@ -2009,7 +2009,11 @@ function printCreatureBlock(c){
 function printTreasureBlock(t){
   return `<div class="pp-event">
     <h3><span>${esc(t.name||"Sans nom")}</span><span class="pp-theme">${esc(treasureCatLabel(t.category))}</span></h3>
-    ${printSection("Description & effets", t.description)}
+    ${printSection("Description", t.description)}
+    ${printSection("Bonus", t.bonus)}
+    ${printSection("Atout", t.boon)}
+    ${printSection("Malédiction", t.curse)}
+    ${printSection("Personnalité", t.personality)}
   </div>`;
 }
 function printTableBlock(t){
@@ -2279,7 +2283,7 @@ function listTreasures(){
   app.innerHTML = head + toggleBar + sections;
 }
 function formTreasure(){
-  const t = view.mode==="edit" ? getEntity("treasure",view.id) : {name:"",category:"trouvaille",description:""};
+  const t = view.mode==="edit" ? getEntity("treasure",view.id) : {name:"",category:"trouvaille",description:"",bonus:"",boon:"",curse:"",personality:""};
   formImages = (t.images||[]).slice();
   const catOpt = TREASURE_CATS.map(([k,lbl])=>`<option value="${k}" ${t.category===k?"selected":""}>${lbl}</option>`).join("");
   app.innerHTML = `<div class="form">
@@ -2289,8 +2293,16 @@ function formTreasure(){
       <div class="field" style="flex:2 1 200px"><label>Nom</label><input type="text" id="f-name" value="${esc(t.name)}" placeholder="Sceptre de l'Aube"></div>
       <div class="field" style="flex:1 1 150px"><label>Catégorie</label><select id="f-category">${catOpt}</select></div>
     </div>
-    <div class="field"><label>Description / effets <span class="hint">(une ligne par effet ; liens [[…]] possibles)</span></label>
-      <textarea id="f-description" style="min-height:120px" placeholder="Dégâts +1.&#10;Émet une lumière vive sur commande.&#10;Malédiction : …">${esc(t.description)}</textarea></div>
+    <div class="field"><label>Description <span class="hint">(aspect, historique ; une ligne par effet ; liens [[…]] possibles)</span></label>
+      <textarea id="f-description" placeholder="Une bouteille de verre contenant un liquide gazeux...">${esc(t.description)}</textarea></div>
+    <div class="field"><label>Bonus <span class="hint">(facultatif — ex : « Épée longue +1 »)</span></label>
+      <textarea id="f-bonus" style="min-height:60px" placeholder="Armure de plates +1">${esc(t.bonus||"")}</textarea></div>
+    <div class="field"><label>Atout <span class="hint">(facultatif — propriété magique principale)</span></label>
+      <textarea id="f-boon" style="min-height:90px" placeholder="Une fois par jour, vous pouvez...">${esc(t.boon||"")}</textarea></div>
+    <div class="field"><label>Malédiction <span class="hint">(facultatif)</span></label>
+      <textarea id="f-curse" style="min-height:90px" placeholder="Vous êtes désavantagé aux tests...">${esc(t.curse||"")}</textarea></div>
+    <div class="field"><label>Personnalité <span class="hint">(facultatif — objets intelligents : alignement + trait de caractère)</span></label>
+      <textarea id="f-personality" style="min-height:70px" placeholder="Chaotique — Agressif, confiance excessive...">${esc(t.personality||"")}</textarea></div>
     <div class="field"><label>Illustrations <span class="hint">(plusieurs possibles)</span></label>
       <div id="images-wrap"></div>
       <button class="btn ghost sm" data-add-img="1" style="margin-top:.5rem">🖼 Ajouter une image</button>
@@ -2306,6 +2318,10 @@ function saveTreasure(){
   o.name = $("#f-name").value.trim();
   o.category = $("#f-category").value;
   o.description = $("#f-description").value;
+  o.bonus = $("#f-bonus").value;
+  o.boon = $("#f-boon").value;
+  o.curse = $("#f-curse").value;
+  o.personality = $("#f-personality").value;
   o.images = formImages.slice();
   if(!o.name){ toast("Le nom est requis."); return; }
   if(view.mode==="new") db.treasures.push(o);
@@ -2319,8 +2335,12 @@ function detailTreasure(t){
     <h1>${esc(t.name||"Sans nom")}</h1>
     ${detailActions("treasure",t.id)}
     ${(t.description&&t.description.trim())
-      ? `<div class="section"><h2>Description & effets</h2>${renderBullets(t.description)}</div>`
+      ? `<div class="section"><h2>Description</h2>${renderBullets(t.description)}</div>`
       : `<p class="faint" style="font-family:var(--ui)">Aucune description.</p>`}
+    ${(t.bonus&&t.bonus.trim()) ? `<div class="section"><h2>Bonus</h2>${renderBullets(t.bonus)}</div>` : ""}
+    ${(t.boon&&t.boon.trim()) ? `<div class="section"><h2>Atout</h2>${renderBullets(t.boon)}</div>` : ""}
+    ${(t.curse&&t.curse.trim()) ? `<div class="section"><h2>Malédiction</h2>${renderBullets(t.curse)}</div>` : ""}
+    ${(t.personality&&t.personality.trim()) ? `<div class="section"><h2>Personnalité</h2>${renderBullets(t.personality)}</div>` : ""}
     ${(t.images&&t.images.length)?`<div class="section"><h2>Illustrations</h2>
       <div class="gallery">${t.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
     ${backlinksBlock("treasure",t.id)}
@@ -3174,7 +3194,7 @@ const XML_TYPES = {
   npc: { tag:"npc", tagAlt:/npc|pnj/i, label:"PNJ", col:"npcs", nameField:"name",
     fields:["name","description","physique","age","possessions","objectif","moyens","comportement"] },
   treasure: { tag:"treasure", tagAlt:/treasure|tresor|objet/i, label:"objet", col:"treasures", nameField:"name",
-    fields:["name","category","description"] },
+    fields:["name","category","description","bonus","boon","curse","personality"] },
   table: { tag:"table", tagAlt:/table/i, label:"table", col:"tables", nameField:"title",
     fields:["title","context"], rowsField:"rows" },
   pointcrawl: { tag:"pointcrawl", tagAlt:/pointcrawl|crawl/i, label:"point crawl", col:"pointcrawls", nameField:"title",
