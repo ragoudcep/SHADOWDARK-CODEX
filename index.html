@@ -732,6 +732,7 @@ let eventThemeFilter = "";
 let expandedGroups = new Set(); // groupes repliés par défaut ; contient les clés explicitement dépliées
 let creatureSort = "name";      // tri des créatures : name | lvlAsc | lvlDesc
 let creatureCatFilter = "";     // filtre de catégorie ("" = toutes/regroupées, "__none__" = sans catégorie)
+let tableCatFilter = "";        // filtre de catégorie des tables aléatoires (même principe que creatureCatFilter)
 let readingMode = false; // "mode table de jeu" : masque les contrôles GM, agrandit le texte des fiches
 
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route", hexmap:"Hexcrawl" };
@@ -803,7 +804,7 @@ function eventSectionsHTML(e, opts){
 function entityText(type, o){
   if(type==="creature") return [o.name,o.category,o.desc,o.abilities,(o.attacks||[]).map(a=>a.name+" "+a.damage).join(" ")].join(" \n ");
   if(type==="event")    return [o.title,o.theme,o.description,o.traps,o.secrets].join(" \n ");
-  if(type==="table")    return [o.title,o.context,(o.rows||[]).join(" \n ")].join(" \n ");
+  if(type==="table")    return [o.title,o.category,o.context,(o.rows||[]).join(" \n ")].join(" \n ");
   if(type==="session")  return [o.title,(o.entries||[]).map(e=>e.label+" "+e.notes).join(" \n ")].join(" \n ");
   if(type==="npc")      return [o.name,o.description,o.physique,o.age,o.possessions,o.objectif,o.moyens,o.comportement].join(" \n ");
   if(type==="pointcrawl") return [o.title,o.description,(o.nodes||[]).map(nd=>{const ev=getEntity("event",nd.eventId);return ev?ev.title:"";}).join(" ")].join(" \n ");
@@ -1021,16 +1022,57 @@ function diceIcon(n){
   else shape = `<circle cx="7" cy="7" r="6.2" ${s}/>`;
   return `<svg width="14" height="14" viewBox="0 0 14 14" style="vertical-align:-2px;margin-right:.3rem">${shape}</svg>`;
 }
+function tableCategories(){
+  const set = new Set();
+  db.tables.forEach(t=>{ if(t.category && t.category.trim()) set.add(t.category.trim()); });
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+function tableCard(t){
+  return `<div class="card" data-open="table:${t.id}">
+    <div class="meta"><span class="tag table">${diceIcon((t.rows||[]).length||0)}d${(t.rows||[]).length||0}</span>${t.category?`<span class="tag gold">${esc(t.category)}</span>`:""}</div>
+    <h3 style="margin-top:.6rem">${esc(t.title||"Sans titre")}</h3>
+    <p>${esc(t.context||"Pas de contexte")}</p>
+  </div>`;
+}
+function tableGrid(list){ return `<div class="grid" style="margin-bottom:1.4rem">${list.map(tableCard).join("")}</div>`; }
 function listTables(){
   const items = db.tables;
-  app.innerHTML = pageHead("Tables aléatoires", `${items.length} table(s)`, "Nouvelle table", xmlToolbarHTML("table")) +
-    (items.length ? `<div class="grid">${items.map(t=>`
-      <div class="card" data-open="table:${t.id}">
-        <span class="tag table">${diceIcon((t.rows||[]).length||0)}d${(t.rows||[]).length||0}</span>
-        <h3>${esc(t.title||"Sans titre")}</h3>
-        <p>${esc(t.context||"Pas de contexte")}</p>
-      </div>`).join("")}</div>`
-    : emptyState("🎲","Aucune table. Créez une table aléatoire."));
+  const cats = tableCategories();
+  const head = pageHead("Tables aléatoires", `${items.length} table(s)`, "Nouvelle table", xmlToolbarHTML("table"));
+
+  if(!items.length){ app.innerHTML = head + emptyState("🎲","Aucune table. Créez une table aléatoire."); return; }
+
+  const filter = cats.length ? `<div style="margin-bottom:1.1rem">
+      <label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.5rem">Catégorie :</label>
+      <select data-table-filter style="width:auto;display:inline-block;min-width:180px">
+        <option value="">Toutes (regroupées)</option>
+        ${cats.map(t=>`<option value="${esc(t)}" ${tableCatFilter===t?"selected":""}>${esc(t)}</option>`).join("")}
+        <option value="__none__" ${tableCatFilter==="__none__"?"selected":""}>(Sans catégorie)</option>
+      </select></div>` : "";
+
+  let body;
+  if(!cats.length){
+    body = tableGrid(items); // aucune catégorie encore : liste simple
+  } else if(tableCatFilter){
+    const filtered = tableCatFilter==="__none__"
+      ? items.filter(t=>!t.category || !t.category.trim())
+      : items.filter(t=>(t.category||"").trim()===tableCatFilter);
+    body = filtered.length ? tableGrid(filtered) : `<p class="faint" style="font-family:var(--ui)">Aucune table dans cette catégorie.</p>`;
+  } else {
+    const sections = []; const allKeys = [];
+    cats.forEach(t=>{
+      const list = items.filter(x=>(x.category||"").trim()===t);
+      const key = "tables:"+t; allKeys.push(key); const closed = !expandedGroups.has(key);
+      sections.push(`<h2 class="group-head${closed?' collapsed':''}" data-toggle-group="${esc(key)}">${esc(t)} <span class="faint">(${list.length})</span><span class="grp-arrow">▾</span></h2><div class="group-body${closed?' collapsed':''}">${tableGrid(list)}</div>`);
+    });
+    const noCat = items.filter(t=>!t.category || !t.category.trim());
+    if(noCat.length){ const key="tables:__none__"; allKeys.push(key); const closed = !expandedGroups.has(key);
+      sections.push(`<h2 class="group-head${closed?' collapsed':''}" data-toggle-group="${esc(key)}">Sans catégorie <span class="faint">(${noCat.length})</span><span class="grp-arrow">▾</span></h2><div class="group-body${closed?' collapsed':''}">${tableGrid(noCat)}</div>`); }
+    const allOpen = allKeys.length && allKeys.every(k=>expandedGroups.has(k));
+    sections.unshift(`<div style="margin-bottom:.8rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button></div>`);
+    body = sections.join("");
+  }
+  app.innerHTML = head + filter + body;
 }
 
 function levelNum(l){
@@ -1221,7 +1263,7 @@ function detailTable(t){
   const rows = t.rows||[];
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Tables aléatoires</button>
-    <span class="tag table">Table · d${rows.length||0}</span>
+    <div class="meta"><span class="tag table">Table · d${rows.length||0}</span>${t.category?`<span class="tag gold">${esc(t.category)}</span>`:""}</div>
     <h1>${esc(t.title||"Sans titre")}</h1>
     ${detailActions("table",t.id)}
     ${t.context?`<div class="section"><h2>Contexte</h2><div class="prose">${renderText(t.context)}</div></div>`:""}
@@ -1374,12 +1416,17 @@ function saveEvent(){
 }
 
 function formTable(){
-  const t = view.mode==="edit" ? getEntity("table",view.id) : {title:"",context:"",rows:["",""]};
+  const t = view.mode==="edit" ? getEntity("table",view.id) : {title:"",category:"",context:"",rows:["",""]};
   const rows = t.rows && t.rows.length ? t.rows : ["",""];
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
     <h1>${view.mode==="edit"?"Modifier":"Nouvelle"} table aléatoire</h1>
-    <div class="field"><label>Titre</label><input type="text" id="f-title" value="${esc(t.title)}" placeholder="Rencontres dans la forêt"></div>
+    <div class="row">
+      <div class="field" style="flex:2 1 220px"><label>Titre</label><input type="text" id="f-title" value="${esc(t.title)}" placeholder="Rencontres dans la forêt"></div>
+      <div class="field" style="flex:1 1 180px"><label>Catégorie <span class="hint">(libre : PNJ, Exploration…)</span></label>
+        <input type="text" id="f-category" list="table-cats" value="${esc(t.category||"")}" placeholder="PNJ">
+        <datalist id="table-cats">${tableCategories().map(c=>`<option value="${esc(c)}"></option>`).join("")}</datalist></div>
+    </div>
     <div class="field"><label>Contexte / description</label><textarea id="f-context" placeholder="À lancer chaque nuit de voyage...">${esc(t.context)}</textarea></div>
     <div class="field">
       <label>Rangées <span class="hint">(nombre configurable — texte libre + liens [[…]])</span></label>
@@ -1411,6 +1458,7 @@ function saveTable(){
   const o = view.mode==="edit" ? getEntity("table",view.id) : {id:uid()};
   const _old = view.mode==="edit" ? o.title : null;
   o.title = $("#f-title").value.trim();
+  o.category = $("#f-category").value.trim();
   o.context = $("#f-context").value;
   o.rows = [...document.querySelectorAll(".row-input")].map(i=>i.value);
   if(!o.title){ toast("Le titre est requis."); return; }
@@ -3093,6 +3141,7 @@ app.addEventListener("change", e=>{
   if(e.target.matches("[data-event-filter]")){ eventThemeFilter = e.target.value; renderList(); }
   else if(e.target.matches("[data-crea-sort]")){ creatureSort = e.target.value; renderList(); }
   else if(e.target.matches("[data-crea-filter]")){ creatureCatFilter = e.target.value; renderList(); }
+  else if(e.target.matches("[data-table-filter]")){ tableCatFilter = e.target.value; renderList(); }
 });
 
 // Clics globaux dans l'app (délégation)
@@ -3431,7 +3480,7 @@ function seedIfEmpty(){
    par le champ `context`. Les tables à plages (Ascendance, Alignement, Âge, Richesse) sont développées en
    une ligne par face de dé pour conserver les bonnes probabilités avec le tirage 1d de l'appli. */
 const SHADOWDARK_DEFAULT_TABLES = [
-  { title:"Périls",
+  { title:"Périls", category:"Exploration & Dangers",
     context:"d12 — trois résultats combinés par ligne, dans l'ordre : Déplacement / Dégâts / Affaiblissement.",
     rows:[
       "Sables mouvants / Bassins d'acide / Fumée aveuglante",
@@ -3447,7 +3496,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
       "Sol graissé / Champ électrifié / Reflets déroutants",
       "Terrain illusoire / Flux gravitationnel / Amnésie"
     ] },
-  { title:"Pièges",
+  { title:"Pièges", category:"Exploration & Dangers",
     context:"d12 — trois résultats combinés par ligne, dans l'ordre : Piège / Déclencheur / Dégâts ou effet.",
     rows:[
       "Arbalète / Fil déclencheur / 1d6",
@@ -3463,19 +3512,19 @@ const SHADOWDARK_DEFAULT_TABLES = [
       "Chute de pierre / Retirer un objet / 3d10/inconscience",
       "Statue maudite / Lancer un sort / 3d10/pétrification"
     ] },
-  { title:"Ascendance des PNJ",
+  { title:"Ascendance des PNJ", category:"PNJ",
     context:"d12 — origine d'un PNJ.",
     rows:["Humain","Humain","Humain","Humain","Elfe","Elfe","Nain","Nain","Halfelin","Halfelin","Demi-orque","Gobelin"] },
-  { title:"Alignement des PNJ",
+  { title:"Alignement des PNJ", category:"PNJ",
     context:"d6 — alignement d'un PNJ.",
     rows:["Loyal","Loyal","Loyal","Neutre","Chaotique","Chaotique"] },
-  { title:"Âge des PNJ",
+  { title:"Âge des PNJ", category:"PNJ",
     context:"d8 — âge d'un PNJ.",
     rows:["Enfant","Adolescent","Adulte","Adulte","Âge mûr","Âge mûr","Vieillard(e)","Âge canonique"] },
-  { title:"Richesse des PNJ",
+  { title:"Richesse des PNJ", category:"PNJ",
     context:"d6 — niveau de richesse d'un PNJ.",
     rows:["Pauvre","Ordinaire","Ordinaire","Riche","Riche","Extravagant"] },
-  { title:"Qualités des PNJ",
+  { title:"Qualités des PNJ", category:"PNJ",
     context:"d20 — trois résultats combinés par ligne, dans l'ordre : Apparence / Manie / Secret.",
     rows:[
       "Dégarni / Crache / Cache un fugitif",
@@ -3499,7 +3548,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
       "Très petit / Roule des mécaniques / Écumeur à la retraite",
       "Gros nez / Fume la pipe / A un basilic domestique"
     ] },
-  { title:"Génération de noms de PNJ (syllabes)",
+  { title:"Génération de noms de PNJ (syllabes)", category:"PNJ",
     context:"d20 — quatre éléments combinés par ligne, dans l'ordre : Préfixe / Syllabe 1 / Syllabe 2 / Suffixe. Combinez les 4 éléments d'une même ligne pour un nom rapide, ou faites 4 jets de d20 séparés (un par colonne) pour un résultat plus aléatoire, selon l'usage du livre.",
     rows:[
       "Ir- / an / l / -int",
@@ -3523,7 +3572,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
       "Tor- / un / jen / -enne",
       "Lem- / nar / w / -ynne"
     ] },
-  { title:"Métier",
+  { title:"Métier", category:"PNJ",
     context:"d4 + d4 (grille 4×4, 16 métiers) — premier d4 = ligne, second d4 = colonne. Le tirage 1d16 de l'appli couvre les 16 métiers à parts égales, dans l'ordre de la grille (ligne 1 colonnes 1 à 4, puis ligne 2, etc.).",
     rows:[
       "Fossoyeur","Charpentier","Érudit","Forgeron",
@@ -3531,27 +3580,176 @@ const SHADOWDARK_DEFAULT_TABLES = [
       "Boulanger","Cuisinier","Marin","Boucher",
       "Serrurier","Cordonnier","Prêtre/nonne","Marchand"
     ] },
-  { title:"Adjectif",
+  { title:"Adjectif", category:"PNJ",
     context:"d4 + d4 (grille 4×4, 16 surnoms) — premier d4 = ligne, second d4 = colonne. Le tirage 1d16 de l'appli couvre les 16 surnoms à parts égales, dans l'ordre de la grille. Combinable avec une table de noms (ex. « Génération de noms de PNJ ») pour un titre du style « Grondar l'Astucieux » — l'appli ne relie pas les tables entre elles automatiquement, à combiner manuellement pour l'instant.",
     rows:[
       "Le Gris","N'a qu'un œil","Le Petit","L'Astucieux",
       "L'Éloquent","Le Paria","Main Leste","L'Audacieux",
       "L'Ancien","Le Charmeur","L'Exilé","Le Sagace",
       "Parle-aux-Arbres","Le Veule","Le Roux","Six-Doigts"
+    ] },
+  { title:"Motivation secrète d'un PNJ", category:"PNJ",
+    context:"d8 — motivation cachée d'un PNJ.",
+    rows:[
+      "Cherche à rembourser une dette de sang",
+      "Protège un secret de famille honteux",
+      "Espionne pour une guilde rivale",
+      "Veut prouver sa valeur à un parent disparu",
+      "Fuit un mariage arrangé",
+      "Cherche un remède à une malédiction",
+      "Complote pour usurper son supérieur",
+      "Cache l'identité d'un enfant caché"
+    ] },
+  { title:"Malédiction mineure", category:"PNJ",
+    context:"d8 — petite malédiction ou bizarrerie surnaturelle affectant un PNJ.",
+    rows:[
+      "Ne peut mentir sans éternuer violemment",
+      "Voit les objets perdus en rêve, jamais où il faut",
+      "Attire les insectes en période de stress",
+      "Perd le sommeil trois nuits après avoir tué",
+      "Sa voix porte deux fois plus loin qu'elle ne devrait",
+      "Ne peut refuser une main tendue, même ennemie",
+      "Vieillit d'un jour à chaque mensonge dit à voix haute",
+      "Ses ombres bougent avec un temps de retard"
+    ] },
+  { title:"Météo", category:"Exploration & Dangers",
+    context:"d8 — conditions météo du moment.",
+    rows:[
+      "Ciel dégagé, chaleur écrasante",
+      "Brouillard épais, visibilité réduite",
+      "Pluie battante, sol boueux",
+      "Vent violent, poussière aveuglante",
+      "Orage électrique, éclairs proches",
+      "Froid mordant, premières gelées",
+      "Calme plat, silence inquiétant",
+      "Grêle soudaine, abri nécessaire"
+    ] },
+  { title:"Ambiance de donjon", category:"Exploration & Dangers",
+    context:"d10 — détail d'ambiance à décrire en explorant un donjon.",
+    rows:[
+      "Odeur de moisissure et d'eau stagnante",
+      "Relents de soufre et de fumée",
+      "Silence total, aucun écho",
+      "Goutte-à-goutte incessant au loin",
+      "Odeur de sang séché",
+      "Murmures indistincts dans les murs",
+      "Air glacial venu d'un couloir sombre",
+      "Parfum d'encens éventé",
+      "Grattements réguliers sous le sol",
+      "Chaleur étouffante et odeur de cendres"
+    ] },
+  { title:"Événement aléatoire de voyage", category:"Exploration & Dangers",
+    context:"d12 — événement rencontré sur la route.",
+    rows:[
+      "Caravane de marchands épuisée cherchant une escorte",
+      "Vestiges d'un campement abandonné en hâte",
+      "Pisteur solitaire proposant ses services",
+      "Nuée d'oiseaux fuyant quelque chose au loin",
+      "Pont effondré bloquant la route",
+      "Pèlerins chantant en procession",
+      "Charrette renversée, roue brisée",
+      "Odeur de fumée, village voisin en feu",
+      "Étranger encapuchonné suivant le groupe à distance",
+      "Marché improvisé au croisement des routes",
+      "Cadavre d'animal étrange, cause inconnue",
+      "Enfant perdu cherchant son chemin"
+    ] },
+  { title:"Butin dans un coffre", category:"Trésors & Objets",
+    context:"d12 — contenu d'un coffre ou d'un conteneur fouillé.",
+    rows:[
+      "Pièces de cuivre ternies et quelques piécettes d'argent",
+      "Bijou de pacotille, sans valeur réelle",
+      "Fiole de liquide non identifié",
+      "Lettre scellée, destinataire inconnu",
+      "Dague ouvragée mais rouillée",
+      "Petite bourse de pierres semi-précieuses",
+      "Carte incomplète d'un lieu inconnu",
+      "Statuette d'un dieu oublié",
+      "Livre aux pages collées par l'humidité",
+      "Clé sans serrure correspondante",
+      "Anneau gravé d'un nom effacé",
+      "Coffret secondaire verrouillé, à l'intérieur"
+    ] },
+  { title:"Objet magique mineur", category:"Trésors & Objets",
+    context:"d12 — petit objet magique avec un effet mineur ou cosmétique.",
+    rows:[
+      "Peigne qui démêle les cheveux sans effort, jamais plus",
+      "Dé qui tombe toujours sur le même chiffre",
+      "Bougie dont la flamme ne vacille jamais",
+      "Miroir qui montre le visage d'il y a une heure",
+      "Gant qui réchauffe la main gauche, jamais la droite",
+      "Sifflet inaudible qui attire les chats",
+      "Pièce qui revient toujours dans la poche de son propriétaire",
+      "Encrier dont l'encre ne sèche jamais",
+      "Clochette qui sonne quand on ment à voix haute",
+      "Chapeau qui change légèrement de couleur selon l'humeur",
+      "Corde qui se noue toujours parfaitement, jamais ne se dénoue",
+      "Fiole vide qui sent éternellement le pain frais"
+    ] },
+  { title:"Rumeurs de taverne", category:"Lieux & Rumeurs",
+    context:"d10 — rumeur entendue en ville.",
+    rows:[
+      "Un trésor dort sous les ruines au nord — trois expéditions n'en sont jamais revenues",
+      "Le seigneur local paierait cher pour retrouver sa fille disparue",
+      "Des lumières étranges dansent dans les marais la nuit",
+      "Un marchand aurait vu un dragon endormi dans les collines",
+      "La guilde des voleurs recrute discrètement en ville",
+      "Un puits du village serait maudit depuis une génération",
+      "Des loups plus gros que la normale rôdent près de la forêt",
+      "Un ermite vivrait dans les grottes, gardien d'un secret ancien",
+      "Le dernier convoi marchand n'est jamais arrivé à destination",
+      "Une secte se réunirait en secret dans les caves de la ville"
+    ] },
+  { title:"Nom de taverne", category:"Lieux & Rumeurs",
+    context:"d12 — deux résultats combinés par ligne, dans l'ordre : Nom / Épithète.",
+    rows:[
+      "Le Sanglier / Ivre",
+      "La Chope / Fêlée",
+      "Le Corbeau / Borgne",
+      "L'Ancre / Rouillée",
+      "Le Dragon / Assoupi",
+      "La Lanterne / Vacillante",
+      "Le Loup / Hurlant",
+      "La Sirène / Muette",
+      "Le Chaudron / Fumant",
+      "L'Épée / Brisée",
+      "Le Renard / Rusé",
+      "La Cloche / Silencieuse"
+    ] },
+  { title:"Nom de lieu", category:"Lieux & Rumeurs",
+    context:"d12 — deux résultats combinés par ligne, dans l'ordre : Préfixe / Suffixe (assemblez les deux pour former un nom de lieu, ex. « Pierrefourche »).",
+    rows:[
+      "Pierre- / -fourche",
+      "Val- / -bois",
+      "Grand- / -champ",
+      "Vieux- / -pont",
+      "Haute- / -lande",
+      "Noir- / -étang",
+      "Belle- / -rive",
+      "Mont- / -creux",
+      "Sainte- / -combe",
+      "Bas- / -fossé",
+      "Fort- / -gué",
+      "Roche- / -mare"
     ] }
 ];
 
 /* Ajoute les tables par défaut manquantes (dédoublonnage par titre, insensible à la casse) — n'écrase jamais
-   une table existante, donc reste sans effet si le GM les a déjà, renommées, éditées ou supprimées. */
+   le contenu d'une table existante. Complète seulement la `category` d'une table déjà présente si elle n'en
+   a pas encore (ex : tables ajoutées avant l'introduction du champ catégorie), sans toucher au reste. */
 function seedShadowdarkDefaultTables(){
-  const existingTitles = new Set(db.tables.map(t=>(t.title||"").trim().toLowerCase()));
-  let added = 0;
+  const byTitle = new Map(db.tables.map(t=>[(t.title||"").trim().toLowerCase(), t]));
+  let added = 0, categorized = 0;
   SHADOWDARK_DEFAULT_TABLES.forEach(tpl=>{
-    if(existingTitles.has(tpl.title.toLowerCase())) return;
-    db.tables.push({ id:uid(), title:tpl.title, context:tpl.context, rows:[...tpl.rows] });
+    const existing = byTitle.get(tpl.title.toLowerCase());
+    if(existing){
+      if(!existing.category && tpl.category){ existing.category = tpl.category; categorized++; }
+      return;
+    }
+    db.tables.push({ id:uid(), title:tpl.title, category:tpl.category||"", context:tpl.context, rows:[...tpl.rows] });
     added++;
   });
-  return added;
+  return { added, categorized };
 }
 
 /* ------------------------------- Démarrage ------------------------------- */
@@ -3615,8 +3813,14 @@ async function startApp(){
       }
     }
     if(myRole==="gm"){
-      const addedTables = seedShadowdarkDefaultTables();
-      if(addedTables>0){ await saveDB(); toast(`${addedTables} table(s) aléatoire(s) du livre de base ajoutée(s).`); }
+      const { added, categorized } = seedShadowdarkDefaultTables();
+      if(added>0 || categorized>0){
+        await saveDB();
+        const parts = [];
+        if(added>0) parts.push(`${added} table(s) aléatoire(s) du livre de base ajoutée(s)`);
+        if(categorized>0) parts.push(`${categorized} catégorisée(s)`);
+        toast(parts.join(" · ")+".");
+      }
     }
   }catch(e){
     console.error(e);
