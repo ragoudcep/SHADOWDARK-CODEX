@@ -493,6 +493,9 @@
     #print-area .pp-tal{ width:100%; border-collapse:collapse; margin:2pt 0 4pt; }
     #print-area .pp-tal td{ font-size:9.5pt; padding:1.5pt 4pt; border-bottom:.5pt solid #e4dbc6; vertical-align:top; }
     #print-area .pp-tal td:first-child{ width:2.6em; text-align:center; font-weight:700; color:#8a7748; }
+    #print-area .pp-pc-currency{ font-family:var(--ui); font-size:9pt; color:#6a5a3a; margin:1pt 0 5pt; }
+    #print-area .pp-inv-list{ columns:2; column-gap:16pt; margin:0; padding-left:15pt; }
+    #print-area .pp-inv-list li{ font-size:10pt; line-height:1.6; border-bottom:.5pt dotted #cbb27f; min-height:13pt; break-inside:avoid; padding-right:6pt; }
   }
 </style>
 
@@ -1215,9 +1218,76 @@ function listSessions(){
     : emptyState("📜","Aucune session. Commencez votre journal de campagne."));
 }
 
+const AMBITIONS_PNJ_ROWS = [ // maison, non issue du livre
+  "De l'or, coûte que coûte.",
+  "Prouver sa valeur aux yeux des siens.",
+  "Venger un proche assassiné.",
+  "Fuir un passé qui le/la rattrape.",
+  "Grimper dans la hiérarchie locale.",
+  "Protéger un secret à tout prix.",
+  "Trouver l'amour, ou le retrouver.",
+  "Survivre encore un jour de plus.",
+  "Percer un mystère qui le/la hante.",
+  "Amasser du pouvoir, quel qu'en soit le prix.",
+  "Racheter une faute ancienne.",
+  "Servir fidèlement son maître ou sa divinité.",
+  "S'enrichir sur le dos des aventuriers de passage.",
+  "Quitter cette ville pour de bon.",
+  "Percer les secrets d'un art interdit."
+];
+const ARMES_BASE_ROWS = [ // approximatif, maison — le Quickstart p.12-31 ne détaille pas l'équipement (cf. p.32)
+  "Dague (1d4)", "Gourdin (1d4)", "Épée courte (1d6)", "Épée longue (1d8)", "Hache à main (1d6)",
+  "Lance (1d6)", "Marteau de guerre (1d10)", "Arc court (1d4)", "Arbalète (1d6)", "Fronde (1d4)",
+  "Bâton (1d4)", "Poings / à mains nues (1d2)"
+];
+function seedNpcGenTables(){
+  seedCharGenTables(); // garantit la table "Noms de personnages"
+  const ensure = (title, context, rows)=>{
+    if(db.tables.some(t=>(t.title||"").trim()===title)) return;
+    db.tables.push({id:uid(), title, context, rows});
+  };
+  ensure("Ambitions de PNJ", "Ce que veut un PNJ, à la volée (maison, non issue du livre).", AMBITIONS_PNJ_ROWS);
+  ensure("Armes de base", "Armes courantes et dégâts approximatifs (maison — le Quickstart ne détaille pas l'équipement).", ARMES_BASE_ROWS);
+}
+const NPC_SPELL_CLASSES = ["priest","wizard","witch"];
+function generateRandomNPC(){
+  seedNpcGenTables();
+  const scores = ["str","dex","con","int","wis","cha"].reduce((o,k)=>{ o[k]=rollDice(3,6); return o; },{});
+  const mods = {}; Object.keys(scores).forEach(k=> mods[k]=ABILITY_MOD(scores[k]));
+  const sgn = m => (m>=0?"+":"")+m;
+  const hp = Math.max(1, rollDice(1,6)+mods.con);
+  const ac = 10 + mods.dex;
+  const nom = rollOnAppTable("Noms de personnages") || pick(NOMS_ROWS);
+  const ambition = rollOnAppTable("Ambitions de PNJ") || pick(AMBITIONS_PNJ_ROWS);
+  const weapon = rollOnAppTable("Armes de base") || pick(ARMES_BASE_ROWS);
+
+  let spells = "";
+  if(rollDice(1,6)===1){
+    const spellClass = pick(NPC_SPELL_CLASSES);
+    const pool = db.spells.filter(s=>s.class===spellClass && String(s.tier)==="1");
+    const chosen = pickN(pool, rollDice(1,3));
+    spells = chosen.map(s=>`[[${s.name}]]`).join("\n");
+    if(!pool.length) spells = `(Lanceur de sorts — importe les sorts de ${spellClass==="priest"?"prêtre":spellClass==="wizard"?"magicien":"sorcière"} pour un tirage automatique.)`;
+  }
+
+  const o = {
+    id: uid(), name: nom, description:"", physique:"", age:"", possessions:"",
+    objectif: ambition, moyens:"", comportement:"",
+    ac: String(ac), hp: String(hp),
+    str:`${scores.str} (${sgn(mods.str)})`, dex:`${scores.dex} (${sgn(mods.dex)})`, con:`${scores.con} (${sgn(mods.con)})`,
+    int:`${scores.int} (${sgn(mods.int)})`, wis:`${scores.wis} (${sgn(mods.wis)})`, cha:`${scores.cha} (${sgn(mods.cha)})`,
+    weapon, spells, images:[]
+  };
+  db.npcs.push(o);
+  saveDB();
+  toast(`${nom} généré !`);
+  view = {tab:"npcs", mode:"detail", id:o.id};
+  render();
+}
 function listNPCs(){
   const items = db.npcs;
-  app.innerHTML = pageHead("PNJ", `${items.length} personnage(s) non-joueur(s)`, "Nouveau PNJ", xmlToolbarHTML("npc")) +
+  const genBtn = myRole==="gm" ? `<button class="btn ghost sm" data-gen-npc="1">🎲 Générer un PNJ aléatoire</button>` : "";
+  app.innerHTML = pageHead("PNJ", `${items.length} personnage(s) non-joueur(s)`, "Nouveau PNJ", xmlToolbarHTML("npc")+genBtn) +
     (items.length ? `<div class="grid">${items.map(n=>`
       <div class="card" data-open="npc:${n.id}">
         ${(n.images&&n.images.length)?`<img class="thumb" src="${n.images[0].data}" alt="">`:""}
@@ -1370,6 +1440,8 @@ function detailCreature(c){
 function detailNPC(n){
   const sec = (icon,label,val)=> (val&&val.trim())
     ? `<div class="section"><h2>${icon} ${label}</h2><div class="prose" style="font-family:var(--ui);font-size:.92rem">${renderText(val)}</div></div>` : "";
+  const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+  const hasCombat = n.ac || n.hp || n.weapon || ab.some(([,k])=>n[k]);
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PNJ</button>
     <span class="tag npc">PNJ</span>
@@ -1377,6 +1449,17 @@ function detailNPC(n){
     ${n.description?`<p class="muted" style="font-family:var(--ui)">${renderText(n.description)}</p>`:""}
     ${detailActions("npc",n.id)}
     ${n.age?`<div class="faint" style="font-family:var(--ui);font-size:.88rem"><b style="color:var(--gold2)">Âge :</b> ${esc(n.age)}</div>`:""}
+    ${hasCombat ? `<div class="statblock">
+      <div class="sb-line">
+        <span><b>CA</b> ${esc(n.ac||"—")}</span>
+        <span><b>PV</b> ${esc(n.hp||"—")}</span>
+        ${n.weapon?`<span><b>Arme</b> ${esc(n.weapon)}</span>`:""}
+      </div>
+      <div class="abilities-grid">
+        ${ab.map(([lbl,k])=>`<div class="ab"><div class="n">${lbl}</div><div class="v">${esc(n[k]||"—")}</div></div>`).join("")}
+      </div>
+    </div>` : ""}
+    ${sec("✨","Sortilèges",n.spells)}
     ${sec("👁","Apparence physique",n.physique)}
     ${sec("🎒","Ce qu'il / elle a sur soi",n.possessions)}
     ${sec("🎯","Objectif — ce qu'il / elle veut",n.objectif)}
@@ -1699,8 +1782,9 @@ function saveSession(){
 
 function formNPC(){
   const n = view.mode==="edit" ? getEntity("npc",view.id)
-    : {name:"",description:"",physique:"",age:"",possessions:"",objectif:"",moyens:"",comportement:""};
+    : {name:"",description:"",physique:"",age:"",possessions:"",objectif:"",moyens:"",comportement:"",ac:"",hp:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",weapon:"",spells:""};
   formImages = (n.images||[]).slice();
+  const stats = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
     <h1>${view.mode==="edit"?"Modifier le":"Nouveau"} PNJ</h1>
@@ -1714,6 +1798,17 @@ function formNPC(){
     <div class="field"><label>🎯 Objectif — ce qu'il / elle veut</label><textarea id="f-objectif" style="min-height:60px" placeholder="De l'or, coûte que coûte.">${esc(n.objectif)}</textarea></div>
     <div class="field"><label>⚔ Moyens — ce qu'il / elle est prêt(e) à faire pour y parvenir</label><textarea id="f-moyens" style="min-height:60px" placeholder="Tuer, voler, tricher, trahir ses alliés…">${esc(n.moyens)}</textarea></div>
     <div class="field"><label>🎭 Comportement / attitude</label><textarea id="f-comportement" style="min-height:60px" placeholder="Lâche face au danger, cruel face au plus faible…">${esc(n.comportement)}</textarea></div>
+    <div class="field"><label>Stats de combat <span class="hint">(facultatif — utile si ce PNJ peut se battre)</span></label>
+      <div class="row">
+        <div class="field" style="flex:0 1 110px"><label>CA</label><input type="text" id="f-ac" value="${esc(n.ac||"")}" placeholder="11"></div>
+        <div class="field" style="flex:0 1 110px"><label>PV</label><input type="text" id="f-hp" value="${esc(n.hp||"")}" placeholder="4"></div>
+        <div class="field" style="flex:1 1 220px"><label>Arme de base</label><input type="text" id="f-weapon" value="${esc(n.weapon||"")}" placeholder="Dague (1d4)"></div>
+      </div>
+      <div class="subgrid">
+        ${stats.map(([lbl,k])=>`<div class="field" style="margin:0"><label>${lbl}</label><input type="text" id="f-${k}" value="${esc(n[k]||"")}" placeholder="—"></div>`).join("")}
+      </div>
+    </div>
+    <div class="field"><label>Sortilèges <span class="hint">(si lanceur de sorts ; un par ligne, liens [[…]] possibles)</span></label><textarea id="f-spells" style="min-height:50px" placeholder="[[Lumière]]">${esc(n.spells||"")}</textarea></div>
     <div class="field"><label>Portraits / images <span class="hint">(PNG, JPEG… plusieurs possibles)</span></label>
       <div id="images-wrap"></div>
       <button class="btn ghost sm" data-add-img="1" style="margin-top:.5rem">🖼 Ajouter une image</button>
@@ -1727,7 +1822,7 @@ function saveNPC(){
   const o = view.mode==="edit" ? getEntity("npc",view.id) : {id:uid()};
   const _old = view.mode==="edit" ? o.name : null;
   o.name = $("#f-name").value.trim();
-  ["description","physique","age","possessions","objectif","moyens","comportement"].forEach(k=> o[k]=$("#f-"+k).value);
+  ["description","physique","age","possessions","objectif","moyens","comportement","ac","hp","str","dex","con","int","wis","cha","weapon","spells"].forEach(k=> o[k]=$("#f-"+k).value);
   o.images = formImages.slice();
   if(!o.name){ toast("Le nom est requis."); return; }
   if(view.mode==="new") db.npcs.push(o);
@@ -2117,6 +2212,14 @@ function pcInfoRest(info){
   const skipRe = /^\s*(Titre|Langues|Divinité|Trait d'ascendance.*|Armes autorisées|Armures autorisées|Capacités de classe|Jet de talent.*|PJ généré automatiquement.*)\s*:?/i;
   return String(info||"").split(/\r?\n/).filter(l=>!skipRe.test(l)).join("\n").trim();
 }
+function printInventoryList(p){
+  const filled = String(p.inventory||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const slots = Math.max(parseInt(p.invSlots)||0, 10, filled.length);
+  const items = []; for(let i=0;i<slots;i++) items.push(filled[i] ? esc(filled[i]) : "");
+  return `<div class="pp-sec pp-pc-inv"><h4>Inventaire${p.invSlots?` — ${esc(p.invSlots)} emplacements (10 ou Force, la plus haute valeur)`:""}</h4>
+    <div class="pp-pc-currency">PO ______&nbsp;&nbsp;&nbsp; PA ______&nbsp;&nbsp;&nbsp; PC ______</div>
+    <ol class="pp-inv-list">${items.map(t=>`<li>${t}</li>`).join("")}</ol></div>`;
+}
 function printPCSheet(p){
   const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
   const titre = pcInfoExtract(p.info,"Titre");
@@ -2137,7 +2240,7 @@ function printPCSheet(p){
     ${printSection("Compétences", p.skills)}
     ${p.spells&&p.spells.trim() ? printSection("Sortilèges", p.spells) : ""}
     ${talentsText ? `<div class="pp-sec"><h4>Talents — 2d6</h4>${talentsText}</div>` : ""}
-    ${printSection("Inventaire", p.inventory)}
+    ${printInventoryList(p)}
     ${notes ? printSection("Notes", notes) : ""}
   </section>`;
 }
@@ -2398,6 +2501,9 @@ function generateRandomPC(){
   const gold = rollDice(2,6)*5;
   const ac = 10 + mods.dex;
   const sgn = m => (m>=0?"+":"")+m;
+  // Équipement p.13 : emplacements = le plus élevé entre 10 et la caractéristique de Force ;
+  // + bonus de Constitution (s'il est positif) pour un Guerrier (talent Bête de somme).
+  const invSlots = Math.max(10, scores.str) + (cls==="Guerrier" && mods.con>0 ? mods.con : 0);
 
   const o = {
     id: uid(), name: nom, ancestry: ancestryName, cls: cls, level: level, alignment: alignment,
@@ -2406,6 +2512,7 @@ function generateRandomPC(){
     int: `${scores.int} (${sgn(mods.int)})`, wis: `${scores.wis} (${sgn(mods.wis)})`, cha: `${scores.cha} (${sgn(mods.cha)})`,
     skills: [origine, cls==="Voleur" ? "Formé (avantage) : Grimper ; Se mouvoir en silence et se cacher ; Adopter des déguisements ; Repérer/désamorcer des pièges ; Tâches délicates (crochetage, pickpocket)." : ""].filter(Boolean).join("\n"),
     spells: spellLines.join("\n"),
+    invSlots: String(invSlots),
     inventory: `${gold} po pour acheter votre équipement de départ (armes/armure autorisées par la classe — l'appli ne connaît pas encore les prix, à compléter manuellement).`,
     info: [
       `Titre : ${title}`,
@@ -2446,7 +2553,7 @@ function listPCs(){
 
 function formPC(){
   const p = view.mode==="edit" ? getEntity("pc",view.id)
-    : {name:"",ancestry:"",cls:"",level:"1",alignment:"neutre",ac:"",hp:"",hpCurrent:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",skills:"",spells:"",inventory:"",info:"",talents:DEFAULT_TALENTS()};
+    : {name:"",ancestry:"",cls:"",level:"1",alignment:"neutre",ac:"",hp:"",hpCurrent:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",skills:"",spells:"",inventory:"",invSlots:"",info:"",talents:DEFAULT_TALENTS()};
   const talents = p.talents && p.talents.length ? p.talents : DEFAULT_TALENTS();
   formImages = (p.images||[]).slice();
   const alignOpt = ["loyal","neutre","chaos"].map(v=>`<option value="${v}" ${p.alignment===v?"selected":""}>${cap(v)}</option>`).join("");
@@ -2473,6 +2580,9 @@ function formPC(){
     </div>
     <div class="field"><label>Compétences <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
     <div class="field"><label>Sortilèges <span class="hint">(un par ligne)</span></label><textarea id="f-spells" placeholder="Lumière…&#10;Projectile magique…">${esc(p.spells)}</textarea></div>
+    <div class="row">
+      <div class="field" style="flex:0 1 220px"><label>Emplacements d'inventaire <span class="hint">(10 ou Force, la plus haute valeur)</span></label><input type="text" id="f-invSlots" value="${esc(p.invSlots||"")}" placeholder="10"></div>
+    </div>
     <div class="field"><label>Inventaire <span class="hint">(un objet par ligne)</span></label><textarea id="f-inventory" placeholder="Épée longue…&#10;Corde (15m)…&#10;Rations x3">${esc(p.inventory)}</textarea></div>
     <div class="field"><label>Informations / notes</label><textarea id="f-info" placeholder="Histoire, ascendance détaillée, liens avec des [[PNJ]]…">${esc(p.info)}</textarea></div>
     <div class="field"><label>Talents — table 2d6 <span class="hint">(5 lignes ; à compléter selon la classe)</span></label>
@@ -2511,6 +2621,7 @@ function savePC(){
   ["str","dex","con","int","wis","cha"].forEach(k=> o[k]=$("#f-"+k).value.trim());
   o.skills = $("#f-skills").value;
   o.spells = $("#f-spells").value;
+  o.invSlots = $("#f-invSlots").value.trim();
   o.inventory = $("#f-inventory").value;
   o.info = $("#f-info").value;
   o.talents = [...document.querySelectorAll("#talents-wrap [data-talentitem]")].map(el=>({
@@ -2549,7 +2660,7 @@ function detailPC(p){
     </div>
     ${listSec("🎯","Compétences",p.skills)}
     ${listSec("✨","Sortilèges",p.spells)}
-    ${listSec("🎒","Inventaire",p.inventory)}
+    ${listSec("🎒",`Inventaire${p.invSlots?` (${esc(p.invSlots)} emplacements)`:""}`,p.inventory)}
     ${p.info?`<div class="section"><h2>📝 Informations</h2><div class="prose" style="font-family:var(--ui)">${renderText(p.info)}</div></div>`:""}
     ${talents.length?`<div class="section"><h2>⭐ Talents (2d6)</h2>
       <div style="margin:.2rem 0 .7rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6</button> <span id="talent-roll-out" class="roll-result"></span></div>
@@ -3520,7 +3631,7 @@ ${atk}
    couverts par ce format — ils restent à gérer depuis les fiches elles-mêmes. */
 const XML_TYPES = {
   npc: { tag:"npc", tagAlt:/npc|pnj/i, label:"PNJ", col:"npcs", nameField:"name",
-    fields:["name","description","physique","age","possessions","objectif","moyens","comportement"] },
+    fields:["name","description","physique","age","possessions","objectif","moyens","comportement","ac","hp","str","dex","con","int","wis","cha","weapon","spells"] },
   treasure: { tag:"treasure", tagAlt:/treasure|tresor|objet/i, label:"objet", col:"treasures", nameField:"name",
     fields:["name","category","description","bonus","boon","curse","personality"] },
   table: { tag:"table", tagAlt:/table/i, label:"table", col:"tables", nameField:"title",
@@ -3703,6 +3814,7 @@ app.addEventListener("click", e=>{
   if((el=t.closest("[data-remove-talent]"))){ el.closest("[data-talentitem]").remove(); return; }
   if((el=closest("data-roll-talents"))){ rollTalents(el.dataset.rollTalents); return; }
   if(closest("data-gen-pc")){ generateRandomPC(); return; }
+  if(closest("data-gen-npc")){ generateRandomNPC(); return; }
   // Barre d'outils du point crawl
   if(closest("data-crawl-add")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openPickEventModal(c); return; }
   if(closest("data-crawl-new")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openNewEventModal(c); return; }
