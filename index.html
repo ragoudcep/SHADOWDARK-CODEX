@@ -483,6 +483,16 @@
     #print-area .pp-sec li{ font-size:10.5pt; margin:1pt 0; line-height:1.35; }
     #print-area .pp-link{ font-weight:700; text-decoration:underline; text-decoration-thickness:.5pt; text-underline-offset:1.5pt; }
     #print-area .pp-appendix{ break-before:page; }
+    /* ---- Fiches de PJ (une par page A4) ---- */
+    #print-area .pp-pcsheet{ break-after:page; }
+    #print-area .pp-pcsheet:last-child{ break-after:auto; }
+    #print-area .pp-pcstats{ display:flex; flex-wrap:wrap; gap:6pt; margin:2pt 0 12pt; }
+    #print-area .pp-pcbox{ border:1.3pt solid #cbb27f; border-radius:4pt; padding:4pt 10pt; min-width:50pt; text-align:center; }
+    #print-area .pp-pcbox label{ display:block; font-family:var(--ui); font-size:7pt; text-transform:uppercase; letter-spacing:.5pt; color:#9a7b3a; }
+    #print-area .pp-pcbox .v{ font-size:13pt; font-weight:700; color:#2a241c; }
+    #print-area .pp-tal{ width:100%; border-collapse:collapse; margin:2pt 0 4pt; }
+    #print-area .pp-tal td{ font-size:9.5pt; padding:1.5pt 4pt; border-bottom:.5pt solid #e4dbc6; vertical-align:top; }
+    #print-area .pp-tal td:first-child{ width:2.6em; text-align:center; font-weight:700; color:#8a7748; }
   }
 </style>
 
@@ -2098,6 +2108,71 @@ function printCrawl(id){
   document.fonts.load('30pt "JSL Blackletter"').catch(()=>{}).then(()=> window.print());
 }
 
+/* ---- Impression de fiches PJ (une par page A4, inspirée de la fiche perso vierge) ---- */
+function pcInfoExtract(info, label){
+  const m = String(info||"").match(new RegExp("^\\s*"+label+"\\s*:\\s*(.*)$","im"));
+  return m ? m[1].trim() : "";
+}
+function pcInfoRest(info){
+  const skipRe = /^\s*(Titre|Langues|Divinité|Trait d'ascendance.*|Armes autorisées|Armures autorisées|Capacités de classe|Jet de talent.*|PJ généré automatiquement.*)\s*:?/i;
+  return String(info||"").split(/\r?\n/).filter(l=>!skipRe.test(l)).join("\n").trim();
+}
+function printPCSheet(p){
+  const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+  const titre = pcInfoExtract(p.info,"Titre");
+  const langues = pcInfoExtract(p.info,"Langues");
+  const divinite = pcInfoExtract(p.info,"Divinité");
+  const notes = pcInfoRest(p.info);
+  const talentsRows = (p.talents||[]).filter(t=>t.roll||t.text);
+  const sub = [p.ancestry,p.cls,p.level?`Niveau ${p.level}`:"",titre,p.alignment?cap(p.alignment):""].filter(Boolean).join(" · ");
+  const talentsText = talentsRows.length ? `<table class="pp-tal"><tbody>${talentsRows.map(t=>`<tr><td>${esc(t.roll)}</td><td>${renderTextPrint(t.text)}</td></tr>`).join("")}</tbody></table>` : "";
+  return `<section class="pp-pcsheet">
+    <h1>${esc(p.name||"Sans nom")}</h1>
+    <p class="pp-desc">${esc(sub||"—")}${langues?` · Langues : ${esc(langues)}`:""}${divinite?` · Divinité : ${esc(divinite)}`:""}</p>
+    <div class="pp-pcstats">
+      <div class="pp-pcbox"><label>PV</label><div class="v">${esc(p.hpCurrent||"—")}/${esc(p.hp||"—")}</div></div>
+      <div class="pp-pcbox"><label>CA</label><div class="v">${esc(p.ac||"—")}</div></div>
+      ${ab.map(([lbl,k])=>`<div class="pp-pcbox"><label>${lbl}</label><div class="v">${esc(p[k]||"—")}</div></div>`).join("")}
+    </div>
+    ${printSection("Compétences", p.skills)}
+    ${p.spells&&p.spells.trim() ? printSection("Sortilèges", p.spells) : ""}
+    ${talentsText ? `<div class="pp-sec"><h4>Talents — 2d6</h4>${talentsText}</div>` : ""}
+    ${printSection("Inventaire", p.inventory)}
+    ${notes ? printSection("Notes", notes) : ""}
+  </section>`;
+}
+function printPCs(ids){
+  const list = ids.map(id=>getEntity("pc",id)).filter(Boolean);
+  if(!list.length){ toast("Sélectionnez au moins un PJ."); return; }
+  $("#print-area").innerHTML = list.map(printPCSheet).join("");
+  document.fonts.load('30pt "JSL Blackletter"').catch(()=>{}).then(()=> window.print());
+}
+function openPrintPCsModal(){
+  const items = db.pcs;
+  if(!items.length){ toast("Aucun PJ à imprimer."); return; }
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+      <h2 style="margin:0;color:var(--gold2)">Imprimer des fiches PJ</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <p class="faint" style="font-family:var(--ui);margin:.3rem 0 .8rem">Une fiche A4 par personnage coché.</p>
+    <div style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem;margin-bottom:.8rem">
+      ${items.map(p=>`<label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.9rem;cursor:pointer">
+        <input type="checkbox" class="pcp-check" value="${p.id}" checked style="width:auto"> ${esc(p.name||"Sans nom")} <span class="faint">(${esc(p.cls||"—")})</span>
+      </label>`).join("")}
+    </div>
+    <div class="form-actions">
+      <button class="btn ghost sm" id="pcp-all">Tout cocher</button>
+      <button class="btn ghost sm" id="pcp-none">Tout décocher</button>
+      <button class="btn" id="pcp-go">🖨 Imprimer la sélection</button>
+    </div>`);
+  document.getElementById("pcp-all").addEventListener("click", ()=> document.querySelectorAll(".pcp-check").forEach(c=>c.checked=true));
+  document.getElementById("pcp-none").addEventListener("click", ()=> document.querySelectorAll(".pcp-check").forEach(c=>c.checked=false));
+  document.getElementById("pcp-go").addEventListener("click", ()=>{
+    const ids = [...document.querySelectorAll(".pcp-check:checked")].map(c=>c.value);
+    closeModal();
+    printPCs(ids);
+  });
+}
+
 /* =========================================================================
    PJ — fiches de personnages-joueurs (stat bloc + inventaire + talents 2d6)
    ========================================================================= */
@@ -2356,7 +2431,8 @@ function generateRandomPC(){
 
 function listPCs(){
   const items = db.pcs;
-  const genBtn = myRole==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>` : "";
+  const genBtn = myRole==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
+    <button class="btn ghost sm" data-print-pcs="1">🖨 Imprimer des fiches</button>` : "";
   app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ", genBtn) +
     (items.length ? `<div class="grid">${items.map(p=>`
       <div class="card" data-open="pc:${p.id}">
@@ -2458,6 +2534,7 @@ function detailPC(p){
     <h1>${esc(p.name||"Sans nom")}</h1>
     <p class="muted" style="font-family:var(--ui)">${esc([p.ancestry,p.cls].filter(Boolean).join(" · "))}${p.alignment?` · ${esc(cap(p.alignment))}`:""}</p>
     ${detailActions("pc",p.id)}
+    <div style="margin:.2rem 0 .8rem"><button class="btn ghost sm" data-print-pc="${p.id}">🖨 Imprimer cette fiche (PDF)</button></div>
     <div class="statblock">
       <div class="sb-line">
         <span><b>CA</b> ${esc(p.ac||"—")}</span>
@@ -3631,6 +3708,8 @@ app.addEventListener("click", e=>{
   if(closest("data-crawl-new")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openNewEventModal(c); return; }
   if(closest("data-crawl-link")){ toggleLinkMode(); return; }
   if(closest("data-crawl-print")){ printCrawl(crawlState.id); return; }
+  if(closest("data-print-pcs")){ openPrintPCsModal(); return; }
+  if((el=closest("data-print-pc"))){ printPCs([el.dataset.printPc]); return; }
   // Hexcrawl
   if((el=t.closest("[data-hexq]"))){
     if(myRole==="gm"){
