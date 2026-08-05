@@ -145,7 +145,10 @@ donc éditables — sinon) :
 - **Langues rares** (d4) — Quickstart p.29.
 - **Divinités** (d7) — Quickstart p.30-31.
 - **Noms de personnages** — **[maison]**, non issue du livre.
-- **Ambitions de PNJ** — **[maison]**, non issue du livre.
+- **Ambitions de PNJ** — **[maison]**, 22 entrées génériques et courtes (attiré par l'or,
+  envie d'aventure, soif de vengeance…), non issue du livre.
+- **Moyens de PNJ** — **[maison]**, comment le PNJ compte parvenir à son ambition
+  (négociation, violence, marchandage, diplomatie, patience, ruse…), non issue du livre.
 - **Armes de base** — **[maison]**, dégâts approximatifs (le Quickstart ne détaille pas
   l'équipement, cf. p.32 non fourni).
 
@@ -158,6 +161,7 @@ seulement :
 - PV = 1d6 + mod. CON (minimum 1). CA = 10 + mod. DEX.
 - Un nom (table « Noms de personnages »).
 - Une ambition (table « Ambitions de PNJ », stockée dans le champ Objectif).
+- Un moyen d'y parvenir (table « Moyens de PNJ », stocké dans le champ Moyens).
 - Une arme de base (table « Armes de base »).
 - 1 chance sur 6 (1d6 = 1) d'être lanceur de sorts : classe tirée au hasard parmi
   Prêtre/Magicien/Sorcière, et 1d3 sorts de rang 1 piochés dans `db.spells`.
