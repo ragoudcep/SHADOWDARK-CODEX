@@ -569,7 +569,11 @@ async function fetchRemoteDB(){
   const out = emptyDB();
   for(const col of DB_COLS){
     const { data, error } = await sb.from(col).select("data");
-    if(error) throw error;
+    if(error){
+      // Une table manquante (ex : script SQL pas encore exécuté) ne doit pas bloquer tout le reste.
+      console.error(`Table "${col}" indisponible :`, error);
+      continue;
+    }
     out[col] = (data||[]).map(r=>r.data);
   }
   return out;
