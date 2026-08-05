@@ -449,6 +449,7 @@
     #print-area .pp-sec ul{ margin:0; padding-left:15pt; }
     #print-area .pp-sec li{ font-size:10.5pt; margin:1pt 0; line-height:1.35; }
     #print-area .pp-link{ font-weight:700; text-decoration:underline; text-decoration-thickness:.5pt; text-underline-offset:1.5pt; }
+    #print-area .pp-appendix{ break-before:page; }
   }
 </style>
 
@@ -1728,6 +1729,59 @@ function printSection(label, text){
   if(!lines.length) return "";   // on masque les sections vides pour un rendu épuré
   return `<div class="pp-sec"><h4>${label}</h4><ul>${lines.map(l=>`<li>${renderTextPrint(l)}</li>`).join("")}</ul></div>`;
 }
+
+/* ---- Annexes du PDF de point crawl : résout les [[liens]] cités dans les événements
+   du plan vers leurs créatures / trésors / tables, et imprime leur fiche complète. ---- */
+function printCreatureBlock(c){
+  const stats = [["FOR",c.str],["DEX",c.dex],["CON",c.con],["INT",c.int],["SAG",c.wis],["CHA",c.cha]]
+    .filter(([,v])=>v).map(([l,v])=>`${l} ${esc(v)}`).join(" · ");
+  const attacks = (c.attacks||[]).filter(a=>a.name||a.damage)
+    .map(a=>`${esc(a.name||"Attaque")}${a.bonus?" "+esc(a.bonus):""} (${esc(a.damage||"?")}${a.range?", "+esc(rangeLabel(a.range)):""})`).join(" ; ");
+  return `<div class="pp-event">
+    <h3><span>${esc(c.name||"Sans nom")}</span>${c.category?`<span class="pp-theme">${esc(c.category)}</span>`:""}</h3>
+    <div class="pp-sec"><ul><li>CA ${esc(c.ac||"?")} · PV ${esc(c.hp||"?")} · Niv. ${esc(c.level||"?")}${c.alignment?" · "+esc(cap(c.alignment)):""}${stats?" · "+stats:""}</li></ul></div>
+    ${attacks?`<div class="pp-sec"><h4>Attaques</h4><ul><li>${attacks}</li></ul></div>`:""}
+    ${printSection("Capacités & immunités", c.abilities)}
+    ${c.desc?`<div class="pp-sec"><ul><li>${renderTextPrint(c.desc)}</li></ul></div>`:""}
+  </div>`;
+}
+function printTreasureBlock(t){
+  return `<div class="pp-event">
+    <h3><span>${esc(t.name||"Sans nom")}</span><span class="pp-theme">${esc(treasureCatLabel(t.category))}</span></h3>
+    ${printSection("Description & effets", t.description)}
+  </div>`;
+}
+function printTableBlock(t){
+  const rows = (t.rows||[]).map((r,i)=>`<li>${i+1}. ${renderTextPrint(r)}</li>`).join("");
+  return `<div class="pp-event">
+    <h3><span>${esc(t.title||"Sans titre")}</span></h3>
+    ${t.context?`<div class="pp-sec"><h4>Contexte</h4><ul><li>${renderTextPrint(t.context)}</li></ul></div>`:""}
+    ${rows?`<div class="pp-sec"><h4>Résultats (d${(t.rows||[]).length})</h4><ul>${rows}</ul></div>`:""}
+  </div>`;
+}
+function buildPrintAppendix(nodes){
+  const names = new Set();
+  nodes.forEach(n=>{
+    const ev = getEntity("event", n.eventId); if(!ev) return;
+    [ev.description, ev.traps, ev.secrets].forEach(t=> extractLinks(t).forEach(nm=>names.add(nm)));
+  });
+  const creatures=[], treasures=[], tables=[], seen=new Set();
+  names.forEach(nm=>{
+    const hit = findByName(nm); if(!hit || seen.has(hit.type+":"+hit.id)) return;
+    seen.add(hit.type+":"+hit.id);
+    if(hit.type==="creature") creatures.push(getEntity("creature",hit.id));
+    else if(hit.type==="treasure") treasures.push(getEntity("treasure",hit.id));
+    else if(hit.type==="table") tables.push(getEntity("table",hit.id));
+  });
+  creatures.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  treasures.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  tables.sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+  let html = "";
+  if(creatures.length) html += `<section class="pp-events pp-appendix"><h2>Annexe — Créatures rencontrées (${creatures.length})</h2>${creatures.map(printCreatureBlock).join("")}</section>`;
+  if(treasures.length) html += `<section class="pp-events pp-appendix"><h2>Annexe — Trésors & reliques (${treasures.length})</h2>${treasures.map(printTreasureBlock).join("")}</section>`;
+  if(tables.length) html += `<section class="pp-events pp-appendix"><h2>Annexe — Tables aléatoires (${tables.length})</h2>${tables.map(printTableBlock).join("")}</section>`;
+  return html;
+}
 function crawlDiagramSVG(c){
   const NW = 152, NH = 44, pad = 28, nodes = c.nodes||[];
   if(!nodes.length) return "";
@@ -1772,7 +1826,8 @@ function printCrawl(id){
       ${c.description?`<p class="pp-desc">${renderTextPrint(c.description)}</p>`:""}
       ${crawlDiagramSVG(c)}
     </section>
-    <section class="pp-events"><h2>Événements du plan (${nodes.length})</h2>${events}</section>`;
+    <section class="pp-events"><h2>Événements du plan (${nodes.length})</h2>${events}</section>
+    ${buildPrintAppendix(nodes)}`;
   document.fonts.load('30pt "JSL Blackletter"').catch(()=>{}).then(()=> window.print());
 }
 
