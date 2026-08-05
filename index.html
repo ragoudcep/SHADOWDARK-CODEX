@@ -3423,6 +3423,137 @@ function seedIfEmpty(){
   saveDB();
 }
 
+/* --------------- Tables aléatoires par défaut (livre de base) ------------- */
+/* Chaque ligne de `rows` correspond à une face du dé (rows.length = taille du dé, comme partout ailleurs
+   dans l'appli). Les tables du livre à colonnes multiples (Périls, Pièges, Qualités des PNJ, Noms par
+   syllabes) n'ont pas de support dédié dans le modèle de données (une table = un tableau de chaînes) :
+   chaque ligne combine donc ses résultats dans une seule chaîne, séparés par « / », dans l'ordre indiqué
+   par le champ `context`. Les tables à plages (Ascendance, Alignement, Âge, Richesse) sont développées en
+   une ligne par face de dé pour conserver les bonnes probabilités avec le tirage 1d de l'appli. */
+const SHADOWDARK_DEFAULT_TABLES = [
+  { title:"Périls",
+    context:"d12 — trois résultats combinés par ligne, dans l'ordre : Déplacement / Dégâts / Affaiblissement.",
+    rows:[
+      "Sables mouvants / Bassins d'acide / Fumée aveuglante",
+      "Chausse-trappes / Pierres explosives / Champ magnétique",
+      "Débris branlants / Eau glacée / Runes d'épuisement",
+      "Zone de goudron / Lave / Zone d'antimagie",
+      "Enchevêtrement de lianes / Averse de grêle / Extinction des lumières",
+      "Pente raide / Sortie de vapeur / Bruit qui désoriente",
+      "Verglas glissant / Moisissure toxique / Silence magique",
+      "Déluge d'eau / Chute de débris / Froid engourdissant",
+      "Toiles collantes / Pluie acide / Odeur écœurante",
+      "Vent violent / Rideau de feu / Spores somnifères",
+      "Sol graissé / Champ électrifié / Reflets déroutants",
+      "Terrain illusoire / Flux gravitationnel / Amnésie"
+    ] },
+  { title:"Pièges",
+    context:"d12 — trois résultats combinés par ligne, dans l'ordre : Piège / Déclencheur / Dégâts ou effet.",
+    rows:[
+      "Arbalète / Fil déclencheur / 1d6",
+      "Grêle de fléchettes / Plaque de pression / 1d6/sommeil",
+      "Gaz toxique / Ouverture d'une porte / 1d6/paralysie",
+      "Filet barbelé / Interrupteur ou bouton / 1d6/cécité",
+      "Rocher roulant / Fausse marche d'escalier / 2d8",
+      "Lame tranchante / Fermeture d'une porte / 2d8/sommeil",
+      "Fosse à pieux / Couper un rayon lumineux / 2d8/paralysie",
+      "Javelot / Tirer un levier / 2d8/confusion",
+      "Glyphe magique / Prononcer un mot / 3d10",
+      "Jet de flammes / Crochet au bout d'un fil / 3d10/paralysie",
+      "Chute de pierre / Retirer un objet / 3d10/inconscience",
+      "Statue maudite / Lancer un sort / 3d10/pétrification"
+    ] },
+  { title:"Ascendance des PNJ",
+    context:"d12 — origine d'un PNJ.",
+    rows:["Humain","Humain","Humain","Humain","Elfe","Elfe","Nain","Nain","Halfelin","Halfelin","Demi-orque","Gobelin"] },
+  { title:"Alignement des PNJ",
+    context:"d6 — alignement d'un PNJ.",
+    rows:["Loyal","Loyal","Loyal","Neutre","Chaotique","Chaotique"] },
+  { title:"Âge des PNJ",
+    context:"d8 — âge d'un PNJ.",
+    rows:["Enfant","Adolescent","Adulte","Adulte","Âge mûr","Âge mûr","Vieillard(e)","Âge canonique"] },
+  { title:"Richesse des PNJ",
+    context:"d6 — niveau de richesse d'un PNJ.",
+    rows:["Pauvre","Ordinaire","Ordinaire","Riche","Riche","Extravagant"] },
+  { title:"Qualités des PNJ",
+    context:"d20 — trois résultats combinés par ligne, dans l'ordre : Apparence / Manie / Secret.",
+    rows:[
+      "Dégarni / Crache / Cache un fugitif",
+      "Trapu / Mange constamment / Adore les bébés animaux",
+      "Très grand / Gestes vifs / Obsédé par le feu",
+      "Grain de beauté / Tours de cartes / Dans une secte religieuse",
+      "Borgne / Prie à voix haute / Est un demi-démon",
+      "Cheveux tressés / Tient un journal intime / Apprenti d'un magicien",
+      "Musclé / S'excuse sans cesse / Fait les poches sans raison",
+      "Cheveux blancs / Donne des tapes dans le dos / Fausse identité",
+      "Balafre / Lâche des objets / A peur des orages",
+      "Svelte / Prête souvent serment / Branchies fonctionnelles",
+      "En sueur / Fait des blagues / Graves dettes de jeu",
+      "Fossette / Accent rare / Contrebandier en secret",
+      "Frêle / S'effraie d'un rien / Est un loup-garou",
+      "Sourcils épais / Distrait / Flaire les mensonges",
+      "Tatouée / Parle bas / Expulsé d'une famille riche",
+      "Chapeau mou / Spasmes / Amoureux du barman",
+      "Dent en or / Gestes lents / A quitté la Guilde des Voleurs",
+      "Six doigts / Parle fort / Meilleur ami d'un prince",
+      "Très petit / Roule des mécaniques / Écumeur à la retraite",
+      "Gros nez / Fume la pipe / A un basilic domestique"
+    ] },
+  { title:"Génération de noms de PNJ (syllabes)",
+    context:"d20 — quatre éléments combinés par ligne, dans l'ordre : Préfixe / Syllabe 1 / Syllabe 2 / Suffixe. Combinez les 4 éléments d'une même ligne pour un nom rapide, ou faites 4 jets de d20 séparés (un par colonne) pour un résultat plus aléatoire, selon l'usage du livre.",
+    rows:[
+      "Ir- / an / l / -int",
+      "Van- / ish / n / -us",
+      "Cyr- / tos / pil / -ios",
+      "Den- / zar / g / -el",
+      "Cor- / ven / z / -inne",
+      "Hil- / sen / bor / -os",
+      "Sal- / win / t / -ian",
+      "Bri- / on / c / -ius",
+      "Mar- / en / ar / -iol",
+      "Gar- / lin / q / -an",
+      "Tin- / sor / v / -isk",
+      "Vor- / oc / iv / -erg",
+      "Nel- / vyn / ov / -ent",
+      "Ri- / al / b / -ial",
+      "Quor- / osh / den / -ant",
+      "Bal- / er / k / -iel",
+      "Mur- / in / s / -onne",
+      "Par- / el / r / -org",
+      "Tor- / un / jen / -enne",
+      "Lem- / nar / w / -ynne"
+    ] },
+  { title:"Métier",
+    context:"d4 + d4 (grille 4×4, 16 métiers) — premier d4 = ligne, second d4 = colonne. Le tirage 1d16 de l'appli couvre les 16 métiers à parts égales, dans l'ordre de la grille (ligne 1 colonnes 1 à 4, puis ligne 2, etc.).",
+    rows:[
+      "Fossoyeur","Charpentier","Érudit","Forgeron",
+      "Collecteur d'impôts","Fermier","Aubergiste","Mendiant",
+      "Boulanger","Cuisinier","Marin","Boucher",
+      "Serrurier","Cordonnier","Prêtre/nonne","Marchand"
+    ] },
+  { title:"Adjectif",
+    context:"d4 + d4 (grille 4×4, 16 surnoms) — premier d4 = ligne, second d4 = colonne. Le tirage 1d16 de l'appli couvre les 16 surnoms à parts égales, dans l'ordre de la grille. Combinable avec une table de noms (ex. « Génération de noms de PNJ ») pour un titre du style « Grondar l'Astucieux » — l'appli ne relie pas les tables entre elles automatiquement, à combiner manuellement pour l'instant.",
+    rows:[
+      "Le Gris","N'a qu'un œil","Le Petit","L'Astucieux",
+      "L'Éloquent","Le Paria","Main Leste","L'Audacieux",
+      "L'Ancien","Le Charmeur","L'Exilé","Le Sagace",
+      "Parle-aux-Arbres","Le Veule","Le Roux","Six-Doigts"
+    ] }
+];
+
+/* Ajoute les tables par défaut manquantes (dédoublonnage par titre, insensible à la casse) — n'écrase jamais
+   une table existante, donc reste sans effet si le GM les a déjà, renommées, éditées ou supprimées. */
+function seedShadowdarkDefaultTables(){
+  const existingTitles = new Set(db.tables.map(t=>(t.title||"").trim().toLowerCase()));
+  let added = 0;
+  SHADOWDARK_DEFAULT_TABLES.forEach(tpl=>{
+    if(existingTitles.has(tpl.title.toLowerCase())) return;
+    db.tables.push({ id:uid(), title:tpl.title, context:tpl.context, rows:[...tpl.rows] });
+    added++;
+  });
+  return added;
+}
+
 /* ------------------------------- Démarrage ------------------------------- */
 const authScreen = $("#auth-screen");
 const authError = $("#auth-error");
@@ -3482,6 +3613,10 @@ async function startApp(){
       } else {
         seedIfEmpty();
       }
+    }
+    if(myRole==="gm"){
+      const addedTables = seedShadowdarkDefaultTables();
+      if(addedTables>0){ await saveDB(); toast(`${addedTables} table(s) aléatoire(s) du livre de base ajoutée(s).`); }
     }
   }catch(e){
     console.error(e);
