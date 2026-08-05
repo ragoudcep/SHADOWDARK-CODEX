@@ -308,7 +308,10 @@
   .hex-fog{ fill:#0c0a08; }
   .hex-fog-gm{ fill:#0c0a08; opacity:.55; pointer-events:none; }
   .hexpoint{ cursor:pointer; }
-  .hexpoint circle{ stroke:#1a1510; stroke-width:1.5; }
+  .hexpoint-bg{ fill:#1a1510; stroke:#c0392b; stroke-width:1.3; opacity:.88; transition:filter .15s; }
+  .hexpoint:hover .hexpoint-bg{ filter:brightness(1.5); }
+  .hexpoint-icon{ fill:#e0453a; font-weight:800; font-family:var(--ui); pointer-events:none; user-select:none; }
+  .hexpoint-dmonly .hexpoint-bg{ stroke:#8a8a8a; stroke-dasharray:2 1.5; }
   .crawl-canvas > svg{position:absolute; inset:0; width:100%; height:100%; pointer-events:none}
   .crawl-canvas > svg line{stroke:var(--border2); stroke-width:3; pointer-events:stroke; cursor:pointer}
   .crawl-canvas > svg line:hover{stroke:var(--gold)}
@@ -2147,6 +2150,7 @@ function hexCorners(cx,cy,size){
   return pts.join(" ");
 }
 let hexmapCurrentId = null;
+let hexPointsVisible = true;
 
 function listHexmaps(){
   const items = db.hexmaps;
@@ -2193,8 +2197,11 @@ function buildHexPoints(m, isGM){
     return true;
   }).map(p=>{
     const c = hexCenter(p.hex.q, p.hex.r, size);
-    return `<g class="hexpoint" data-point-id="${esc(p.id)}"><title>${esc(p.name||"")}</title>
-      <circle cx="${c.x}" cy="${c.y}" r="${(size*0.28).toFixed(1)}" fill="${esc(p.color||'#c8a24a')}" stroke="#1a1510" stroke-width="1.5"></circle>
+    const r = Math.max(6, size*0.16);
+    const hiddenFromPlayers = isGM && p.dmOnly;
+    return `<g class="hexpoint${hiddenFromPlayers?' hexpoint-dmonly':''}" data-point-id="${esc(p.id)}"><title>${esc(p.name||"")}${hiddenFromPlayers?" (MJ uniquement)":""}</title>
+      <circle cx="${c.x}" cy="${c.y}" r="${r.toFixed(1)}" class="hexpoint-bg"></circle>
+      <text x="${c.x.toFixed(1)}" y="${(c.y+r*0.4).toFixed(1)}" text-anchor="middle" class="hexpoint-icon" style="font-size:${(r*1.5).toFixed(1)}px">!</text>
     </g>`;
   }).join("");
 }
@@ -2217,7 +2224,7 @@ function buildHexSVG(m){
       ${!revealed?`<polygon points="${pts}" class="${isGM?'hex-fog-gm':'hex-fog'}"></polygon>`:""}
     </g>`;
   }).join("");
-  return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}${buildHexPoints(m,isGM)}</svg>`;
+  return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
 function detailHexmap(m){
   hexmapCurrentId = m.id;
@@ -2234,8 +2241,17 @@ function detailHexmap(m){
       <button class="btn ghost sm" data-hex-import="1">⭱ Importer / remplacer le JSON</button>
     </div>
     <div class="crawl-help">Clique un hexagone pour le révéler ou le recacher aux joueurs · ${revealed}/${total} révélé(s).</div>` : ""}
+    ${total && (m.points||[]).length ? `<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:.5rem 0 0;cursor:pointer">
+      <input type="checkbox" id="hex-points-toggle" ${hexPointsVisible?"checked":""} style="width:auto"> Afficher les points d'intérêt
+    </label>` : ""}
     <div class="crawl-map-scroll">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${myRole==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
   </div>`;
+  const hpt = document.getElementById("hex-points-toggle");
+  if(hpt) hpt.addEventListener("change", e=>{
+    hexPointsVisible = e.target.checked;
+    const layer = document.getElementById("hex-points-layer");
+    if(layer) layer.style.display = hexPointsVisible ? "" : "none";
+  });
 }
 function toggleHexFog(q,r){
   const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
@@ -2256,7 +2272,21 @@ function openHexPointModal(pointId){
       <button class="icon-btn" data-modal-close="1">✕</button></div>
     ${p.type?`<p class="faint" style="font-family:var(--ui);margin:.3rem 0 0">${esc(p.type)}</p>`:""}
     ${(p.description&&p.description.trim())?`<div style="margin-top:.7rem">${renderBullets(p.description)}</div>`:`<p class="faint" style="font-family:var(--ui);margin-top:.7rem">Pas de description.</p>`}
+    ${myRole==="gm" ? `<label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin-top:.9rem;padding-top:.8rem;border-top:1px solid var(--line,#382f22);cursor:pointer">
+      <input type="checkbox" id="hexpoint-visible-toggle" ${p.dmOnly?"":"checked"} style="width:auto"> Visible aux joueurs
+    </label>` : ""}
     <div class="form-actions"><button class="btn ghost" data-modal-close="1">Fermer</button></div>`);
+  if(myRole==="gm"){
+    const cbx = document.getElementById("hexpoint-visible-toggle");
+    if(cbx) cbx.addEventListener("change", e=>{
+      p.dmOnly = !e.target.checked;
+      saveDB();
+      toast(p.dmOnly ? "Point masqué aux joueurs." : "Point visible pour les joueurs.");
+      closeModal();
+      const mm = getEntity("hexmap", hexmapCurrentId);
+      if(mm) detailHexmap(mm);
+    });
+  }
 }
 let _hexImportTarget = null; // null = nouvelle carte, sinon id de la carte à remplacer
 function importHexmapJSON(file){
