@@ -394,6 +394,7 @@
     <button data-tab="pcs"><span class="ic">🛡</span>PJ</button>
     <button data-tab="npcs"><span class="ic">👤</span>PNJ</button>
     <button data-tab="treasures"><span class="ic">💎</span>Trésor</button>
+    <button data-tab="roadbook"><span class="ic">🧭</span>Carnet de route</button>
   </nav>
 </header>
 
@@ -435,7 +436,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], roadbook:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -499,9 +500,9 @@ let eventThemeFilter = ""; // filtre de thème dans l'onglet Événements ("" = 
 let creatureSort = "name";      // tri des créatures : name | lvlAsc | lvlDesc
 let creatureCatFilter = "";     // filtre de catégorie ("" = toutes/regroupées, "__none__" = sans catégorie)
 
-const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","pcs","npcs","treasures"];
-const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure" };
+const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route" };
+const TABS = ["sessions","tables","events","pointcrawls","creatures","pcs","npcs","treasures","roadbook"];
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
@@ -529,7 +530,7 @@ function findByName(name){
   for(const tr of db.treasures)   if((tr.name||"").toLowerCase()===n) return {type:"treasure", id:tr.id};
   return null;
 }
-const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures" };
+const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook" };
 
 /* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
 function renderText(text){
@@ -604,7 +605,7 @@ function backlinksTo(targetType, targetId){
 }
 
 /* ------------------------------- CRUD ------------------------------------ */
-function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures }[type]; }
+function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, roadbook:db.roadbook }[type]; }
 function getEntity(type,id){ return collectionOf(type).find(o=>o.id===id); }
 function deleteEntity(type,id){
   const c = collectionOf(type); const i = c.findIndex(o=>o.id===id);
@@ -659,12 +660,13 @@ function renderList(){
   if(view.tab==="pointcrawls") return listCrawls();
   if(view.tab==="pcs")       return listPCs();
   if(view.tab==="treasures") return listTreasures();
+  if(view.tab==="roadbook")  return listRoadbook();
 }
 
 function pageHead(title, sub, newLabel){
   return `<div class="page-head">
     <div><h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div>
-    <button class="btn" data-new="1">✦ ${esc(newLabel)}</button>
+    ${myRole==="gm" ? `<button class="btn" data-new="1">✦ ${esc(newLabel)}</button>` : ""}
   </div>`;
 }
 function emptyState(icon, msg){ return `<div class="empty"><span class="big">${icon}</span>${esc(msg)}</div>`; }
@@ -865,9 +867,11 @@ function renderDetail(){
   if(type==="pointcrawl") return detailCrawl(o);
   if(type==="pc")       return detailPC(o);
   if(type==="treasure") return detailTreasure(o);
+  if(type==="roadbook") return detailRoadbook(o);
 }
 
 function detailActions(type,id){
+  if(myRole!=="gm") return "";
   return `<div class="actions">
     <button class="btn ghost sm" data-edit="${type}:${id}">✎ Modifier</button>
     <button class="btn ghost sm" data-dup="${type}:${id}">⧉ Dupliquer</button>
@@ -1033,6 +1037,7 @@ function renderForm(){
   if(view.tab==="pointcrawls") return formCrawl();
   if(view.tab==="pcs")       return formPC();
   if(view.tab==="treasures") return formTreasure();
+  if(view.tab==="roadbook")  return formRoadbook();
 }
 
 const LINK_HELP = `<div class="link-help">💡 Astuce liens : tapez <code>[[</code> pour ouvrir l'autocomplétion (ex : <code>[[gob</code> → Gobelin), ou <code>Ctrl+Espace</code> sur un mot pour le transformer en lien. ↑↓ pour choisir, ⏎ pour insérer. Le lien pointe vers n'importe quelle entité (créature, événement, table, session, PJ, PNJ, plan).</div>`;
@@ -1847,6 +1852,48 @@ function detailTreasure(t){
 }
 
 /* =========================================================================
+   CARNET DE ROUTE — onglet en lecture seule pour un joueur invité
+   ========================================================================= */
+function listRoadbook(){
+  const items = [...db.roadbook];
+  app.innerHTML = pageHead("Carnet de route", `${items.length} entrée(s)`, "Nouvelle entrée") +
+    (items.length ? `<div class="grid">${items.map(r=>`
+      <div class="card" data-open="roadbook:${r.id}">
+        <span class="tag">🧭 Carnet de route</span>
+        <h3>${esc(r.title||"Sans titre")}</h3>
+        <p>${esc(truncate(firstLine(r.content),140))||"Pas de contenu"}</p>
+      </div>`).join("")}</div>`
+    : emptyState("🧭", myRole==="gm" ? "Rien pour l'instant. Ajoute des informations à destination de tes joueurs." : "Ton MJ n'a encore rien déposé ici."));
+}
+
+function formRoadbook(){
+  const r = view.mode==="edit" ? getEntity("roadbook",view.id) : {title:"",content:""};
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier":"Nouvelle"} entrée</h1>
+    <div class="field"><label>Titre</label><input type="text" id="f-title" value="${esc(r.title)}" placeholder="À l'attention de…"></div>
+    <div class="field"><label>Contenu</label><textarea id="f-content" style="min-height:180px" placeholder="Notes, indices, informations pour ton joueur…">${esc(r.content)}</textarea></div>
+    <div class="form-actions"><button class="btn" data-save="roadbook">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+}
+function saveRoadbook(){
+  const o = view.mode==="edit" ? getEntity("roadbook",view.id) : {id:uid()};
+  o.title = $("#f-title").value.trim();
+  o.content = $("#f-content").value;
+  if(!o.title){ toast("Le titre est requis."); return; }
+  if(view.mode==="new") db.roadbook.push(o);
+  saveDB(); toast("Entrée enregistrée."); view={tab:"roadbook",mode:"detail",id:o.id}; render();
+}
+function detailRoadbook(r){
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Carnet de route</button>
+    <h1>${esc(r.title||"Sans titre")}</h1>
+    ${detailActions("roadbook",r.id)}
+    ${(r.content&&r.content.trim()) ? `<div class="section">${renderBullets(r.content)}</div>` : `<p class="faint" style="font-family:var(--ui)">Pas de contenu.</p>`}
+  </div>`;
+}
+
+/* =========================================================================
    RECHERCHE GLOBALE
    ========================================================================= */
 function runSearch(q){
@@ -1892,7 +1939,7 @@ function exportJSON(){
   downloadBlob(blob, `grimoire-shadowdark-${new Date().toISOString().slice(0,10)}.json`);
   toast("Données exportées. Le fichier est téléchargé sur votre appareil, généralement dans votre dossier Téléchargements.");
 }
-const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures"];
+const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","roadbook"];
 function countItems(d){ return DB_COLS.reduce((n,c)=>n+((d[c]||[]).length),0); }
 function mergeDB(data){
   let added = 0;
@@ -2142,6 +2189,7 @@ app.addEventListener("click", e=>{
     else if(ty==="creature") saveCreature(); else if(ty==="session") saveSession();
     else if(ty==="npc") saveNPC(); else if(ty==="pointcrawl") saveCrawl();
     else if(ty==="pc") savePC(); else if(ty==="treasure") saveTreasure();
+    else if(ty==="roadbook") saveRoadbook();
     return;
   }
   // Répéteurs & lancer — talents PJ
@@ -2401,12 +2449,36 @@ function hideAuthScreen(){
   appHeader.classList.remove("hidden");
 }
 
+/* Rôle de l'utilisateur connecté : "gm" (accès complet) ou "player" (lecture seule, carnet de route uniquement).
+   Valeur par défaut prudente tant que non déterminé : on ne considère jamais quelqu'un "gm" par erreur. */
+let myRole = "player";
+async function fetchMyRole(){
+  try{
+    const { data:{ user } } = await sb.auth.getUser();
+    if(!user) return "player";
+    const { data, error } = await sb.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if(error || !data) return "player";
+    return data.role==="gm" ? "gm" : "player";
+  }catch(e){ console.error(e); return "player"; }
+}
+
+/* Cache les onglets et actions réservés au MJ pour un compte joueur */
+function applyRoleUI(){
+  document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{
+    b.classList.toggle("hidden", myRole!=="gm" && b.dataset.tab!=="roadbook");
+  });
+  const exp = document.getElementById("btn-export"), imp = document.getElementById("btn-import");
+  if(exp) exp.classList.toggle("hidden", myRole!=="gm");
+  if(imp) imp.classList.toggle("hidden", myRole!=="gm");
+}
+
 async function startApp(){
   hideAuthScreen();
   app.innerHTML = `<div class="empty"><span class="big">⏳</span>Chargement de la campagne…</div>`;
   try{
+    myRole = await fetchMyRole();
     db = await fetchRemoteDB();
-    if(countItems(db)===0){
+    if(myRole==="gm" && countItems(db)===0){
       const legacy = loadLegacyLocalDB();
       if(legacy && countItems(legacy)>0){
         db = legacy;
@@ -2421,6 +2493,8 @@ async function startApp(){
     app.innerHTML = `<div class="empty"><span class="big">⚠</span>Impossible de charger les données depuis la base. Vérifiez votre connexion, puis rechargez la page.</div>`;
     return;
   }
+  applyRoleUI();
+  if(myRole!=="gm") view = { tab:"roadbook", mode:"list", id:null };
   render();
 }
 
