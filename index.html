@@ -2102,11 +2102,262 @@ function printCrawl(id){
    PJ — fiches de personnages-joueurs (stat bloc + inventaire + talents 2d6)
    ========================================================================= */
 const DEFAULT_TALENTS = ()=>[{roll:"2",text:""},{roll:"3-6",text:""},{roll:"7-9",text:""},{roll:"10-11",text:""},{roll:"12",text:""}];
-const PC_CLASSES = ["Voleur","Magicien","Guerrier","Clerc"];
+const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien"];
+
+/* =========================================================================
+   GÉNÉRATION ALÉATOIRE DE PJ — règles de création de personnage tirées du
+   Quickstart Joueur (p.12-31). Réutilise les sorts déjà importés (db.spells)
+   pour les classes de lanceurs, et complète les Tables aléatoires avec les
+   tables manquantes du livre (Origines, Ascendances, Langues, Divinités) +
+   une table de Noms maison (non issue du livre, purement pratique).
+   ========================================================================= */
+const ABILITY_MOD = (score)=>{
+  const n = parseInt(score)||10;
+  if(n<=3) return -4; if(n<=5) return -3; if(n<=7) return -2; if(n<=9) return -1;
+  if(n<=11) return 0; if(n<=13) return 1; if(n<=15) return 2; if(n<=17) return 3; return 4;
+};
+const LANGUES_COURANTES = ["Elfique","Géant","Gobelin","Langue naine","Merran","Orque","Reptilien","Sylvestre","Thanien"];
+const LANGUES_RARES = ["Céleste","Diabolique","Draconique","Originel"];
+const DIVINITES = [
+  {name:"Sainte Terragnis", align:"loyal", desc:"Chevaleresse légendaire, sainte patronne de la vertu et de la justice."},
+  {name:"Madeera l'Alliance", align:"loyal", desc:"Première manifestation de la Loi, gardienne du traité cosmique de toutes les lois de la réalité."},
+  {name:"Gede", align:"neutre", desc:"Déesse des festins, de l'hilarité et de la nature sauvage."},
+  {name:"Ord", align:"neutre", desc:"L'Incorruptible, le Sagace, Gardien de Tout Secret — dieu de la magie, du savoir et de l'équilibre."},
+  {name:"Memnon", align:"chaos", desc:"Première manifestation du Chaos, jumeau et rival de Madeera."},
+  {name:"Ramlaat", align:"chaos", desc:"Le Pillard, le Barbare, la Horde — adoré par nombre d'orques."},
+  {name:"Shune l'Infâme", align:"chaos", desc:"Murmure des secrets arcaniques aux sorciers et sorcières, rivale d'Ord."}
+];
+const ASCENDANCES = {
+  "Demi-Orque": { languages:["Langue commune","Orque"],
+    trait:"Puissance — bonus de +1 aux jets d'attaque avec des armes de corps à corps." },
+  "Elfe": { languages:["Langue commune","Elfique","Sylvestre"],
+    trait:"Yeux perçants — bonus de +1 aux jets d'attaque avec des armes à distance, ou bonus de +1 aux tests d'incantation." },
+  "Gobelin": { languages:["Langue commune","Gobelin"],
+    trait:"Sens aiguisés — on ne peut pas vous prendre par surprise." },
+  "Halfelin": { languages:["Langue commune"],
+    trait:"Discret — une fois par jour, vous pouvez devenir invisible pendant 3 rounds." },
+  "Humain": { languages:["Langue commune"], extraLanguage:true,
+    trait:"Ambitieux — vous recevez un jet de talent supplémentaire au 1er niveau." },
+  "Nain": { languages:["Langue commune","Langue naine"], robust:true,
+    trait:"Robuste — commencez avec +2 PV ; avantage sur le dé de points de vie gagné par niveau." }
+};
+const CLASSES_DATA = {
+  "Guerrier": {
+    hitDie:8, weapons:"Toutes.", armor:"Toutes les armures, tous les boucliers.",
+    feature:"Maîtrise des armes (+1 aux jets d'attaque et de dégâts avec un type d'arme choisi, plus la moitié du niveau arrondi à l'entier inférieur) ; Cran (avantage aux jets de Force ou Dextérité destinés à triompher d'une force opposée) ; Bête de somme (ajoute le modificateur de Constitution, s'il est positif, aux emplacements d'inventaire).",
+    talents: [
+      {roll:"2", text:"Vous recevez la maîtrise d'un type d'armes supplémentaire."},
+      {roll:"3-6", text:"+1 aux attaques à distance et de corps à corps."},
+      {roll:"7-9", text:"+2 à votre valeur de Force, de Dextérité ou de Constitution."},
+      {roll:"10-11", text:"Choisissez un type d'armure : bonus de +1 en CA."},
+      {roll:"12", text:"Un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Prêtre": {
+    hitDie:6, weapons:"Gourdin, arbalète, dague, masse d'armes, épée longue, bâton, marteau de guerre.", armor:"Toutes les armures et tous les boucliers.",
+    feature:"Divinité (vous servez un dieu correspondant à votre alignement, et possédez un symbole sacré) ; Incantation (vous lancez les sorts de prêtre que vous connaissez) ; vous connaissez en outre le sort Renvoi des morts-vivants, qui ne compte pas dans votre nombre de sorts connus.",
+    spellClass:"priest", spellsKnownLvl1:2,
+    talents: [
+      {roll:"2", text:"Vous êtes avantagé pour lancer un sort que vous connaissez."},
+      {roll:"3-6", text:"+1 aux attaques à distance ou de corps à corps."},
+      {roll:"7-9", text:"+1 aux tests d'incantation des sorts de prêtre."},
+      {roll:"10-11", text:"+2 à votre valeur de Force ou de Sagesse."},
+      {roll:"12", text:"Un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Voleur": {
+    hitDie:4, weapons:"Gourdin, arbalète, dague, arc court, épée courte.", armor:"Armure de cuir, cotte de mailles en mithral.",
+    feature:"Attaque sournoise (dégâts supplémentaires égaux à un dé d'arme contre une cible prise au dépourvu, plus un dé d'arme par tranche de niveau/2) ; Compétences de voleur (formé et avantagé pour Grimper, se mouvoir en silence et se cacher, adopter des déguisements, repérer/désamorcer des pièges, réaliser des tâches délicates comme crocheter des serrures).",
+    talents: [
+      {roll:"2", text:"Vous avez l'avantage aux jets d'initiative (relancez si vous avez déjà ce talent)."},
+      {roll:"3-5", text:"Vos attaques sournoises infligent +1 dé de dégâts."},
+      {roll:"6-9", text:"+2 à votre valeur de Force, de Dextérité ou de Charisme."},
+      {roll:"10-11", text:"+1 aux jets d'attaque de corps à corps et à distance."},
+      {roll:"12", text:"Un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Magicien": {
+    hitDie:4, weapons:"Dague, bâton.", armor:"Aucune.",
+    feature:"Incantation (vous lancez les sorts de magicien que vous connaissez) ; Apprentissage des sorts (vous pouvez apprendre définitivement un sort de magicien à partir d'un parchemin, en l'étudiant un jour entier et en réussissant un test d'Intelligence ND 15).",
+    spellClass:"wizard", spellsKnownLvl1:3, extraCommonLanguages:2, extraRareLanguages:2,
+    talents: [
+      {roll:"2", text:"Fabriquez un objet magique aléatoire au choix (cf. Guide de démarrage du meneur de jeu)."},
+      {roll:"3-7", text:"+2 à votre valeur d'Intelligence, ou +1 aux tests d'incantation de magicien."},
+      {roll:"8-9", text:"Vous êtes avantagé pour lancer un sort que vous connaissez."},
+      {roll:"10-11", text:"Apprenez un sort supplémentaire d'un rang maîtrisé."},
+      {roll:"12", text:"Un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  }
+};
+const TITRES = {
+  "Guerrier": {loyal:["Écuyer","Cavalier","Chevalier","Thane","Seigneur/Dame"], chaos:["Canaille","Bandit","Massacreur","Maraudeur","Seigneur de guerre"], neutre:["Combattant","Barbare","Berserker","Chef de guerre","Grand chef"]},
+  "Prêtre": {loyal:["Acolyte","Croisé","Templier","Champion","Paladin"], chaos:["Initié","Zélote","Sectateur","Fléau","Chevalier du Chaos"], neutre:["Cheminant","Invocateur","Aruspice","Mystique","Oracle"]},
+  "Voleur": {loyal:["Voleur de grand chemin","Cambrioleur","Escroc","Nervi","Parrain"], chaos:["Malfrat","Égorgeur","Ombre","Assassin","Spectre"], neutre:["Cagoulard","Hors-la-loi","Roublard","Renégat","Roi/Reine des bandits"]},
+  "Magicien": {loyal:["Apprenti","Conjurateur","Arcaniste","Mage","Archimage"], chaos:["Adepte","Envoûteur","Sorcière/Sorcier","Diaboliste","Ensorceleur"], neutre:["Chaman","Augure","Gardien","Sage","Druide"]}
+};
+function titleFor(cls, alignment, level){
+  const t = TITRES[cls]; if(!t) return "";
+  const arr = t[alignment]||t.neutre;
+  const lvl = parseInt(level)||1;
+  const idx = lvl>=9?4: lvl>=7?3: lvl>=5?2: lvl>=3?1: 0;
+  return arr[idx]||"";
+}
+const ORIGINES_ROWS = [
+  "Gamin des rues. Vous avez grandi dans les rues impitoyables d'une grande ville, mais vous avez des alliés.",
+  "Recherché. Votre tête est mise à prix, pour des crimes (vrais ou non).",
+  "Initié d'une secte. Vous connaissez des secrets et des rituels blasphématoires.",
+  "Guilde des voleurs. Vous avez des contacts, des connaissances et des dettes.",
+  "Banni. Votre peuple vous a banni pour des crimes (vrais ou non).",
+  "Orphelin. Un protecteur inattendu vous a sauvé et élevé.",
+  "Apprenti magicien. Vous avez le don et l'œil pour la magie.",
+  "Joaillier. Vous estimez sans mal la valeur et l'authenticité.",
+  "Herboriste. Vous connaissez les plantes, les remèdes et les poisons.",
+  "Barbare. Vous avez quitté la horde… mais elle ne vous a jamais abandonné.",
+  "Mercenaire. Vous avez affronté amis et ennemis pour de l'argent.",
+  "Marin. Pirate, corsaire ou marchand… la mer vous appartient.",
+  "Acolyte. Vous êtes formé aux rites et doctrines religieux.",
+  "Soldat. Vous avez servi comme combattant dans une armée organisée.",
+  "Forestier. C'est dans la nature et les bois que vous vous sentez chez vous.",
+  "Éclaireur. Vous survivez grâce à la discrétion, l'observation et la vitesse.",
+  "Ménestrel. Grâce à votre charme et à votre talent, vous êtes déjà allé loin.",
+  "Érudit. Vous connaissez bien l'histoire et les légendes anciennes.",
+  "Noble. Un nom célèbre vous a ouvert bien des portes.",
+  "Chirurgien. Vous connaissez l'anatomie, la chirurgie et les premiers soins."
+];
+const ASCENDANCE_ROWS = [
+  "Demi-Orque — Immenses guerriers aussi audacieux que les humains et impitoyables que les orques. Langues : commune, orque. Trait : Puissance (+1 aux jets d'attaque en mêlée).",
+  "Elfe — Peuple éthéré et gracieux épris de savoir et de beauté, qui voit loin et vit longtemps. Langues : commune, elfique, sylvestre. Trait : Yeux perçants (+1 aux attaques à distance ou aux tests d'incantation).",
+  "Gobelin — Êtres verts et futés qui prospèrent dans les lieux sombres et exigus, aussi féroces que minuscules. Langues : commune, gobelin. Trait : Sens aiguisés (impossible à prendre par surprise).",
+  "Halfelin — Petit peuple joyeux et campagnard, non dénué de malice, qui apprécie les plaisirs simples. Langue : commune. Trait : Discret (invisible 3 rounds, 1×/jour).",
+  "Humain — Peuple audacieux et adaptable qui apprend vite et accomplit de grands exploits. Langues : commune + 1 langue courante supplémentaire. Trait : Ambitieux (jet de talent supplémentaire au 1er niveau).",
+  "Nain — Peuple courageux et solide comme les royaumes de pierre qu'il se taille dans les montagnes. Langues : commune, naine. Trait : Robuste (+2 PV, avantage sur le dé de PV gagné par niveau)."
+];
+const DIVINITES_ROWS = DIVINITES.map(d=>`${d.name} (${cap(d.align)}) — ${d.desc}`);
+const NOMS_ROWS = [ // banque maison, non issue du livre — purement pratique pour un tirage rapide
+  "Aldric","Bryn","Cassia","Dorian","Elowen","Faelan","Gwyneth","Harwin","Isolde","Jorbin",
+  "Kael","Liora","Mireille","Nolwenn","Osric","Perrin","Quentara","Roswitha","Sylas","Tamsin",
+  "Ulric","Vesna","Wren","Ysolde","Zephyrine","Creeg","Brannor","Dagny","Elric","Fenwick"
+];
+function seedCharGenTables(){
+  const ensure = (title, context, rows)=>{
+    if(db.tables.some(t=>(t.title||"").trim()===title)) return;
+    db.tables.push({id:uid(), title, context, rows});
+  };
+  ensure("Origines", "Votre passé et vos expériences antérieures (d20) — création de personnage, Quickstart p.14.", ORIGINES_ROWS);
+  ensure("Ascendances", "L'héritage ancestral et culturel de votre personnage (d6) — création de personnage, Quickstart p.16-17.", ASCENDANCE_ROWS);
+  ensure("Langues courantes", "Langue supplémentaire connue en plus de la langue commune (d9) — Quickstart p.29.", LANGUES_COURANTES);
+  ensure("Langues rares", "Langues rares, réservées à certaines classes/origines (d4) — Quickstart p.29.", LANGUES_RARES);
+  ensure("Divinités", "Dieux que peut servir un PJ, notamment les prêtres (d7) — Quickstart p.30-31.", DIVINITES_ROWS);
+  ensure("Noms de personnages", "Banque de noms pour un tirage rapide (maison, non issue du livre).", NOMS_ROWS);
+}
+function rollDice(n,sides){ let t=0; for(let i=0;i<n;i++) t+=1+Math.floor(Math.random()*sides); return t; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function pickN(arr,n){ const a=arr.slice(); const out=[]; while(out.length<n && a.length){ out.push(a.splice(Math.floor(Math.random()*a.length),1)[0]); } return out; }
+function rollOnAppTable(title){
+  const t = db.tables.find(x=>(x.title||"").trim()===title);
+  if(!t || !(t.rows&&t.rows.length)) return "";
+  return pick(t.rows);
+}
+function generateRandomPC(){
+  seedCharGenTables();
+  const cls = pick(Object.keys(CLASSES_DATA));
+  const cd = CLASSES_DATA[cls];
+  const alignment = pick(["loyal","neutre","chaos"]);
+  const ancestryName = pick(Object.keys(ASCENDANCES));
+  const asc = ASCENDANCES[ancestryName];
+
+  const rollSet = ()=> ["str","dex","con","int","wis","cha"].reduce((o,k)=>{ o[k]=rollDice(3,6); return o; },{});
+  let scores = rollSet();
+  if(!Object.values(scores).some(v=>v>=14)) scores = rollSet(); // règle p.15 : relance si aucune caractéristique ≥ 14
+  const mods = {}; Object.keys(scores).forEach(k=> mods[k]=ABILITY_MOD(scores[k]));
+
+  let hp;
+  if(asc.robust){
+    hp = Math.max(1, Math.max(rollDice(1,cd.hitDie), rollDice(1,cd.hitDie)) + mods.con) + 2;
+  } else {
+    hp = Math.max(1, rollDice(1,cd.hitDie) + mods.con);
+  }
+
+  const level = "1";
+  const title = titleFor(cls, alignment, level);
+
+  const rollTalent = ()=>{
+    const total = rollDice(2,6);
+    const row = cd.talents.find(t=>rangeContains(t.roll,total));
+    return { total, text: row?row.text:"" };
+  };
+  const talentRolls = [rollTalent()];
+  if(ancestryName==="Humain") talentRolls.push(rollTalent()); // Ambitieux : jet de talent supplémentaire
+
+  let languages = asc.languages.slice();
+  if(asc.extraLanguage) languages.push(pick(LANGUES_COURANTES));
+  if(cd.extraCommonLanguages) languages.push(...pickN(LANGUES_COURANTES, cd.extraCommonLanguages));
+  if(cd.extraRareLanguages) languages.push(...pickN(LANGUES_RARES, cd.extraRareLanguages));
+  languages = [...new Set(languages)];
+
+  const origine = rollOnAppTable("Origines") || pick(ORIGINES_ROWS);
+  const nom = rollOnAppTable("Noms de personnages") || pick(NOMS_ROWS);
+
+  let deity = "";
+  if(cls==="Prêtre"){
+    const candidates = DIVINITES.filter(d=>d.align===alignment);
+    deity = (candidates.length ? pick(candidates) : pick(DIVINITES)).name;
+  }
+
+  let traitText = asc.trait;
+  if(ancestryName==="Elfe"){
+    traitText = cd.spellClass
+      ? "Yeux perçants — bonus de +1 aux tests d'incantation."
+      : "Yeux perçants — bonus de +1 aux jets d'attaque avec des armes à distance.";
+  }
+
+  let spellLines = [];
+  if(cd.spellClass){
+    const pool = db.spells.filter(s=>s.class===cd.spellClass && String(s.tier)==="1");
+    const chosen = pickN(pool, cd.spellsKnownLvl1);
+    spellLines = chosen.map(s=>`[[${s.name}]]`);
+    if(cls==="Prêtre") spellLines.unshift("[[Renvoi des morts-vivants]] (bonus, ne compte pas dans les sorts connus)");
+    if(!pool.length) spellLines.push(`(Importe d'abord les sorts de ${cls==="Prêtre"?"prêtre":"magicien"} dans l'onglet Sorts pour un tirage automatique.)`);
+  }
+
+  const gold = rollDice(2,6)*5;
+  const ac = 10 + mods.dex;
+  const sgn = m => (m>=0?"+":"")+m;
+
+  const o = {
+    id: uid(), name: nom, ancestry: ancestryName, cls: cls, level: level, alignment: alignment,
+    ac: String(ac), hp: String(hp), hpCurrent: String(hp),
+    str: `${scores.str} (${sgn(mods.str)})`, dex: `${scores.dex} (${sgn(mods.dex)})`, con: `${scores.con} (${sgn(mods.con)})`,
+    int: `${scores.int} (${sgn(mods.int)})`, wis: `${scores.wis} (${sgn(mods.wis)})`, cha: `${scores.cha} (${sgn(mods.cha)})`,
+    skills: [origine, cls==="Voleur" ? "Formé (avantage) : Grimper ; Se mouvoir en silence et se cacher ; Adopter des déguisements ; Repérer/désamorcer des pièges ; Tâches délicates (crochetage, pickpocket)." : ""].filter(Boolean).join("\n"),
+    spells: spellLines.join("\n"),
+    inventory: `${gold} po pour acheter votre équipement de départ (armes/armure autorisées par la classe — l'appli ne connaît pas encore les prix, à compléter manuellement).`,
+    info: [
+      `Titre : ${title}`,
+      `Langues : ${languages.join(", ")}`,
+      deity ? `Divinité : ${deity}` : "",
+      `Trait d'ascendance (${ancestryName}) : ${traitText}`,
+      `Armes autorisées : ${cd.weapons}`,
+      `Armures autorisées : ${cd.armor}`,
+      `Capacités de classe : ${cd.feature}`,
+      ...talentRolls.map((r,i)=>`Jet de talent ${talentRolls.length>1?(i+1)+" ":""}(2d6=${r.total}) : ${r.text||"—"}`),
+      `PJ généré automatiquement (règles de création, Quickstart p.12-31).`
+    ].filter(Boolean).join("\n"),
+    talents: cd.talents.map(t=>({roll:t.roll, text:t.text})),
+    images: []
+  };
+
+  db.pcs.push(o);
+  saveDB();
+  toast(`${nom} (${ancestryName} ${cls}) généré !`);
+  view = {tab:"pcs", mode:"detail", id:o.id};
+  render();
+}
 
 function listPCs(){
   const items = db.pcs;
-  app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ") +
+  const genBtn = myRole==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>` : "";
+  app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ", genBtn) +
     (items.length ? `<div class="grid">${items.map(p=>`
       <div class="card" data-open="pc:${p.id}">
         ${(p.images&&p.images.length)?`<img class="thumb" src="${p.images[0].data}" alt="">`:""}
@@ -3374,6 +3625,7 @@ app.addEventListener("click", e=>{
   if(closest("data-add-talent")){ $("#talents-wrap").insertAdjacentHTML("beforeend", talentInput({})); return; }
   if((el=t.closest("[data-remove-talent]"))){ el.closest("[data-talentitem]").remove(); return; }
   if((el=closest("data-roll-talents"))){ rollTalents(el.dataset.rollTalents); return; }
+  if(closest("data-gen-pc")){ generateRandomPC(); return; }
   // Barre d'outils du point crawl
   if(closest("data-crawl-add")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openPickEventModal(c); return; }
   if(closest("data-crawl-new")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openNewEventModal(c); return; }
