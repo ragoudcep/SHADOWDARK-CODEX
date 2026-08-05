@@ -300,6 +300,15 @@
   .crawl-map-scroll{overflow:auto; border:1px solid var(--border2); border-radius:var(--radius); max-height:66vh;
     background:radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px) 0 0/24px 24px, var(--bg2)}
   .crawl-canvas{position:relative; width:1400px; height:900px}
+  #hex-svg{ width:100%; height:auto; display:block; min-width:900px; }
+  .hexcell polygon{ stroke:#1a1510; stroke-width:1; }
+  .hex-editable{ cursor:pointer; }
+  .hex-editable:hover polygon:first-child{ filter:brightness(1.3); }
+  .hex-icon{ font-size:14px; pointer-events:none; user-select:none; }
+  .hex-fog{ fill:#0c0a08; }
+  .hex-fog-gm{ fill:#0c0a08; opacity:.55; pointer-events:none; }
+  .hexpoint{ cursor:pointer; }
+  .hexpoint circle{ stroke:#1a1510; stroke-width:1.5; }
   .crawl-canvas > svg{position:absolute; inset:0; width:100%; height:100%; pointer-events:none}
   .crawl-canvas > svg line{stroke:var(--border2); stroke-width:3; pointer-events:stroke; cursor:pointer}
   .crawl-canvas > svg line:hover{stroke:var(--gold)}
@@ -482,6 +491,7 @@
     <button data-tab="npcs">PNJ</button>
     <button data-tab="treasures">Trésor</button>
     <button data-tab="roadbook">Carnet de route</button>
+    <button data-tab="hexmaps">Hexcrawl</button>
   </nav>
 </header>
 
@@ -500,6 +510,7 @@
 <input type="file" id="file-json" accept="application/json,.json" class="hidden">
 <input type="file" id="file-xml" accept="text/xml,application/xml,.xml" class="hidden">
 <input type="file" id="file-img" accept="image/*" multiple="" class="hidden">
+<input type="file" id="file-hexjson" accept="application/json,.json" class="hidden">
 <div id="lightbox" class="hidden"><img alt=""></div>
 <div id="modal" class="hidden"><div class="modal-box"></div></div>
 <div id="ac-pop"></div>
@@ -541,7 +552,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], roadbook:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], roadbook:[], hexmaps:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -607,9 +618,9 @@ let creatureSort = "name";      // tri des créatures : name | lvlAsc | lvlDesc
 let creatureCatFilter = "";     // filtre de catégorie ("" = toutes/regroupées, "__none__" = sans catégorie)
 let readingMode = false; // "mode table de jeu" : masque les contrôles GM, agrandit le texte des fiches
 
-const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","pcs","npcs","treasures","roadbook"];
-const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook" };
+const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route", hexmap:"Hexcrawl" };
+const TABS = ["sessions","tables","events","pointcrawls","creatures","pcs","npcs","treasures","roadbook","hexmaps"];
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook", hexmaps:"hexmap" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
@@ -637,7 +648,7 @@ function findByName(name){
   for(const tr of db.treasures)   if((tr.name||"").toLowerCase()===n) return {type:"treasure", id:tr.id};
   return null;
 }
-const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook" };
+const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook", hexmap:"hexmaps" };
 
 /* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
 function renderText(text){
@@ -736,7 +747,7 @@ function backlinksTo(targetType, targetId){
 }
 
 /* ------------------------------- CRUD ------------------------------------ */
-function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, roadbook:db.roadbook }[type]; }
+function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, roadbook:db.roadbook, hexmap:db.hexmaps }[type]; }
 function getEntity(type,id){ return collectionOf(type).find(o=>o.id===id); }
 function deleteEntity(type,id){
   const c = collectionOf(type); const i = c.findIndex(o=>o.id===id);
@@ -794,6 +805,7 @@ function renderList(){
   if(view.tab==="pcs")       return listPCs();
   if(view.tab==="treasures") return listTreasures();
   if(view.tab==="roadbook")  return listRoadbook();
+  if(view.tab==="hexmaps")   return listHexmaps();
 }
 
 function pageHead(title, sub, newLabel, extra){
@@ -1020,6 +1032,7 @@ function renderDetail(){
   if(type==="pc")       return detailPC(o);
   if(type==="treasure") return detailTreasure(o);
   if(type==="roadbook") return detailRoadbook(o);
+  if(type==="hexmap") return detailHexmap(o);
 }
 
 function detailActions(type,id){
@@ -1193,6 +1206,7 @@ function renderForm(){
   if(view.tab==="pcs")       return formPC();
   if(view.tab==="treasures") return formTreasure();
   if(view.tab==="roadbook")  return formRoadbook();
+  if(view.tab==="hexmaps")   return formHexmap();
 }
 
 const LINK_HELP = `<div class="link-help">💡 Astuce liens : tapez <code>[[</code> pour ouvrir l'autocomplétion (ex : <code>[[gob</code> → Gobelin), ou <code>Ctrl+Espace</code> sur un mot pour le transformer en lien. ↑↓ pour choisir, ⏎ pour insérer. Le lien pointe vers n'importe quelle entité (créature, événement, table, session, PJ, PNJ, plan).</div>`;
@@ -2106,6 +2120,175 @@ function detailRoadbook(r){
 }
 
 /* =========================================================================
+   HEXCRAWL — carte hexagonale importée (terrain + brouillard de guerre)
+   Format source : export JSON d'un éditeur hexcrawl externe (coordonnées
+   axiales q,r). Le MJ voit tout ; les joueurs ne voient que les hexagones
+   dont fogState !== "hidden".
+   ========================================================================= */
+const HEX_TERRAIN = {
+  plains:{color:"#c9b56a",icon:"🌾"}, grassland:{color:"#8fb35a",icon:"🌿"},
+  forest:{color:"#3f7a3f",icon:"🌲"}, "dense-forest":{color:"#2a5c2a",icon:"🌳"},
+  "mushroom-forest":{color:"#8a5a9a",icon:"🍄"},
+  hill:{color:"#a8895a",icon:"⛰"}, mountain:{color:"#8a8a8a",icon:"🏔"}, "mountain-peak":{color:"#e8e8e8",icon:"🗻"},
+  ocean:{color:"#2a5a8a",icon:"🌊"}, sea:{color:"#3a6a9a",icon:"🌊"}, lake:{color:"#4a8ab8",icon:"💧"},
+  marsh:{color:"#5a7a5a",icon:"🪷"}, bog:{color:"#4a5a3a",icon:"🪵"}, swamp:{color:"#465a3f",icon:"🐊"},
+  canyon:{color:"#b0693f",icon:"🪨"}
+};
+function terrainInfo(t){ return HEX_TERRAIN[t] || {color:"#6b6455", icon:"?"}; }
+function hexCenter(q,r,size){ return { x: size*Math.sqrt(3)*(q+r/2), y: size*1.5*r }; }
+function hexCorners(cx,cy,size){
+  const pts=[];
+  for(let i=0;i<6;i++){ const a=Math.PI/180*(60*i-30); pts.push((cx+size*Math.cos(a)).toFixed(1)+","+(cy+size*Math.sin(a)).toFixed(1)); }
+  return pts.join(" ");
+}
+let hexmapCurrentId = null;
+
+function listHexmaps(){
+  const items = db.hexmaps;
+  const extra = myRole==="gm" ? `<button class="btn ghost sm" data-hex-import-new="1">⭱ Importer JSON</button>` : "";
+  app.innerHTML = pageHead("Hexcrawl", `${items.length} carte(s)`, "Nouvelle carte", extra) +
+    (items.length ? `<div class="grid">${items.map(m=>{
+      const total=(m.hexes||[]).length, revealed=(m.hexes||[]).filter(h=>h.fogState!=="hidden").length;
+      return `<div class="card" data-open="hexmap:${m.id}">
+        <h3>${esc(m.title||"Sans titre")}</h3>
+        <p>${esc(m.description||"Pas de description")}</p>
+        <div class="meta"><span class="tag">${total} hexagone(s)</span>${myRole==="gm"&&total?`<span class="tag gold">${revealed} révélé(s)</span>`:""}</div>
+      </div>`;
+    }).join("")}</div>`
+    : emptyState("🗺","Aucune carte. Importe un fichier JSON exporté depuis ton outil hexcrawl."));
+}
+
+function formHexmap(){
+  const m = view.mode==="edit" ? getEntity("hexmap",view.id) : {title:"",description:""};
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler</button>
+    <h1>${view.mode==="edit"?"Modifier la":"Nouvelle"} carte</h1>
+    <div class="field"><label>Titre</label><input type="text" id="f-title" value="${esc(m.title)}" placeholder="Les Terres du Nord"></div>
+    <div class="field"><label>Description</label><textarea id="f-description" placeholder="Contexte, notes générales…">${esc(m.description||"")}</textarea></div>
+    <div class="form-actions"><button class="btn" data-save="hexmap">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+}
+function saveHexmap(){
+  const o = view.mode==="edit" ? getEntity("hexmap",view.id) : {id:uid(), settings:{}, hexes:[], points:[]};
+  o.title = $("#f-title").value.trim();
+  o.description = $("#f-description").value;
+  if(!o.title){ toast("Le titre est requis."); return; }
+  if(view.mode==="new") db.hexmaps.push(o);
+  saveDB(); toast("Carte enregistrée."); view={tab:"hexmaps",mode:"detail",id:o.id}; render();
+}
+
+function buildHexPoints(m, isGM){
+  const size = (m.settings&&m.settings.hexSize)||30;
+  const pts = m.points||[];
+  const byQR = {}; (m.hexes||[]).forEach(h=>{ byQR[h.q+","+h.r]=h; });
+  return pts.filter(p=>{
+    if(!p.hex) return false;
+    if(p.dmOnly && !isGM) return false;
+    if(!isGM){ const h=byQR[p.hex.q+","+p.hex.r]; if(!h || h.fogState==="hidden") return false; }
+    return true;
+  }).map(p=>{
+    const c = hexCenter(p.hex.q, p.hex.r, size);
+    return `<g class="hexpoint" data-point-id="${esc(p.id)}"><title>${esc(p.name||"")}</title>
+      <circle cx="${c.x}" cy="${c.y}" r="${(size*0.28).toFixed(1)}" fill="${esc(p.color||'#c8a24a')}" stroke="#1a1510" stroke-width="1.5"></circle>
+    </g>`;
+  }).join("");
+}
+function buildHexSVG(m){
+  const size = (m.settings&&m.settings.hexSize)||30;
+  const hexes = (m.hexes||[]);
+  const isGM = myRole==="gm";
+  const centers = hexes.map(h=>({h, c:hexCenter(h.q,h.r,size)}));
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  centers.forEach(({c})=>{ minX=Math.min(minX,c.x-size); maxX=Math.max(maxX,c.x+size); minY=Math.min(minY,c.y-size); maxY=Math.max(maxY,c.y+size); });
+  const pad=12, vbx=(minX-pad).toFixed(1), vby=(minY-pad).toFixed(1), vbw=((maxX-minX)+pad*2).toFixed(1), vbh=((maxY-minY)+pad*2).toFixed(1);
+  const cells = centers.map(({h,c})=>{
+    const info = terrainInfo(h.hexType);
+    const pts = hexCorners(c.x,c.y,size-1);
+    const revealed = h.fogState!=="hidden";
+    const showTerrain = isGM || revealed;
+    return `<g class="hexcell${isGM?' hex-editable':''}" data-hexq="${h.q}" data-hexr="${h.r}">
+      <polygon points="${pts}" fill="${showTerrain?info.color:'#15130f'}"></polygon>
+      ${showTerrain?`<text x="${c.x.toFixed(1)}" y="${(c.y+5).toFixed(1)}" text-anchor="middle" class="hex-icon">${info.icon}</text>`:""}
+      ${!revealed?`<polygon points="${pts}" class="${isGM?'hex-fog-gm':'hex-fog'}"></polygon>`:""}
+    </g>`;
+  }).join("");
+  return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}${buildHexPoints(m,isGM)}</svg>`;
+}
+function detailHexmap(m){
+  hexmapCurrentId = m.id;
+  const total = (m.hexes||[]).length;
+  const revealed = (m.hexes||[]).filter(h=>h.fogState!=="hidden").length;
+  app.innerHTML = `<div class="detail">
+    <button class="back" data-back="1">← Hexcrawl</button>
+    <h1>${esc(m.title||"Sans titre")}</h1>
+    ${m.description?`<p class="muted" style="font-family:var(--ui)">${renderText(m.description)}</p>`:""}
+    ${detailActions("hexmap",m.id)}
+    ${myRole==="gm" ? `<div class="crawl-toolbar">
+      <button class="btn ghost sm" data-hex-reveal-all="1">👁 Tout révéler</button>
+      <button class="btn ghost sm" data-hex-hide-all="1">🌫 Tout masquer</button>
+      <button class="btn ghost sm" data-hex-import="1">⭱ Importer / remplacer le JSON</button>
+    </div>
+    <div class="crawl-help">Clique un hexagone pour le révéler ou le recacher aux joueurs · ${revealed}/${total} révélé(s).</div>` : ""}
+    <div class="crawl-map-scroll">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${myRole==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
+  </div>`;
+}
+function toggleHexFog(q,r){
+  const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
+  const h = (m.hexes||[]).find(x=>x.q===q && x.r===r); if(!h) return;
+  h.fogState = h.fogState==="hidden" ? "visible" : "hidden";
+  saveDB(); detailHexmap(m);
+}
+function revealAllHexes(reveal){
+  const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
+  (m.hexes||[]).forEach(h=> h.fogState = reveal ? "visible" : "hidden");
+  saveDB(); detailHexmap(m);
+}
+function openHexPointModal(pointId){
+  const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
+  const p = (m.points||[]).find(x=>x.id===pointId); if(!p) return;
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+      <h2 style="margin:0;color:var(--gold2)">${esc(p.name||"Point d'intérêt")}</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    ${p.type?`<p class="faint" style="font-family:var(--ui);margin:.3rem 0 0">${esc(p.type)}</p>`:""}
+    ${(p.description&&p.description.trim())?`<div style="margin-top:.7rem">${renderBullets(p.description)}</div>`:`<p class="faint" style="font-family:var(--ui);margin-top:.7rem">Pas de description.</p>`}
+    <div class="form-actions"><button class="btn ghost" data-modal-close="1">Fermer</button></div>`);
+}
+let _hexImportTarget = null; // null = nouvelle carte, sinon id de la carte à remplacer
+function importHexmapJSON(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const data = JSON.parse(r.result);
+      const hexesObj = data.hexes || {};
+      const hexes = Object.values(hexesObj).filter(h=>!h.layer||h.layer==="surface")
+        .map(h=>({ q:h.q, r:h.r, hexType:h.hexType||"", fogState:h.fogState||"hidden" }));
+      const points = ((data.pointCrawl&&data.pointCrawl.nodes)||[]).map(p=>({
+        id:p.id||uid(), name:p.name||"", description:p.description||"", type:p.type||"",
+        hex:p.hex||{q:0,r:0}, color:p.color||"", size:p.size||"medium", dmOnly:!!p.dmOnly
+      }));
+      const settings = {
+        width:(data.settings&&data.settings.width)||0, height:(data.settings&&data.settings.height)||0,
+        hexSize:(data.settings&&data.settings.hexSize)||30, orientation:(data.settings&&data.settings.orientation)||"pointy"
+      };
+      let targetId = _hexImportTarget;
+      if(targetId){
+        const m = getEntity("hexmap", targetId);
+        if(!m){ toast("Carte introuvable."); return; }
+        m.settings=settings; m.hexes=hexes; m.points=points;
+        if(!m.title) m.title = data.name || "Carte importée";
+      } else {
+        const m = { id:uid(), title: data.name||"Carte importée", description: data.description||"", settings, hexes, points };
+        db.hexmaps.push(m); targetId = m.id;
+      }
+      _hexImportTarget = null;
+      saveDB(); view={tab:"hexmaps", mode:"detail", id:targetId}; render();
+      toast(`Import : ${hexes.length} hexagone(s), ${points.length} point(s) d'intérêt.`);
+    }catch(e){ toast("Import JSON échoué : "+e.message); }
+  };
+  r.readAsText(file);
+}
+
+/* =========================================================================
    RECHERCHE GLOBALE
    ========================================================================= */
 function levenshtein(a,b){
@@ -2181,7 +2364,7 @@ function exportJSON(){
   downloadBlob(blob, `grimoire-shadowdark-${new Date().toISOString().slice(0,10)}.json`);
   toast("Données exportées. Le fichier est téléchargé sur votre appareil, généralement dans votre dossier Téléchargements.");
 }
-const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","roadbook"];
+const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","roadbook","hexmaps"];
 function countItems(d){ return DB_COLS.reduce((n,c)=>n+((d[c]||[]).length),0); }
 function mergeDB(data){
   let added = 0;
@@ -2571,6 +2754,7 @@ app.addEventListener("click", e=>{
     else if(ty==="npc") saveNPC(); else if(ty==="pointcrawl") saveCrawl();
     else if(ty==="pc") savePC(); else if(ty==="treasure") saveTreasure();
     else if(ty==="roadbook") saveRoadbook();
+    else if(ty==="hexmap") saveHexmap();
     return;
   }
   // Répéteurs & lancer — talents PJ
@@ -2582,6 +2766,13 @@ app.addEventListener("click", e=>{
   if(closest("data-crawl-new")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openNewEventModal(c); return; }
   if(closest("data-crawl-link")){ toggleLinkMode(); return; }
   if(closest("data-crawl-print")){ printCrawl(crawlState.id); return; }
+  // Hexcrawl
+  if((el=t.closest("[data-hexq]"))){ if(myRole==="gm") toggleHexFog(+el.dataset.hexq, +el.dataset.hexr); return; }
+  if((el=t.closest("[data-point-id]"))){ openHexPointModal(el.dataset.pointId); return; }
+  if(closest("data-hex-reveal-all")){ revealAllHexes(true); return; }
+  if(closest("data-hex-hide-all")){ revealAllHexes(false); return; }
+  if(closest("data-hex-import")){ _hexImportTarget = hexmapCurrentId; $("#file-hexjson").click(); return; }
+  if(closest("data-hex-import-new")){ _hexImportTarget = null; $("#file-hexjson").click(); return; }
   // Images (formulaire créature) + agrandissement
   if(closest("data-add-img")){ $("#file-img").click(); return; }
   if((el=closest("data-remove-img"))){ formImages.splice(+el.dataset.removeImg,1); renderImageThumbs(); return; }
@@ -2667,6 +2858,7 @@ $("#file-xml").addEventListener("change", e=>{
   if(f){ if(_xmlImportTarget==="creature") importXML(f); else importXMLGeneric(_xmlImportTarget, f); }
   e.target.value="";
 });
+$("#file-hexjson").addEventListener("change", e=>{ if(e.target.files[0]) importHexmapJSON(e.target.files[0]); e.target.value=""; });
 $("#file-img").addEventListener("change", e=>{
   [...e.target.files].forEach(f=>processImage(f, img=>{ formImages.push(img); renderImageThumbs(); }));
   e.target.value="";
@@ -2879,8 +3071,9 @@ async function fetchMyRole(){
 
 /* Cache les onglets et actions réservés au MJ pour un compte joueur */
 function applyRoleUI(){
+  const PLAYER_VISIBLE_TABS = ["roadbook","hexmaps"];
   document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{
-    b.classList.toggle("hidden", myRole!=="gm" && b.dataset.tab!=="roadbook");
+    b.classList.toggle("hidden", myRole!=="gm" && !PLAYER_VISIBLE_TABS.includes(b.dataset.tab));
   });
   const exp = document.getElementById("btn-export"), imp = document.getElementById("btn-import"), bl = document.getElementById("btn-broken-links");
   if(exp) exp.classList.toggle("hidden", myRole!=="gm");
