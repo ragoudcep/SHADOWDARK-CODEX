@@ -2135,7 +2135,8 @@ const HEX_TERRAIN = {
   canyon:{color:"#b0693f",icon:"🪨"}
 };
 function terrainInfo(t){ return HEX_TERRAIN[t] || {color:"#6b6455", icon:"?"}; }
-function hexCenter(q,r,size){ return { x: size*Math.sqrt(3)*(q+r/2), y: size*1.5*r }; }
+/* Coordonnées "offset" (colonne q, ligne r) — grille rectangulaire, lignes impaires décalées d'un demi-hexagone */
+function hexCenter(q,r,size){ return { x: size*Math.sqrt(3)*(q+0.5*(r&1)), y: size*1.5*r }; }
 function hexCorners(cx,cy,size){
   const pts=[];
   for(let i=0;i<6;i++){ const a=Math.PI/180*(60*i-30); pts.push((cx+size*Math.cos(a)).toFixed(1)+","+(cy+size*Math.sin(a)).toFixed(1)); }
