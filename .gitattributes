@@ -1,0 +1,6 @@
+# Force les scripts exécutables à garder des fins de ligne LF quelle que soit
+# la plateforme qui les édite/commite (Windows convertit souvent en CRLF, ce
+# qui casse le shebang et l'exécution sous Linux/macOS — vécu le 06/08/2026,
+# voir docs/AUDIT.md).
+*.sh text eol=lf
+*.py text eol=lf

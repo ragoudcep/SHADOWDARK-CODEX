@@ -237,6 +237,35 @@ README.
    (fichiers volumineux, pas de raison évidente de les versionner). Dis-moi
    si tu préfères les garder comme archive dans le dépôt.
 
+### Vérification de synchro — 2026-08-06 (fin de journée)
+
+Suite à une demande de vérifier que tout était bien à jour. Résultat :
+dossier local (Desktop), `/tmp/sdc-work` et `origin/main` bien alignés sur
+le même commit après un `git pull` — aucune perte de travail, tout ce qui a
+été poussé aujourd'hui (mes changements et ceux de Dual) est bien en ligne.
+Site live vérifié (répond, affiche les nouveaux onglets Initiative/Roue).
+
+Au passage, Dual a livré aujourd'hui pendant que je travaillais sur d'autres
+parties : l'implémentation réelle de l'onglet **Initiative** (timeline de
+combat en direct, polling léger) et un nouvel onglet **Roue** (bonus à
+tirer, easter egg anniversaire), plus une migration du déploiement GitHub
+Pages vers un workflow GitHub Actions explicite (l'ancien mode « Deploy from
+a branch » restait bloqué en boucle sur des timeouts). Tout est documenté
+dans les points d'attention structurels ci-dessus et dans le ledger Supabase
+— rien à corriger de mon côté, la coordination via ce fichier a bien
+fonctionné.
+
+**Bug trouvé et corrigé** : `outils/audit-check.sh` et
+`outils/compress-portraits.py` s'étaient retrouvés avec des fins de ligne
+CRLF (probablement une conversion automatique côté Windows), ce qui cassait
+leur exécution sous Linux/macOS (`/usr/bin/env: 'bash\r': No such file or
+directory`, puis une erreur sur `set -euo pipefail` même en forçant
+`bash script.sh`). Reconverti en LF et ajouté un `.gitattributes`
+(`*.sh text eol=lf`, `*.py text eol=lf`) pour empêcher que ça se reproduise,
+quelle que soit la plateforme utilisée pour éditer/commiter. À surveiller
+lors des prochains audits : relancer `outils/audit-check.sh` fait partie du
+protocole justement pour attraper ce genre de régression tôt.
+
 **Points forts confirmés** : aucune duplication de code détectée malgré les
 éditions concurrentes de Dual ; schéma de collections toujours cohérent sur
 les 6 emplacements qui doivent l'être ; aucun résidu de debug dans le code
