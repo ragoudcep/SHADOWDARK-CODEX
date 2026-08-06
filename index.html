@@ -379,6 +379,23 @@
     z-index:200; padding:2rem; cursor:zoom-out}
   #lightbox img{max-width:100%; max-height:100%; border-radius:8px; box-shadow:var(--shadow)}
 
+  /* Portraits — bibliothèque partagée PJ/PNJ */
+  .portrait-gray{filter:grayscale(1)}
+  .detail-portrait{width:126px; aspect-ratio:63/88; object-fit:cover; border-radius:8px; border:1px solid var(--border2);
+    float:right; margin:0 0 .6rem 1rem; box-shadow:var(--shadow)}
+  .portrait-pick{display:flex; align-items:center; gap:.8rem}
+  .portrait-current{width:63px; aspect-ratio:63/88; object-fit:cover; border-radius:6px; border:1px solid var(--border2); filter:grayscale(1)}
+  .portrait-current.empty{display:flex; align-items:center; justify-content:center; font-size:.68rem; color:var(--faint); text-align:center; background:var(--panel2)}
+  .portrait-pick-actions{display:flex; flex-direction:column; gap:.35rem; align-items:flex-start}
+  .portrait-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(80px,1fr)); gap:.5rem; max-height:60vh; overflow-y:auto; margin:.4rem 0}
+  .portrait-opt{position:relative; cursor:pointer; border-radius:6px; overflow:hidden; border:1px solid var(--border2)}
+  .portrait-opt img{width:100%; aspect-ratio:63/88; object-fit:cover; display:block; filter:grayscale(1); transition:transform .1s}
+  .portrait-opt:hover img{transform:scale(1.05); }
+  .portrait-opt.used{cursor:not-allowed; opacity:.35}
+  .portrait-opt.used img{filter:grayscale(1) blur(.5px)}
+  .portrait-opt .badge{position:absolute; bottom:2px; left:2px; right:2px; background:rgba(0,0,0,.75); color:#e0a05a;
+    font-size:.6rem; text-align:center; border-radius:3px; padding:1px 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
   /* toast */
   #toast{position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%) translateY(20px);
     background:var(--panel2); border:1px solid var(--gold); color:var(--text); padding:.7rem 1.1rem;
@@ -768,6 +785,9 @@ let db = emptyDB();
 /* --------------------------- État de navigation -------------------------- */
 let view = { tab:"sessions", mode:"list", id:null }; // mode: list | detail | edit | new
 let formImages = []; // état temporaire des images pendant l'édition d'une créature / PNJ
+let PORTRAITS_MANIFEST = []; // catalogue portraits/manifest.json (bibliothèque partagée PJ/PNJ)
+let portraitsReady = false;
+let formPortrait = ""; // portrait sélectionné pendant l'édition d'un PJ/PNJ
 let crawlState = { id:null, linkMode:false, linkFrom:null }; // état de l'éditeur de point crawl
 let editReturnTo = null; // {tab,id} — si défini, où revenir après l'édition d'un événement ouvert depuis un point crawl
 let eventThemeFilter = "";
@@ -1313,7 +1333,7 @@ function generateRandomNPC(){
     ac: String(ac), hp: String(hp),
     str:`${scores.str} (${sgn(mods.str)})`, dex:`${scores.dex} (${sgn(mods.dex)})`, con:`${scores.con} (${sgn(mods.con)})`,
     int:`${scores.int} (${sgn(mods.int)})`, wis:`${scores.wis} (${sgn(mods.wis)})`, cha:`${scores.cha} (${sgn(mods.cha)})`,
-    weapon, spells, images:[]
+    weapon, spells, images:[], portrait: pickRandomPortrait()
   };
   db.npcs.push(o);
   saveDB();
@@ -1327,7 +1347,7 @@ function listNPCs(){
   app.innerHTML = pageHead("PNJ", `${items.length} personnage(s) non-joueur(s)`, "Nouveau PNJ", xmlToolbarHTML("npc")+genBtn) +
     (items.length ? `<div class="grid">${items.map(n=>`
       <div class="card" data-open="npc:${n.id}">
-        ${(n.images&&n.images.length)?`<img class="thumb" src="${n.images[0].data}" alt="">`:""}
+        ${n.portrait?`<img class="thumb portrait-gray" src="portraits/${esc(n.portrait)}" alt="">`:(n.images&&n.images.length)?`<img class="thumb" src="${n.images[0].data}" alt="">`:""}
         <h3>${esc(n.name||"Sans nom")}</h3>
         <p>${esc(n.description||firstLine(n.objectif)||"Pas de description")}</p>
         ${n.objectif?`<div class="meta"><span class="tag gold">🎯 ${esc(truncate(n.objectif,42))}</span></div>`:""}
@@ -1376,6 +1396,7 @@ function duplicateEntity(type,id){
   (copy.nodes||[]).forEach(x=>x.id=uid());
   (copy.edges||[]).forEach(x=>x.id=uid());
   (copy.images||[]).forEach(x=>x.id=uid());
+  if(type==="npc"||type==="pc") delete copy.portrait; // le portrait d'origine reste réservé à la fiche source
   if(type==="creature"||type==="npc"||type==="pc"||type==="treasure"||type==="spell") copy.name = (copy.name||"Sans nom")+" (copie)";
   if(type==="creature"){ copy.manual = true; delete copy.imported; }   // un doublon créé à la main est protégé du vidage
   else copy.title = (copy.title||"Sans titre")+" (copie)";
@@ -1482,6 +1503,7 @@ function detailNPC(n){
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PNJ</button>
     <span class="tag npc">PNJ</span>
+    ${n.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(n.portrait)}" alt="">`:""}
     <h1>${esc(n.name||"Sans nom")}</h1>
     ${n.description?`<p class="muted" style="font-family:var(--ui)">${renderText(n.description)}</p>`:""}
     ${detailActions("npc",n.id)}
@@ -1716,6 +1738,83 @@ function renderImageThumbs(){
   w.innerHTML = formImages.map((img,i)=>`<div class="img-thumb"><img src="${img.data}" alt="${esc(img.name||'')}">
     <button class="img-del" data-remove-img="${i}" title="Retirer">✕</button></div>`).join("");
 }
+/* -------------------------- Portraits (bibliothèque) --------------------- */
+/* Catalogue partagé de ~300 illustrations (portraits/manifest.json), utilisable
+   sur les fiches PJ et PNJ. Un même fichier ne peut être assigné qu'à une seule
+   fiche à la fois : la disponibilité se calcule en direct depuis db.pcs/db.npcs
+   (pas de table séparée à tenir à jour ni à faire dériver). */
+async function loadPortraitsManifest(){
+  if(portraitsReady) return;
+  try{
+    const r = await fetch("portraits/manifest.json");
+    if(r.ok) PORTRAITS_MANIFEST = await r.json();
+  }catch(e){ /* facultatif : l'appli fonctionne sans */ }
+  portraitsReady = true;
+}
+function portraitOwnerLabel(file, excludeId){
+  const pc = db.pcs.find(p=>p.portrait===file && p.id!==excludeId);
+  if(pc) return `PJ : ${pc.name||"Sans nom"}`;
+  const npc = db.npcs.find(n=>n.portrait===file && n.id!==excludeId);
+  if(npc) return `PNJ : ${npc.name||"Sans nom"}`;
+  return "";
+}
+function usedPortraitFiles(excludeId){
+  const used = new Set();
+  db.pcs.forEach(p=>{ if(p.portrait && p.id!==excludeId) used.add(p.portrait); });
+  db.npcs.forEach(n=>{ if(n.portrait && n.id!==excludeId) used.add(n.portrait); });
+  return used;
+}
+function availablePortraits(excludeId){
+  const used = usedPortraitFiles(excludeId);
+  return PORTRAITS_MANIFEST.filter(p=>!used.has(p.file));
+}
+function pickRandomPortrait(race){
+  const pool = availablePortraits(null);
+  if(!pool.length) return "";
+  const byRace = race ? pool.filter(p=>p.race && p.race.toLowerCase()===String(race).toLowerCase()) : [];
+  const from = byRace.length ? byRace : pool;
+  return from[Math.floor(Math.random()*from.length)].file;
+}
+function portraitPickWidgetHTML(current){
+  return `${current ? `<img class="portrait-current" src="portraits/${esc(current)}" alt="">` : `<div class="portrait-current empty">Aucun</div>`}
+    <div class="portrait-pick-actions">
+      <button type="button" class="btn ghost sm" data-open-portrait-picker="1">🖼 Choisir un portrait</button>
+      ${current ? `<button type="button" class="btn ghost sm" data-clear-portrait="1">✕ Retirer</button>` : ""}
+    </div>`;
+}
+function portraitFieldHTML(current){
+  return `<div class="field"><label>Portrait <span class="hint">(bibliothèque partagée — une image ne sert qu'à un seul PJ/PNJ à la fois)</span></label>
+    <div class="portrait-pick" id="portrait-pick-wrap">${portraitPickWidgetHTML(current)}</div>
+  </div>`;
+}
+function refreshPortraitPickWidget(){
+  const wrap = document.getElementById("portrait-pick-wrap");
+  if(wrap) wrap.innerHTML = portraitPickWidgetHTML(formPortrait);
+}
+function openPortraitPickerModal(){
+  const excludeId = view.mode==="edit" ? view.id : null;
+  if(!PORTRAITS_MANIFEST.length){
+    openModal(`<h2 style="margin:.1rem 0 .5rem;color:var(--gold2)">Aucun portrait disponible</h2>
+      <p style="font-family:var(--ui);font-size:.9rem;color:var(--muted)">Le catalogue <code>portraits/manifest.json</code> est introuvable ou vide.</p>
+      <div class="modal-actions"><button class="btn ghost" data-modal-close="1">Fermer</button></div>`);
+    return;
+  }
+  const avail = availablePortraits(excludeId);
+  const grid = PORTRAITS_MANIFEST.map(p=>{
+    const owner = portraitOwnerLabel(p.file, excludeId);
+    const isUsed = !!owner;
+    const tag = [p.genre,p.race].filter(Boolean).join(" ");
+    return `<div class="portrait-opt ${isUsed?'used':''}" ${isUsed?'':`data-pick-portrait-file="${esc(p.file)}"`} title="${isUsed?('Déjà utilisé — '+esc(owner)):esc(tag)}">
+      <img src="portraits/${esc(p.file)}" alt="" loading="lazy">
+      ${isUsed?`<span class="badge">pris</span>`:''}
+    </div>`;
+  }).join("");
+  openModal(`<h2 style="margin:.1rem 0 .5rem;color:var(--gold2)">Choisir un portrait</h2>
+    <p style="font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:0 0 .8rem">${avail.length} disponible(s) sur ${PORTRAITS_MANIFEST.length}. Les portraits marqués « pris » sont déjà utilisés par une autre fiche.</p>
+    <div class="portrait-grid">${grid}</div>
+    <div class="modal-actions"><button class="btn ghost" data-modal-close="1">Fermer</button></div>`);
+}
+
 function processImage(file, cb){
   if(!file.type || !file.type.startsWith("image/")){ toast("Fichier ignoré (pas une image)."); return; }
   const reader = new FileReader();
@@ -1821,6 +1920,7 @@ function formNPC(){
   const n = view.mode==="edit" ? getEntity("npc",view.id)
     : {name:"",description:"",physique:"",age:"",possessions:"",objectif:"",moyens:"",comportement:"",ac:"",hp:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",weapon:"",spells:""};
   formImages = (n.images||[]).slice();
+  formPortrait = n.portrait || "";
   const stats = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
@@ -1846,7 +1946,8 @@ function formNPC(){
       </div>
     </div>
     <div class="field"><label>Sortilèges <span class="hint">(si lanceur de sorts ; un par ligne, liens [[…]] possibles)</span></label><textarea id="f-spells" style="min-height:50px" placeholder="[[Lumière]]">${esc(n.spells||"")}</textarea></div>
-    <div class="field"><label>Portraits / images <span class="hint">(PNG, JPEG… plusieurs possibles)</span></label>
+    ${portraitFieldHTML(formPortrait)}
+    <div class="field"><label>Autres images <span class="hint">(PNG, JPEG… plusieurs possibles)</span></label>
       <div id="images-wrap"></div>
       <button class="btn ghost sm" data-add-img="1" style="margin-top:.5rem">🖼 Ajouter une image</button>
     </div>
@@ -1861,6 +1962,7 @@ function saveNPC(){
   o.name = $("#f-name").value.trim();
   ["description","physique","age","possessions","objectif","moyens","comportement","ac","hp","str","dex","con","int","wis","cha","weapon","spells"].forEach(k=> o[k]=$("#f-"+k).value);
   o.images = formImages.slice();
+  o.portrait = formPortrait || "";
   if(!o.name){ toast("Le nom est requis."); return; }
   if(view.mode==="new") db.npcs.push(o);
   const _n = maybePropagate(_old, o.name);
@@ -2563,7 +2665,8 @@ function generateRandomPC(){
       `PJ généré automatiquement (règles de création, Quickstart p.12-31).`
     ].filter(Boolean).join("\n"),
     talents: cd.talents.map(t=>({roll:t.roll, text:t.text})),
-    images: []
+    images: [],
+    portrait: pickRandomPortrait(ancestryName)
   };
 
   db.pcs.push(o);
@@ -2580,7 +2683,7 @@ function listPCs(){
   app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ", genBtn) +
     (items.length ? `<div class="grid">${items.map(p=>`
       <div class="card" data-open="pc:${p.id}">
-        ${(p.images&&p.images.length)?`<img class="thumb" src="${p.images[0].data}" alt="">`:""}
+        ${p.portrait?`<img class="thumb portrait-gray" src="portraits/${esc(p.portrait)}" alt="">`:(p.images&&p.images.length)?`<img class="thumb" src="${p.images[0].data}" alt="">`:""}
         <h3>${esc(p.name||"Sans nom")}</h3>
         <p>${esc([p.ancestry,p.cls].filter(Boolean).join(" · ")||"—")}</p>
         <div class="meta"><span class="tag gold">Niv. ${esc(p.level||'?')}</span><span class="tag">CA ${esc(p.ac||'?')}</span><span class="tag">PV ${esc(p.hpCurrent||'?')}/${esc(p.hp||'?')}</span></div>
@@ -2593,6 +2696,7 @@ function formPC(){
     : {name:"",ancestry:"",cls:"",level:"1",alignment:"neutre",ac:"",hp:"",hpCurrent:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",skills:"",spells:"",inventory:"",invSlots:"",info:"",talents:DEFAULT_TALENTS()};
   const talents = p.talents && p.talents.length ? p.talents : DEFAULT_TALENTS();
   formImages = (p.images||[]).slice();
+  formPortrait = p.portrait || "";
   const alignOpt = ["loyal","neutre","chaos"].map(v=>`<option value="${v}" ${p.alignment===v?"selected":""}>${cap(v)}</option>`).join("");
   const stats = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
   app.innerHTML = `<div class="form">
@@ -2626,7 +2730,8 @@ function formPC(){
       <div id="talents-wrap">${talents.map(t=>talentInput(t)).join("")}</div>
       <button class="btn ghost sm" data-add-talent="1" style="margin-top:.4rem">+ Ajouter une ligne</button>
     </div>
-    <div class="field"><label>Portraits / images <span class="hint">(plusieurs possibles)</span></label>
+    ${portraitFieldHTML(formPortrait)}
+    <div class="field"><label>Autres images <span class="hint">(illustrations libres, plusieurs possibles)</span></label>
       <div id="images-wrap"></div>
       <button class="btn ghost sm" data-add-img="1" style="margin-top:.5rem">🖼 Ajouter une image</button>
     </div>
@@ -2666,6 +2771,7 @@ function savePC(){
     text: el.querySelector(".tal-text").value.trim()
   }));
   o.images = formImages.slice();
+  o.portrait = formPortrait || "";
   if(!o.name){ toast("Le nom est requis."); return; }
   if(view.mode==="new") db.pcs.push(o);
   const _n = maybePropagate(_old, o.name);
@@ -2679,6 +2785,7 @@ function detailPC(p){
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PJ</button>
     <span class="tag pc">PJ</span>
+    ${p.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(p.portrait)}" alt="">`:""}
     <h1>${esc(p.name||"Sans nom")}</h1>
     <p class="muted" style="font-family:var(--ui)">${esc([p.ancestry,p.cls].filter(Boolean).join(" · "))}${p.alignment?` · ${esc(cap(p.alignment))}`:""}</p>
     ${detailActions("pc",p.id)}
@@ -3880,6 +3987,9 @@ app.addEventListener("click", e=>{
   // Images (formulaire créature) + agrandissement
   if(closest("data-add-img")){ $("#file-img").click(); return; }
   if((el=closest("data-remove-img"))){ formImages.splice(+el.dataset.removeImg,1); renderImageThumbs(); return; }
+  // Portraits (bibliothèque partagée PJ/PNJ)
+  if(closest("data-open-portrait-picker")){ openPortraitPickerModal(); return; }
+  if(closest("data-clear-portrait")){ formPortrait=""; refreshPortraitPickWidget(); return; }
   if((el=closest("data-lightbox"))){ openLightbox(el.dataset.lightbox); return; }
   // Répéteurs — créatures
   if(closest("data-add-attack")){ $("#attacks-wrap").insertAdjacentHTML("beforeend", attackInput({range:"close"})); return; }
@@ -3988,6 +4098,7 @@ $("#modal").addEventListener("click", e=>{
   if(e.target.closest("[data-modal-close]")){ closeModal(); return; }
   if(e.target.closest("[data-modal-yes]")){ const cb=_modalCb; closeModal(); if(cb) cb(); return; }
   if(e.target.closest("[data-purge-confirm]")){ const all=$("#purge-manual")&&$("#purge-manual").checked; closeModal(); purgeCreatures(all); return; }
+  if((el=e.target.closest("[data-pick-portrait-file]"))){ formPortrait = el.dataset.pickPortraitFile; closeModal(); refreshPortraitPickWidget(); return; }
   if(e.target.closest("[data-xml-skip]")){ closeModal(); applyXMLImport("skip"); return; }
   if(e.target.closest("[data-xml-replace]")){ closeModal(); applyXMLImport("replace"); return; }
   if(e.target.closest("[data-xml-all]")){ closeModal(); applyXMLImport("all"); return; }
@@ -4506,6 +4617,7 @@ async function startApp(){
   try{
     myRole = await fetchMyRole();
     db = await fetchRemoteDB();
+    loadPortraitsManifest(); // en parallèle, pas bloquant
     if(myRole==="gm" && countItems(db)===0){
       const legacy = loadLegacyLocalDB();
       if(legacy && countItems(legacy)>0){
