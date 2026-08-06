@@ -92,6 +92,13 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   zone appartient au chantier « peinture de biomes » actuellement en pause
   côté Dual — les déplacer casserait ses chemins et risquerait un conflit
   avec son travail en cours.
+- **Onglet « Initiative » (depuis le 6/08/2026)** : coquille vide, pas
+  d'entité ni de table Supabase dédiée pour l'instant (`listInitiative()`
+  affiche juste un état vide). Volontairement absent de `DB_COLS`/`emptyDB`/
+  `TAB_OF`/`TYPE_OF_TAB`/`collectionOf` — seulement présent dans `TABS` (pour
+  la liste complète des onglets) et `PLAYER_VISIBLE_TABS`. Quand le suivi
+  d'initiative sera implémenté, il faudra l'ajouter aux cinq autres endroits
+  du ledger de collections.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
@@ -121,7 +128,7 @@ tables existent, mais ne peut pas le garantir).
 | tables | ✅ | ✅ | — | confirmé (setup initial) |
 | npcs | ✅ | ✅ | — | confirmé (setup initial) |
 | pointcrawls | ✅ | ✅ | — | confirmé (setup initial) |
-| pcs | ✅ | ✅ | — | confirmé (setup initial) |
+| pcs | ✅ | ✅ | ⏳ | policy de lecture joueur écrite (`supabase_pcs_lecture_joueurs.sql`), **script à exécuter par toi** |
 | treasures | ✅ | ✅ | — | confirmé (setup initial) |
 | hexmaps | ✅ | ✅ | ✅ | confirmé |
 | spells | ✅ | ✅ | ✅ | confirmé (corrigé après une 1ère erreur `42P01`) |

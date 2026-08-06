@@ -663,6 +663,7 @@
     <button data-tab="treasures">Trésor</button>
     <button data-tab="roadbook">Carnet de route</button>
     <button data-tab="hexmaps">Hexcrawl</button>
+    <button data-tab="initiative">Initiative</button>
   </nav>
 </header>
 
@@ -798,7 +799,7 @@ let tableCatFilter = "";        // filtre de catégorie des tables aléatoires (
 let readingMode = false; // "mode table de jeu" : masque les contrôles GM, agrandit le texte des fiches
 
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route", hexmap:"Hexcrawl", spell:"Sort" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","roadbook","hexmaps"];
+const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","roadbook","hexmaps","initiative"];
 const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook", hexmaps:"hexmap" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
@@ -1000,6 +1001,12 @@ function renderList(){
   if(view.tab==="treasures") return listTreasures();
   if(view.tab==="roadbook")  return listRoadbook();
   if(view.tab==="hexmaps")   return listHexmaps();
+  if(view.tab==="initiative") return listInitiative();
+}
+/* Onglet réservé — pas encore d'entité/table dédiée, juste une coquille visible. */
+function listInitiative(){
+  app.innerHTML = `<div class="page-head"><div><h1>Initiative</h1><div class="sub">Suivi d'initiative — à venir</div></div></div>` +
+    emptyState("⚔","Cet onglet est réservé pour le futur suivi d'initiative en combat. Rien à voir pour l'instant.");
 }
 
 function pageHead(title, sub, newLabel, extra){
@@ -4599,7 +4606,7 @@ async function fetchMyRole(){
 
 /* Cache les onglets et actions réservés au MJ pour un compte joueur */
 function applyRoleUI(){
-  const PLAYER_VISIBLE_TABS = ["roadbook","hexmaps","spells"];
+  const PLAYER_VISIBLE_TABS = ["roadbook","hexmaps","spells","pcs","initiative"];
   document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{
     b.classList.toggle("hidden", myRole!=="gm" && !PLAYER_VISIBLE_TABS.includes(b.dataset.tab));
   });
