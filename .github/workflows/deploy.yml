@@ -1,0 +1,47 @@
+name: Deploy GitHub Pages
+
+# Workflow explicite et versionné, en remplacement du mode implicite
+# "Deploy from a branch" (legacy) qui restait bloqué en boucle sur
+# "deployment_queued" jusqu'au timeout interne de GitHub (voir docs/AUDIT.md).
+# Pas de build Jekyll : ce dépôt est un site 100% statique (un seul index.html
+# + assets), sans _config.yml ni front matter ni syntaxe Liquid — Jekyll ne
+# faisait rien d'utile et n'était qu'un point de fragilité/lenteur en plus.
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Sérialise les déploiements au lieu d'annuler un déploiement en cours -
+# pattern officiel recommandé par GitHub pour Pages.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
