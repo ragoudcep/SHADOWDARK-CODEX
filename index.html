@@ -1352,12 +1352,20 @@ function listInitiative(){
 function wheelConfig(){ return db.wheel[0] || null; }
 function ensureWheelConfig(){
   let w = db.wheel[0];
-  if(!w){ w = { id:uid(), segments:[] }; db.wheel.push(w); }
+  if(!w){ w = { id:uid(), segments:[], revealMode:"gift" }; db.wheel.push(w); }
   return w;
 }
 function wheelSegments(){
   const w = wheelConfig();
   return (w && w.segments || []).filter(s=>s && s.trim());
+}
+/* Prépare le terrain pour un futur choix MJ entre plusieurs habillages de révélation
+   ("gift" = cadeau + "Joyeux anniversaire" actuel, "chest" = coffre au trésor sans le
+   texte anniversaire, à venir dans un chantier séparé) — pas de bascule MJ pour l'instant,
+   seule "gift" est implémentée dans showWheelReward(). */
+function wheelRevealMode(){
+  const w = wheelConfig();
+  return (w && w.revealMode) || "gift";
 }
 
 const WHEEL_PALETTE = ["var(--gold)","var(--blood)","var(--violet)","var(--gold2)","var(--blood2)","var(--violet2)"];
@@ -1437,6 +1445,44 @@ function stopWheelTensionSound(){
   }catch(e){ /* déjà arrêté */ }
   ticks.forEach(osc=>{ try{ osc.stop(now); }catch(e){} });
   wheelAudioActive = null;
+}
+
+/* Petite fanfare "tadaaa" (arpège montant + accord tenu) jouée à l'ouverture du cadeau,
+   en plus du son de tension pendant la rotation — toujours en Web Audio pure, aucun fichier.
+   Réutilise le même AudioContext que le son de tension (déjà débloqué par le clic initial). */
+function playWheelFanfare(){
+  let ctx;
+  try{ ctx = ensureWheelAudioCtx(); }catch(e){ return; }
+  const now = ctx.currentTime;
+  const notes = [
+    { freq:523.25, at:0,    dur:0.11 },  // do5  — "ta"
+    { freq:659.25, at:0.11, dur:0.11 },  // mi5  — "da"
+    { freq:783.99, at:0.22, dur:0.11 },  // sol5 — "da"
+  ];
+  notes.forEach(nt=>{
+    const at = now+nt.at;
+    const osc = ctx.createOscillator();
+    osc.type = "triangle"; osc.frequency.setValueAtTime(nt.freq, at);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(0.24, at+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, at+nt.dur);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(at); osc.stop(at+nt.dur+0.02);
+  });
+  // accord final tenu (do6 + sol5 + mi5) — le "DAAA" qui conclut la fanfare
+  const chordAt = now+0.33;
+  [ {freq:1046.5, type:"sawtooth", gain:0.26}, {freq:783.99, type:"triangle", gain:0.16}, {freq:659.25, type:"triangle", gain:0.16} ]
+    .forEach(({freq,type,gain})=>{
+      const osc = ctx.createOscillator();
+      osc.type = type; osc.frequency.setValueAtTime(freq, chordAt);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, chordAt);
+      g.gain.linearRampToValueAtTime(gain, chordAt+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, chordAt+0.9);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(chordAt); osc.stop(chordAt+0.95);
+    });
 }
 
 /* Habillage du texte des secteurs : les bonus formulés en plusieurs mots (fréquent en
@@ -1598,6 +1644,7 @@ function showWheelReward(text){
     gift.classList.remove("shake"); gift.classList.add("open");
     spawnWheelConfetti();
     banner.classList.add("show");
+    playWheelFanfare();
   }, 750);
 }
 function hideWheelReward(){
