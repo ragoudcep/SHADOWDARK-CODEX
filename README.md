@@ -20,6 +20,7 @@ Le Codex est un carnet de campagne numérique partagé entre le MJ et les joueus
 - **PNJ** : fiches de personnages non-joueurs (apparence, objectifs, moyens, comportement, statistiques de combat, portrait), avec un générateur aléatoire simplifié (1 chance sur 6 d'être lanceur de sorts).
 - **Portraits** : bibliothèque partagée de petites illustrations (format carte) assignables aux PJ/PNJ, manuellement ou par pioche aléatoire — une même image ne peut jamais être utilisée par deux fiches à la fois.
 - **Hexcrawl** : carte hexagonale avec brouillard de guerre, biomes peints, points d'intérêt (visibilité MJ/joueuses configurable).
+- **Cartes de donjon** : plans de donjon (image) avec brouillard de guerre par patchs rectangulaires que le MJ pose/déplace/retire ; plusieurs cartes préparables à l'avance, une seule affichée aux joueuses à la fois.
 - **Trésor** : trouvailles, reliques et régalias, avec bonus/atout/malédiction/personnalité pour les objets magiques.
 - **Carnet de route** : journal partagé visible des joueuses.
 - **Liens croisés `[[Nom]]`** : toute entité peut être référencée dans un texte via `[[Nom de l'entité]]`, générant un lien cliquable et un système de rétroliens (backlinks) automatique, avec un vérificateur de liens brisés.

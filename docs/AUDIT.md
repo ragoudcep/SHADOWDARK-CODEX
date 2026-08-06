@@ -143,6 +143,65 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   direct dans un navigateur pendant l'implémentation (pas de panneau
   navigateur composé de frames disponible dans cette session) — à confirmer
   par toi après déploiement.
+- **Onglet « Cartes de donjon » (implémenté le 6/08/2026)** : brouillard de
+  guerre par patchs rectangulaires sur une image de plan, présent dans les 6
+  emplacements du ledger de collections (`TABS`, `DB_COLS`, `TAB_OF`,
+  `TYPE_OF_TAB`, `collectionOf`, `emptyDB`) sous la clé `dungeonmaps`. Le MJ
+  prépare plusieurs cartes à l'avance (nom + image, `formDungeonMap()`/
+  `saveDungeonMap()`), une seule est **active** à la fois
+  (`m.active`, basculée par `activateDungeonMap()` qui désactive les autres) —
+  c'est elle, et elle seule, qui est montrée aux joueurs. Chaque carte porte
+  ses propres patchs (`m.patches[]`, rectangles en **pourcentage** 0-100 de
+  l'image, pas en pixels, pour rester justes quel que soit le zoom/la largeur
+  d'écran) posés/déplacés/redimensionnés/supprimés par le MJ via un
+  `<svg viewBox="0 0 100 100">` superposé à l'image
+  (`dungeonMapSVG()`/`wireDungeonMapInteractions()`, interactions en
+  `pointerdown`/`pointermove`/`pointerup` — même patron que le drag des
+  nœuds de point crawl). Rendu MJ semi-transparent (`opacity:.5`, classe
+  `.dmap-patch-gm`, mêmes poignées + bouton ✕) pour voir la carte en
+  transparence en travaillant, rendu joueur **100% opaque** et sans aucun
+  élément interactif dans le DOM (pas de poignée, pas de ✕ — un joueur ne
+  peut jamais retirer un patch, même en traficotant le HTML). **Image stockée
+  en base64 dans le jsonb** comme le reste de l'appli (pas de bucket Supabase
+  Storage séparé — décision volontaire pour rester sans infra nouvelle), mais
+  avec un plafond de résolution monté à **1800px** de côté long
+  (`processMapImage()`, copie de `processImage()` avec un plafond différent)
+  au lieu des 1000px des portraits/illustrations classiques, sinon un plan de
+  donjon devient illisible (texte, portes, grille). **Synchronisation
+  MJ→joueurs par polling léger**, copie conforme du modèle Initiative
+  (`startDungeonMapsPolling()`/`stopDungeonMapsPolling()`, 4,5s, actif
+  seulement tant que l'onglet est ouvert). **Point d'architecture important,
+  différent du copier-coller habituel des policies Supabase** : une policy de
+  lecture joueur classique (« select si connecté ») aurait donné accès à
+  *toutes* les lignes de la table, donc à toutes les cartes préparées
+  d'avance et pas seulement celle affichée — un joueur ouvrant les devtools
+  aurait alors vu dans la réponse réseau des plans de donjon que le MJ n'a
+  pas encore révélés, ce qui casse tout l'intérêt du brouillard de guerre. La
+  policy `dungeonmaps_player_read_active` filtre donc directement sur le
+  contenu du jsonb (`(data->>'active')::boolean is true`) : une carte non
+  active n'est **jamais transmise sur le réseau** à un compte joueur, pas
+  juste cachée côté UI — c'est donc une garantie serveur, pas seulement une
+  précaution côté client. **Testé fonctionnellement dans un navigateur**
+  (fichier ouvert en local, auth court-circuitée en console faute
+  d'identifiants Supabase de test) : liste MJ avec badge « Active » et
+  compteur de patchs, formulaire de création avec upload + downscale
+  (2400×1600 → 1800×1200 confirmé), déplacement/redimensionnement/suppression
+  d'un patch existant, tracé d'un nouveau patch par glissé, activation d'une
+  carte (désactive bien les autres), vue joueur (nom de la carte seul, aucun
+  bouton MJ, patchs opaques sans poignées), état vide joueur (« Ton MJ n'a
+  pas encore affiché de carte »). Le polling a bien tenté d'interroger la
+  vraie table Supabase et a échoué proprement (`PGRST205`, table pas encore
+  créée) sans casser l'affichage — comportement attendu tant que le script
+  SQL n'a pas été exécuté. **Non testé** : le vrai flux de connexion (rôle
+  `player` réel via un compte Supabase), et le rendu visuel (CSS) n'a pas été
+  confirmé à l'œil par capture d'écran (pas de rendu compositing disponible
+  dans cette session) — à confirmer par toi après déploiement.
+  **Table Supabase à créer** : script fourni dans
+  `outils/supabase_dungeonmaps_setup.sql` (policy MJ CRUD standard + policy
+  de lecture joueur filtrée sur `active`, différente du modèle habituel — lire
+  les commentaires du script) — à exécuter par Tristan dans l'éditeur SQL
+  Supabase, à confirmer et à reporter dans le ledger ci-dessous une fois
+  fait.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
@@ -179,6 +238,7 @@ tables existent, mais ne peut pas le garantir).
 | roadbook | ⚠️ | ⚠️ | ⚠️ | **à confirmer** — voir Constats ci-dessous |
 | initiative | ⏳ | ⏳ | ⏳ | script fourni (`outils/supabase_initiative_setup.sql`), **à exécuter par toi** |
 | wheel | ⏳ | ⏳ | ⏳ | script fourni (`outils/supabase_wheel_setup.sql`), **à exécuter par toi** |
+| dungeonmaps | ⏳ | ⏳ | ⏳ | script fourni (`outils/supabase_dungeonmaps_setup.sql`, policy lecture joueur **filtrée sur `active`**, pas le modèle standard), **à exécuter par toi** |
 
 ## Journal des audits
 
