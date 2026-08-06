@@ -20,7 +20,7 @@ Pas besoin d'un audit après chaque petite modif — ce serait disproportionné.
 
 ### 1. Vérifications mécaniques (2 min, script fourni)
 
-`audit-check.sh` (à la racine du dépôt) automatise :
+`outils/audit-check.sh` automatise :
 
 1. **Syntaxe JS** — extrait chaque bloc `<script>` et lui passe `node --check`.
 2. **Équilibre CSS** — compte les `{`/`}` dans chaque bloc `<style>`.
@@ -32,9 +32,9 @@ Pas besoin d'un audit après chaque petite modif — ce serait disproportionné.
 5. **Restes de debug** — recherche `console.log`/`debugger` oubliés (en
    ignorant la librairie Supabase vendée, lignes ~673-691).
 
-Usage :
+Usage (depuis la racine du dépôt) :
 ```bash
-./audit-check.sh index.html
+./outils/audit-check.sh index.html
 ```
 
 ### 2. Vérifications manuelles côté données (5 min)
@@ -80,6 +80,18 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
 
 ## Points d'attention structurels (contexte pour les audits futurs)
 
+- **Structure du dépôt (depuis le 6/08/2026)** : `index.html`, `README.md`,
+  `.gitignore` et `portraits/` restent à la racine (chemins référencés en dur
+  dans le code ou convention GitHub). `docs/` (documentation interne),
+  `outils/` (scripts) et `sources/` (PDF/XML/JSON déjà intégrés à l'appli,
+  brouillons non nécessaires en prod) regroupent le reste. Les assets du
+  Hexcrawl (`*-foundation_*.png`, `deadlands/`, `drylands/`, `greenlands/`,
+  `icelands/`, `sandlands/`, `Neutre/` et leurs PNG de prévisualisation à la
+  racine) sont **volontairement laissés à plat** : ils sont référencés par
+  chemin relatif littéral dans le code (pas de dossier `assets/`), et cette
+  zone appartient au chantier « peinture de biomes » actuellement en pause
+  côté Dual — les déplacer casserait ses chemins et risquerait un conflit
+  avec son travail en cours.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
@@ -181,3 +193,23 @@ et est à jour.
 **Non vérifié ce passage** (à faire visuellement par toi) : rendu de la
 sidebar verticale sur grand écran (correctif du bug `backdrop-filter`
 poussé en `4d951da`, jamais reconfirmé visuellement).
+
+### Rangement — 2026-08-06 (suite de l'audit #1)
+
+Réorganisation du dossier projet suite aux constats 2 et 3 ci-dessus :
+
+- `.gitignore` commité (constat #3 résolu), complété avec `.claude/` et les
+  sous-dossiers de `sources/` qui ne doivent pas finir sur GitHub (voir
+  point d'attention structurel plus haut).
+- Racine allégée : documentation → `docs/`, scripts → `outils/`, matériel
+  source (PDF, XML déjà importés, JSON Hexcrawl, portraits bruts, police
+  d'origine) → `sources/`. Les assets biomes du Hexcrawl restent à plat à la
+  racine (voir point d'attention structurel — ne pas les déplacer tant que
+  Dual n'a pas terminé ce chantier).
+- README rafraîchi (constat #2 résolu) pour refléter l'état réel de l'appli
+  (Supabase, rôles, Hexcrawl, Sorts, générateurs PJ/PNJ, portraits) et la
+  nouvelle structure du dépôt.
+- Constat #1 (statut Supabase de `roadbook`) reste ouvert — rien dans ce
+  passage ne permettait de le vérifier, toujours à confirmer par toi.
+- Constat #4 : les PDF/XML/JSON sources restent volontairement hors dépôt
+  (maintenant rangés dans `sources/`, gitignorés) — sauf avis contraire.

@@ -1,0 +1,10 @@
+.vscode/
+.claude/
+.DS_Store
+Thumbs.db
+
+# Matériel source déjà intégré à l'appli — volumineux, pas nécessaire sur GitHub
+sources/regles/
+sources/imports-deja-integres/
+sources/hexcrawl/
+sources/portraits-brutes/
