@@ -266,6 +266,17 @@ quelle que soit la plateforme utilisée pour éditer/commiter. À surveiller
 lors des prochains audits : relancer `outils/audit-check.sh` fait partie du
 protocole justement pour attraper ce genre de régression tôt.
 
+**Bug signalé par Tristan (capture d'écran) et corrigé dans la foulée** :
+sur l'onglet Roue, le texte des secteurs de la moitié basse de la roue
+s'affichait à l'envers. Cause : `buildWheelSVG()` fait pivoter chaque ligne
+de texte de `mid+90°` pour l'aligner tangentiellement au rayon (`mid` =
+angle du secteur) — correct sur la moitié haute, mais ça retourne le texte
+de 180° sur la moitié basse. Fix : si l'angle de rotation normalisé tombe
+entre 90° et 270°, on ajoute 180° pour repasser le texte à l'endroit (même
+ligne, sens de lecture inversé) — technique standard pour les labels
+radiaux de camembert. Vérifié par un test angle-par-angle sur tout le
+cercle (script Node, hors app) avant de pousser.
+
 **Points forts confirmés** : aucune duplication de code détectée malgré les
 éditions concurrentes de Dual ; schéma de collections toujours cohérent sur
 les 6 emplacements qui doivent l'être ; aucun résidu de debug dans le code
