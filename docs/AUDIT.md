@@ -92,13 +92,27 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   zone appartient au chantier « peinture de biomes » actuellement en pause
   côté Dual — les déplacer casserait ses chemins et risquerait un conflit
   avec son travail en cours.
-- **Onglet « Initiative » (depuis le 6/08/2026)** : coquille vide, pas
-  d'entité ni de table Supabase dédiée pour l'instant (`listInitiative()`
-  affiche juste un état vide). Volontairement absent de `DB_COLS`/`emptyDB`/
-  `TAB_OF`/`TYPE_OF_TAB`/`collectionOf` — seulement présent dans `TABS` (pour
-  la liste complète des onglets) et `PLAYER_VISIBLE_TABS`. Quand le suivi
-  d'initiative sera implémenté, il faudra l'ajouter aux cinq autres endroits
-  du ledger de collections.
+- **Onglet « Initiative » (implémenté le 6/08/2026)** : timeline de combat
+  (`db.initiative`), désormais présent dans les 6 emplacements du ledger de
+  collections (`TABS`, `DB_COLS`, `TAB_OF`, `TYPE_OF_TAB`, `collectionOf`,
+  `emptyDB`). Chaque participant référence en direct un PJ (`db.pcs`) ou une
+  créature (`db.creatures`) existants — jamais de duplication de données — ou
+  porte un nom libre (`kind:"custom"`). Jet d'initiative : `1d20 + mod. DEX`
+  pour un PJ, `1d20` simple pour une créature/entrée libre (pas de scores
+  structurés côté créatures). **Synchronisation MJ→joueurs par polling léger**
+  (re-fetch de la table `initiative` toutes les 4,5s tant que l'onglet est
+  ouvert, `startInitiativePolling()`/`stopInitiativePolling()`) — c'est la
+  première fonctionnalité réellement temps réel de l'appli ; aucun autre
+  onglet visible aux joueurs (Carnet de route, Hexcrawl, Sorts) n'a de
+  mécanisme de rafraîchissement automatique, ils se rechargent uniquement à la
+  connexion (`fetchRemoteDB()` appelé une seule fois dans `startApp()`). Pas
+  de Supabase Realtime pour cette v1 — décision volontaire de Tristan (combat
+  au tour par tour, pas besoin d'une latence sub-seconde).
+  **Table Supabase à créer** : script fourni dans
+  `outils/supabase_initiative_setup.sql` (même modèle GM CRUD / joueur
+  lecture seule que `hexmaps`/`spells`) — à exécuter par Tristan dans
+  l'éditeur SQL Supabase, à confirmer et à reporter dans le ledger ci-dessous
+  une fois fait.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
@@ -133,6 +147,7 @@ tables existent, mais ne peut pas le garantir).
 | hexmaps | ✅ | ✅ | ✅ | confirmé |
 | spells | ✅ | ✅ | ✅ | confirmé (corrigé après une 1ère erreur `42P01`) |
 | roadbook | ⚠️ | ⚠️ | ⚠️ | **à confirmer** — voir Constats ci-dessous |
+| initiative | ⏳ | ⏳ | ⏳ | script fourni (`outils/supabase_initiative_setup.sql`), **à exécuter par toi** |
 
 ## Journal des audits
 

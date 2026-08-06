@@ -348,6 +348,28 @@
   .crawl-node .nt{display:inline-flex; align-items:center; justify-content:center; width:1.5em; height:1.5em; flex:0 0 auto;
     border-radius:50%; background:var(--gold); color:#2a1e08; font-weight:700; font-size:.75rem; margin-right:.4rem; vertical-align:middle}
 
+  /* initiative — timeline de combat verticale (mobile d'abord) */
+  .init-group-label{font-family:var(--ui); font-size:.72rem; text-transform:uppercase; letter-spacing:.6px;
+    color:var(--faint); margin:1.1rem 0 .5rem}
+  .init-group-label:first-of-type{margin-top:0}
+  .init-track{display:flex; flex-direction:column; gap:.5rem}
+  .init-card{display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));
+    border:1px solid var(--border); border-radius:var(--radius); padding:.55rem .7rem}
+  .init-rank{flex:0 0 auto; width:1.8rem; text-align:center; font-family:var(--display); font-size:1.1rem; color:var(--gold2)}
+  .init-portrait{flex:0 0 auto; width:44px; height:44px; border-radius:8px; object-fit:cover; border:1px solid var(--border2)}
+  .init-portrait-fallback{display:flex; align-items:center; justify-content:center; font-size:1.3rem; background:var(--bg2); color:var(--faint)}
+  .init-body{flex:1 1 120px; min-width:0}
+  .init-name{font-family:var(--ui); font-weight:700; font-size:.92rem; color:var(--text); overflow-wrap:anywhere}
+  .init-sub{font-family:var(--ui); font-size:.74rem; color:var(--muted)}
+  .init-value{flex:0 0 auto; min-width:2.2rem; text-align:center; font-family:var(--display); font-size:1.3rem; color:var(--gold2)}
+  .init-value.empty{color:var(--faint); font-size:1rem}
+  .init-controls{flex:0 0 auto; display:flex; align-items:center; gap:.3rem}
+  input.init-manual-input{width:3.6rem; padding:.3rem .4rem; font-size:.82rem; text-align:center}
+  @media (max-width:640px){
+    .init-controls{width:100%; justify-content:flex-end; margin-top:.3rem}
+  }
+
   /* modal */
   #modal{position:fixed; inset:0; background:rgba(0,0,0,.72); display:flex; align-items:center; justify-content:center; z-index:150; padding:1rem}
   #modal .modal-box{background:var(--panel2); border:1px solid var(--border2); border-radius:var(--radius);
@@ -724,7 +746,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], roadbook:[], hexmaps:[], spells:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], roadbook:[], hexmaps:[], spells:[], initiative:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -800,7 +822,7 @@ let readingMode = false; // "mode table de jeu" : masque les contrôles GM, agra
 
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route", hexmap:"Hexcrawl", spell:"Sort" };
 const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","roadbook","hexmaps","initiative"];
-const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook", hexmaps:"hexmap" };
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook", hexmaps:"hexmap", initiative:"initiative" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
@@ -829,7 +851,7 @@ function findByName(name){
   for(const sp of db.spells)      if((sp.name||"").toLowerCase()===n) return {type:"spell", id:sp.id};
   return null;
 }
-const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook", hexmap:"hexmaps", spell:"spells" };
+const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook", hexmap:"hexmaps", spell:"spells", initiative:"initiative" };
 
 /* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
 function renderText(text){
@@ -941,7 +963,7 @@ function backlinksTo(targetType, targetId){
 }
 
 /* ------------------------------- CRUD ------------------------------------ */
-function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, roadbook:db.roadbook, hexmap:db.hexmaps, spell:db.spells }[type]; }
+function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, roadbook:db.roadbook, hexmap:db.hexmaps, spell:db.spells, initiative:db.initiative }[type]; }
 function getEntity(type,id){ return collectionOf(type).find(o=>o.id===id); }
 function deleteEntity(type,id){
   const c = collectionOf(type); const i = c.findIndex(o=>o.id===id);
@@ -977,6 +999,7 @@ function maybePropagate(oldName, newName){
    RENDU PRINCIPAL
    ========================================================================= */
 function render(){
+  if(initiativePollTimer && view.tab!=="initiative") stopInitiativePolling();
   // onglets actifs
   document.body.setAttribute("data-tab", view.tab);
   document.body.classList.toggle("reading-mode", readingMode);
@@ -1003,10 +1026,193 @@ function renderList(){
   if(view.tab==="hexmaps")   return listHexmaps();
   if(view.tab==="initiative") return listInitiative();
 }
-/* Onglet réservé — pas encore d'entité/table dédiée, juste une coquille visible. */
+/* =========================================================================
+   INITIATIVE — timeline de combat en direct (MJ + joueurs)
+   Une seule table de combat active à la fois. Chaque participant référence un
+   PJ ou une créature existants (nom/portrait/PV/CA résolus en direct depuis
+   db.pcs/db.creatures, jamais dupliqués) ou porte un nom libre ("custom").
+   Synchro joueurs : polling léger (pas de Supabase Realtime pour cette v1 —
+   un combat n'a pas besoin d'une latence inférieure à quelques secondes).
+   ========================================================================= */
+let initiativePollTimer = null;
+function stopInitiativePolling(){ if(initiativePollTimer){ clearInterval(initiativePollTimer); initiativePollTimer=null; } }
+function startInitiativePolling(){
+  if(initiativePollTimer) return;
+  initiativePollTimer = setInterval(async ()=>{
+    if(view.tab!=="initiative"){ stopInitiativePolling(); return; }
+    if(document.activeElement && document.activeElement.matches && document.activeElement.matches("[data-init-manual-input]")) return; // ne pas écraser une saisie manuelle en cours
+    try{
+      const { data, error } = await sb.from("initiative").select("data");
+      if(error) return; // table pas encore créée côté Supabase, ou souci réseau — on retente au prochain tick
+      db.initiative = (data||[]).map(r=>r.data);
+      if(view.tab==="initiative") renderList();
+    }catch(e){ /* silencieux, on retente au prochain tick */ }
+  }, 4500);
+}
+
+function initiativeEntryInfo(entry){
+  if(entry.kind==="pc"){
+    const pc = db.pcs.find(p=>p.id===entry.refId);
+    if(!pc) return { name:"PJ supprimé", sub:"", image:"", grayscale:false, icon:"🛡", ac:"", hp:"" };
+    return {
+      name: pc.name || "Sans nom",
+      sub: [pc.ancestry, pc.cls].filter(Boolean).join(" · "),
+      image: pc.portrait ? `portraits/${pc.portrait}` : ((pc.images&&pc.images[0]) ? pc.images[0].data : ""),
+      grayscale: !!pc.portrait, icon:"🛡", ac: pc.ac, hp: pc.hpCurrent||pc.hp
+    };
+  }
+  if(entry.kind==="creature"){
+    const c = db.creatures.find(cr=>cr.id===entry.refId);
+    if(!c) return { name:"Créature supprimée", sub:"", image:"", grayscale:false, icon:"🐲", ac:"", hp:"" };
+    return {
+      name: c.name || "Sans nom", sub: c.category || "",
+      image: (c.images&&c.images[0]) ? c.images[0].data : "", grayscale:false,
+      icon:"🐲", ac: c.ac, hp: c.hp
+    };
+  }
+  return { name: entry.name || "Sans nom", sub:"", image:"", grayscale:false, icon:"⚔", ac:"", hp:"" };
+}
+
+function addInitiativeEntry(entry){
+  db.initiative.push(Object.assign({ id:uid(), initiative:null, manual:false }, entry));
+  saveDB(); renderList();
+}
+function addInitiativeFromPC(pcId){ addInitiativeEntry({ kind:"pc", refId:pcId }); }
+function addInitiativeFromCreature(creatureId){ addInitiativeEntry({ kind:"creature", refId:creatureId }); }
+function addInitiativeCustom(name){
+  const n = (name||"").trim();
+  if(!n) return;
+  addInitiativeEntry({ kind:"custom", name:n });
+}
+function computeInitiativeRoll(e){
+  let value = rollDice(1,20);
+  if(e.kind==="pc"){ const pc = db.pcs.find(p=>p.id===e.refId); if(pc) value += ABILITY_MOD(pc.dex); }
+  return value;
+}
+function rollInitiativeFor(id){
+  const e = db.initiative.find(x=>x.id===id); if(!e) return;
+  e.initiative = computeInitiativeRoll(e); e.manual = false;
+  saveDB(); renderList();
+}
+function rollInitiativeAll(){
+  let n = 0;
+  db.initiative.forEach(e=>{ if(!e.manual){ e.initiative = computeInitiativeRoll(e); n++; } });
+  saveDB(); renderList();
+  toast(n ? `Initiative lancée pour ${n} participant(s).` : "Rien à lancer — toutes les valeurs sont figées manuellement.");
+}
+function setInitiativeManual(id, raw){
+  const e = db.initiative.find(x=>x.id===id); if(!e) return;
+  const v = raw==="" ? null : parseInt(raw,10);
+  e.initiative = (v==null || isNaN(v)) ? null : v;
+  e.manual = e.initiative!=null;
+  saveDB();
+}
+function removeInitiativeEntry(id){ deleteEntity("initiative", id); renderList(); }
+function clearInitiative(){
+  confirmModal("Vider entièrement le suivi d'initiative ?", ()=>{
+    db.initiative.slice().forEach(e=>deleteEntity("initiative", e.id));
+    renderList(); toast("Combat vidé.");
+  });
+}
+
+function openInitiativeAddPCModal(){
+  const alreadyIds = new Set(db.initiative.filter(e=>e.kind==="pc").map(e=>e.refId));
+  const buildList = (filter="")=>{
+    const f = filter.toLowerCase();
+    const list = db.pcs.filter(p=>!alreadyIds.has(p.id) && (p.name||"").toLowerCase().includes(f));
+    return list.length
+      ? list.map(p=>`<div class="mli" data-pick-init-pc="${p.id}"><b>${esc(p.name||"Sans nom")}</b><div class="faint" style="font-size:.78rem">${esc([p.ancestry,p.cls].filter(Boolean).join(" · ")||"—")}</div></div>`).join("")
+      : `<p class="faint" style="font-family:var(--ui)">${db.pcs.length ? "Tous les PJ sont déjà dans le combat." : "Aucun PJ créé pour l'instant."}</p>`;
+  };
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 style="margin:0;color:var(--gold2)">Ajouter un PJ</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <input type="text" id="pick-search" placeholder="Rechercher un PJ…" style="margin-top:.7rem" autocomplete="off">
+    <div class="modal-list" id="pick-list">${buildList()}</div>`);
+  const inp = $("#pick-search"), listEl = $("#pick-list");
+  inp.addEventListener("input", ()=>{ listEl.innerHTML = buildList(inp.value); });
+  inp.focus();
+}
+function openInitiativeAddCreatureModal(){
+  const buildList = (filter="")=>{
+    const f = filter.toLowerCase();
+    const list = db.creatures.filter(c=>(c.name||"").toLowerCase().includes(f));
+    return list.length
+      ? list.map(c=>`<div class="mli" data-pick-init-creature="${c.id}"><b>${esc(c.name||"Sans nom")}</b><div class="faint" style="font-size:.78rem">${esc(c.category||"—")}</div></div>`).join("")
+      : `<p class="faint" style="font-family:var(--ui)">${db.creatures.length ? "Aucune créature trouvée." : "Aucune créature créée pour l'instant."}</p>`;
+  };
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 style="margin:0;color:var(--gold2)">Ajouter une créature</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <input type="text" id="pick-search" placeholder="Rechercher une créature…" style="margin-top:.7rem" autocomplete="off">
+    <div class="modal-list" id="pick-list">${buildList()}</div>
+    <p class="faint" style="font-family:var(--ui);font-size:.76rem;margin-top:.6rem">Astuce : réouvrez ce panneau pour ajouter plusieurs exemplaires (ex. 3 gobelins).</p>`);
+  const inp = $("#pick-search"), listEl = $("#pick-list");
+  inp.addEventListener("input", ()=>{ listEl.innerHTML = buildList(inp.value); });
+  inp.focus();
+}
+
 function listInitiative(){
-  app.innerHTML = `<div class="page-head"><div><h1>Initiative</h1><div class="sub">Suivi d'initiative — à venir</div></div></div>` +
-    emptyState("⚔","Cet onglet est réservé pour le futur suivi d'initiative en combat. Rien à voir pour l'instant.");
+  startInitiativePolling();
+  const items = db.initiative;
+  const pending = items.filter(e=>e.initiative==null);
+  const ranked = items.filter(e=>e.initiative!=null).sort((a,b)=>b.initiative-a.initiative);
+
+  const addBtns = myRole==="gm" ? `<button class="btn ghost sm" data-init-add-pc="1">+ PJ</button>
+    <button class="btn ghost sm" data-init-add-creature="1">+ Créature</button>
+    <button class="btn ghost sm" data-init-add-custom="1">+ Libre</button>
+    <button class="btn ghost sm" data-init-roll-all="1">🎲 Lancer l'initiative</button>
+    ${items.length ? `<button class="btn danger sm" data-init-clear="1">🗑 Vider le combat</button>` : ""}` : "";
+
+  const head = `<div class="page-head">
+    <div><h1>Initiative</h1><div class="sub">${items.length} participant(s)</div></div>
+    ${addBtns ? `<div class="hbtns">${addBtns}</div>` : ""}
+  </div>`;
+
+  if(!items.length){
+    app.innerHTML = head + emptyState("⚔", myRole==="gm" ? "Aucun combat en cours. Ajoutez des participants pour démarrer." : "Aucun combat en cours pour l'instant.");
+    return;
+  }
+
+  // Compte les occurrences dupliquées (ex. plusieurs gobelins) pour les distinguer à l'affichage.
+  const seen = new Map();
+  const suffixFor = (e)=>{
+    if(e.kind==="custom") return "";
+    const key = e.kind+":"+e.refId;
+    const total = items.filter(x=>x.kind===e.kind && x.refId===e.refId).length;
+    if(total<=1) return "";
+    const n = (seen.get(key)||0) + 1; seen.set(key, n);
+    return ` (${n})`;
+  };
+
+  const cardHTML = (e, rank)=>{
+    const info = initiativeEntryInfo(e);
+    const suffix = suffixFor(e);
+    const visual = info.image
+      ? `<img class="init-portrait${info.grayscale?' portrait-gray':''}" src="${esc(info.image)}" alt="">`
+      : `<div class="init-portrait init-portrait-fallback">${info.icon}</div>`;
+    const stats = [info.ac?`CA ${esc(info.ac)}`:"", info.hp?`PV ${esc(info.hp)}`:""].filter(Boolean).join(" · ");
+    const gmControls = myRole==="gm" ? `<button class="btn ghost sm" data-init-roll="${e.id}" title="Lancer 1d20${e.kind==='pc'?' + mod. DEX':''}">🎲</button>
+      <input type="number" class="init-manual-input" data-init-manual-input="${e.id}" value="${e.initiative==null?'':e.initiative}" placeholder="—" title="Valeur manuelle">
+      <button class="btn danger sm" data-init-remove="${e.id}" title="Retirer du combat">✕</button>` : "";
+    return `<div class="init-card">
+      <div class="init-rank">${rank!=null?rank:"—"}</div>
+      ${visual}
+      <div class="init-body">
+        <div class="init-name">${esc(info.name)}${suffix}</div>
+        ${(info.sub||stats) ? `<div class="init-sub">${[esc(info.sub),stats].filter(Boolean).join(" · ")}</div>` : ""}
+      </div>
+      <div class="init-value${e.initiative==null?' empty':''}">${e.initiative==null?"—":e.initiative}</div>
+      ${gmControls ? `<div class="init-controls">${gmControls}</div>` : ""}
+    </div>`;
+  };
+
+  const pendingHTML = pending.length ? `<div class="init-group-label">En attente de jet</div>
+    <div class="init-track">${pending.map(e=>cardHTML(e,null)).join("")}</div>` : "";
+  const rankedHTML = ranked.length ? `<div class="init-group-label">Ordre de passage</div>
+    <div class="init-track">${ranked.map((e,i)=>cardHTML(e,i+1)).join("")}</div>` : "";
+
+  app.innerHTML = head + pendingHTML + rankedHTML;
 }
 
 function pageHead(title, sub, newLabel, extra){
@@ -3553,7 +3759,7 @@ function exportJSON(){
   downloadBlob(blob, `grimoire-shadowdark-${new Date().toISOString().slice(0,10)}.json`);
   toast("Données exportées. Le fichier est téléchargé sur votre appareil, généralement dans votre dossier Téléchargements.");
 }
-const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","roadbook","hexmaps","spells"];
+const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","roadbook","hexmaps","spells","initiative"];
 function countItems(d){ return DB_COLS.reduce((n,c)=>n+((d[c]||[]).length),0); }
 function mergeDB(data){
   let added = 0;
@@ -3913,6 +4119,7 @@ app.addEventListener("change", e=>{
   else if(e.target.matches("[data-crea-sort]")){ creatureSort = e.target.value; renderList(); }
   else if(e.target.matches("[data-crea-filter]")){ creatureCatFilter = e.target.value; renderList(); }
   else if(e.target.matches("[data-table-filter]")){ tableCatFilter = e.target.value; renderList(); }
+  else if(e.target.matches("[data-init-manual-input]")){ setInitiativeManual(e.target.dataset.initManualInput, e.target.value); renderList(); }
   else if(e.target.matches("#f-kind")){
     const dyn = e.target.value==="dynamic";
     const srcWrap = document.getElementById("dynamic-source-wrap"), rowsSec = document.getElementById("rows-section");
@@ -4024,6 +4231,14 @@ app.addEventListener("click", e=>{
   if(t.id==="roll-add-session" && lastTableRoll){ addRollToCurrentSession(lastTableRoll); return; }
   // Table dynamique vide : lien direct vers l'onglet source (liste, pas une fiche précise)
   if((el=closest("data-goto-tab"))){ editReturnTo=null; view={tab:el.dataset.gotoTab, mode:"list", id:null}; render(); return; }
+  // Initiative
+  if(closest("data-init-add-pc")){ openInitiativeAddPCModal(); return; }
+  if(closest("data-init-add-creature")){ openInitiativeAddCreatureModal(); return; }
+  if(closest("data-init-add-custom")){ promptModal("Nom du participant :", "", name=>addInitiativeCustom(name)); return; }
+  if(closest("data-init-roll-all")){ rollInitiativeAll(); return; }
+  if(closest("data-init-clear")){ clearInitiative(); return; }
+  if((el=closest("data-init-roll"))){ rollInitiativeFor(el.dataset.initRoll); return; }
+  if((el=closest("data-init-remove"))){ removeInitiativeEntry(el.dataset.initRemove); return; }
 });
 
 function applyRowCount(){
@@ -4132,6 +4347,8 @@ $("#modal").addEventListener("click", e=>{
   if((el=e.target.closest("[data-remove-node]"))){ const c=getEntity("pointcrawl",crawlState.id); if(c) removeNode(c, el.dataset.removeNode); closeModal(); return; }
   if((el=e.target.closest("[data-pick-event]"))){ const c=getEntity("pointcrawl",crawlState.id); if(c) addNodeForEvent(c, el.dataset.pickEvent); closeModal(); return; }
   if(e.target.closest("[data-create-event-save]")){ const c=getEntity("pointcrawl",crawlState.id); if(c) createEventFromModal(c); return; }
+  if((el=e.target.closest("[data-pick-init-pc]"))){ addInitiativeFromPC(el.dataset.pickInitPc); closeModal(); return; }
+  if((el=e.target.closest("[data-pick-init-creature]"))){ addInitiativeFromCreature(el.dataset.pickInitCreature); closeModal(); return; }
 });
 
 /* =========================================================================
