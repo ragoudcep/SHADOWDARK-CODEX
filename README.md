@@ -2,7 +2,7 @@
 
 Application web (une seule page HTML) permettant de gérer une campagne de jeu de rôle **Shadowdark** : sessions, événements, tables aléatoires, point crawls, créatures, PJ, PNJ, trésors, sorts et hexcrawl.
 
-Live : https://ragoudcep.github.io/SHADOWDARK-CODEX/
+Live : https://ragoudcep.github.io/SHADOWDARK-CODEX/ 
 
 ## Aperçu
 
