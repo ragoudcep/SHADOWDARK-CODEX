@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Compresseur de portraits — Codex</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  body{background:#0c0c0d;color:#e8e4da;font-family:system-ui,sans-serif;max-width:920px;margin:2rem auto;padding:0 1rem}
+  h1{color:#d9b26a;font-size:1.4rem}
+  p{color:#b8b2a4;line-height:1.5}
+  code{background:#1c1c1e;padding:.1rem .35rem;border-radius:4px;color:#d9b26a}
+  #drop{border:2px dashed #444;border-radius:10px;padding:2.5rem 1rem;text-align:center;color:#888;cursor:pointer;margin:1rem 0}
+  #drop.over{border-color:#d9b26a;color:#d9b26a}
+  input[type=file]{display:none}
+  .row{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin:1rem 0}
+  label{font-size:.9rem;color:#b8b2a4}
+  input[type=number]{width:70px;background:#1c1c1e;border:1px solid #444;color:#e8e4da;border-radius:6px;padding:.3rem .5rem}
+  button{background:#d9b26a;color:#151513;border:none;border-radius:6px;padding:.6rem 1.1rem;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.4;cursor:default}
+  button.ghost{background:transparent;color:#d9b26a;border:1px solid #d9b26a}
+  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.6rem;margin-top:1rem}
+  .card{background:#1c1c1e;border-radius:8px;padding:.4rem;font-size:.72rem;text-align:center}
+  .card img{width:100%;aspect-ratio:63/88;object-fit:cover;border-radius:4px;filter:grayscale(1)}
+  .card .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.3rem;color:#e8e4da}
+  .card .size{color:#8ac68a}
+  .card .warn{color:#e0a05a}
+  #summary{margin:1rem 0;color:#b8b2a4;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>Compresseur de portraits — Codex</h1>
+<p>
+  Tout se passe dans ton navigateur, aucune installation. Dépose tes images
+  (déjà renommées <code>genre_race_numero.ext</code>, ex.
+  <code>homme_gobelin_01.png</code>), elles sont redimensionnées et
+  compressées en WebP directement ici. L'aperçu est affiché en niveaux de
+  gris juste pour prévisualiser le rendu dans l'appli — les fichiers
+  téléchargés restent en couleur d'origine.
+</p>
+
+<div class="row">
+  <label>Hauteur max (px) <input type="number" id="maxh" value="440"></label>
+  <label>Taille cible (Ko) <input type="number" id="targetkb" value="15"></label>
+</div>
+
+<div id="drop">Dépose tes images ici, ou clique pour choisir un dossier/des fichiers</div>
+<input type="file" id="filein" multiple accept="image/*">
+
+<div id="summary"></div>
+<button id="dl" disabled>⭳ Télécharger le pack (.zip)</button>
+<div id="grid"></div>
+
+<script>
+const dropEl = document.getElementById('drop');
+const fileIn = document.getElementById('filein');
+const grid = document.getElementById('grid');
+const summary = document.getElementById('summary');
+const dlBtn = document.getElementById('dl');
+const NAME_RE = /^([a-z]+)_([a-z\-]+)_(\d+)$/i;
+
+let results = []; // {name, blob, genre, race, numero, unmatched}
+
+dropEl.addEventListener('click', ()=> fileIn.click());
+dropEl.addEventListener('dragover', e=>{ e.preventDefault(); dropEl.classList.add('over'); });
+dropEl.addEventListener('dragleave', ()=> dropEl.classList.remove('over'));
+dropEl.addEventListener('drop', e=>{
+  e.preventDefault(); dropEl.classList.remove('over');
+  handleFiles([...e.dataTransfer.files].filter(f=>f.type.startsWith('image/')));
+});
+fileIn.addEventListener('change', ()=> handleFiles([...fileIn.files]));
+
+async function handleFiles(files){
+  if(!files.length) return;
+  grid.innerHTML = ''; results = [];
+  summary.textContent = `Traitement de ${files.length} image(s)...`;
+  const maxH = parseInt(document.getElementById('maxh').value) || 440;
+  const targetKB = parseInt(document.getElementById('targetkb').value) || 15;
+
+  let totalBefore = 0, totalAfter = 0, unmatchedCount = 0;
+
+  for(const file of files){
+    const stem = file.name.replace(/\.[^.]+$/, '');
+    const m = stem.match(NAME_RE);
+    const img = await loadImage(file);
+    const { blob, quality } = await compressToTarget(img, maxH, targetKB);
+    const outName = stem + '.webp';
+
+    totalBefore += file.size;
+    totalAfter += blob.size;
+    if(!m) unmatchedCount++;
+
+    results.push({
+      name: outName, blob,
+      genre: m ? m[1].toLowerCase() : undefined,
+      race: m ? m[2].toLowerCase() : undefined,
+      numero: m ? m[3] : undefined,
+    });
+
+    const url = URL.createObjectURL(blob);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<img src="${url}"><div class="name">${outName}</div>
+      <div class="size">${(file.size/1024).toFixed(0)} Ko → ${(blob.size/1024).toFixed(1)} Ko</div>
+      ${m ? '' : '<div class="warn">nom non conforme</div>'}`;
+    grid.appendChild(card);
+  }
+
+  summary.innerHTML = `${results.length} portrait(s) traité(s). Taille totale : ${(totalBefore/1024).toFixed(0)} Ko → ${(totalAfter/1024).toFixed(0)} Ko.` +
+    (unmatchedCount ? `<br><span style="color:#e0a05a">⚠️ ${unmatchedCount} fichier(s) ne suivent pas la convention genre_race_numero — ils seront quand même dans le pack, mais sans genre/race dans le manifest.</span>` : '');
+  dlBtn.disabled = results.length === 0;
+}
+
+function loadImage(file){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=> resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function drawResized(img, maxH){
+  const scale = img.height > maxH ? maxH / img.height : 1;
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas;
+}
+
+function canvasToBlob(canvas, quality){
+  return new Promise(resolve=> canvas.toBlob(resolve, 'image/webp', quality));
+}
+
+async function compressToTarget(img, maxH, targetKB){
+  const canvas = drawResized(img, maxH);
+  const targetBytes = targetKB * 1024;
+  let quality = 0.82, blob = null;
+  while(quality >= 0.35){
+    blob = await canvasToBlob(canvas, quality);
+    if(blob.size <= targetBytes) break;
+    quality -= 0.07;
+  }
+  return { blob, quality };
+}
+
+dlBtn.addEventListener('click', async ()=>{
+  dlBtn.disabled = true; dlBtn.textContent = '⏳ Génération du zip...';
+  const zip = new JSZip();
+  const manifest = [];
+  for(const r of results){
+    zip.file(r.name, r.blob);
+    const entry = { file: r.name };
+    if(r.genre){ entry.genre = r.genre; entry.race = r.race; entry.numero = r.numero; }
+    manifest.push(entry);
+  }
+  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+  const content = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = 'portraits.zip';
+  a.click();
+  dlBtn.disabled = false; dlBtn.textContent = '⭳ Télécharger le pack (.zip)';
+});
+</script>
+</body>
+</html>
