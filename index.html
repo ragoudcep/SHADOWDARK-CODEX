@@ -423,21 +423,44 @@
   @keyframes wheel-burst{ 0%{opacity:0; transform:translate(-50%,-50%) scale(.2)} 40%{opacity:.9} 100%{opacity:0; transform:translate(-50%,-50%) scale(2.4)} }
   .gift-box.open::after{content:""; position:absolute; left:50%; top:20%; width:40px; height:40px; border-radius:50%;
     background:radial-gradient(circle,rgba(224,185,104,.9),transparent 70%); animation:wheel-burst .6s ease-out forwards}
-  .wheel-reward-banner{display:flex; flex-direction:column; align-items:center; gap:.6rem; opacity:0; transform:translateY(8px) scale(.94);
+  .wheel-reward-banner{display:flex; flex-direction:column; align-items:center; gap:.9rem; opacity:0; transform:translateY(8px) scale(.94);
     transition:opacity .5s ease, transform .5s cubic-bezier(.34,1.56,.64,1)}
   .wheel-reward-banner.show{opacity:1; transform:translateY(0) scale(1)}
-  .wheel-reward-happy{font-family:var(--display); font-size:2.1rem; font-weight:400; letter-spacing:.5px;
-    background:linear-gradient(180deg,var(--gold2),var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent;
-    text-shadow:0 0 22px rgba(193,145,63,.4)}
-  .wheel-reward-prize{font-family:var(--ui); font-size:1.05rem; color:var(--text); max-width:360px;
-    background:var(--panel2); border:1px solid var(--border2); border-radius:var(--radius); padding:.7rem 1.1rem}
+  /* "Joyeux anniversaire" = point focal de l'écran de révélation, largement plus gros que le bonus gagné */
+  .wheel-reward-happy{position:relative; font-family:var(--display); font-size:4.4rem; font-weight:400; letter-spacing:1px;
+    line-height:1.05; background:linear-gradient(180deg,var(--gold2),var(--gold)); -webkit-background-clip:text; background-clip:text;
+    color:transparent; text-shadow:0 0 30px rgba(224,185,104,.5); animation:none}
+  .wheel-reward-banner.show .wheel-reward-happy{
+    animation:wheel-happy-pop .7s cubic-bezier(.34,1.7,.4,1) both, wheel-happy-glow 1.7s ease-in-out .7s infinite}
+  .wheel-reward-happy::after{content:""; position:absolute; left:50%; top:50%; width:150%; height:320%; z-index:-1;
+    transform:translate(-50%,-50%) scale(.3); border-radius:50%;
+    background:radial-gradient(circle,rgba(224,185,104,.55),transparent 65%); opacity:0}
+  .wheel-reward-banner.show .wheel-reward-happy::after{animation:wheel-happy-flash .9s ease-out .05s both}
+  @keyframes wheel-happy-pop{
+    0%{transform:scale(.25) rotate(-6deg); opacity:0}
+    55%{transform:scale(1.2) rotate(2deg); opacity:1}
+    75%{transform:scale(.93) rotate(-1deg)}
+    100%{transform:scale(1) rotate(0)}
+  }
+  @keyframes wheel-happy-glow{
+    0%,100%{filter:drop-shadow(0 0 16px rgba(224,185,104,.5))}
+    50%{filter:drop-shadow(0 0 34px rgba(224,185,104,.9))}
+  }
+  @keyframes wheel-happy-flash{
+    0%{opacity:0; transform:translate(-50%,-50%) scale(.2)}
+    35%{opacity:.9}
+    100%{opacity:0; transform:translate(-50%,-50%) scale(1.6)}
+  }
+  /* le bonus gagné passe au second plan, discret sous le gros titre */
+  .wheel-reward-prize{font-family:var(--ui); font-size:.92rem; color:var(--muted); max-width:340px;
+    background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:.55rem .9rem}
   .confetti-layer{position:absolute; inset:-10% -5% auto -5%; height:0; pointer-events:none}
   .confetti-piece{position:absolute; top:-5vh; width:8px; height:14px; opacity:0; animation:wheel-confetti-fall linear forwards}
   @keyframes wheel-confetti-fall{
     0%{opacity:1; transform:translateY(0) rotate(0deg)}
     100%{opacity:0; transform:translateY(100vh) rotate(540deg)}
   }
-  @media (max-width:640px){ .wheel-reward-happy{font-size:1.6rem} }
+  @media (max-width:640px){ .wheel-reward-happy{font-size:2.7rem} }
 
   /* autocomplétion des liens [[…]] */
   #ac-pop{position:fixed; z-index:300; background:var(--panel2); border:2px solid var(--gold); border-radius:8px;
@@ -1416,6 +1439,61 @@ function stopWheelTensionSound(){
   wheelAudioActive = null;
 }
 
+/* Habillage du texte des secteurs : les bonus formulés en plusieurs mots (fréquent en
+   Shadowdark — "Un droit de plume au sceau sacré", "104 points d'expérience"…) débordaient
+   largement d'un simple texte radial sur une ligne, en particulier avec beaucoup de secteurs.
+   On enveloppe donc le texte sur plusieurs lignes tangentielles, chacune contrainte à la corde
+   réellement disponible à son rayon (2·r·sin(angle/2)) — la corde s'élargit avec le rayon, donc
+   les lignes extérieures ont naturellement plus de place que les lignes proches du centre. Une
+   seule taille de police est choisie pour l'ensemble de la roue (le pire des secteurs doit tenir),
+   pour un rendu homogène. */
+const WHEEL_CHAR_W = 0.6;     // largeur moyenne d'un caractère, en fraction de la taille de police (police --ui, semi-gras)
+const WHEEL_MAX_LINES = 4;
+function wheelLineBudget(lineIdx, fontSize, anglePerRad, r){
+  const rr = r*0.40 + lineIdx*fontSize*1.15;
+  const chord = 2*rr*Math.sin(anglePerRad/2);
+  return Math.max(chord*0.8, fontSize*1.4);
+}
+function wheelTextWidth(text, fontSize){ return text.length*WHEEL_CHAR_W*fontSize; }
+function truncateWheelText(text, budget, fontSize){
+  const maxChars = Math.max(1, Math.floor(budget/(WHEEL_CHAR_W*fontSize)));
+  return text.length<=maxChars ? text : text.slice(0, Math.max(1,maxChars-1))+"…";
+}
+/* Répartition gloutonne des mots sur des lignes de largeur croissante (une par rayon).
+   Retourne overflow:true si le texte ne tient pas dans WHEEL_MAX_LINES à cette taille de police,
+   auquel cas on tronque la dernière ligne autorisée plutôt que de laisser déborder sur le secteur voisin. */
+function wrapWheelLabel(text, fontSize, anglePerRad, r){
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = "";
+  let li = 0;
+  for(const word of words){
+    const test = cur ? cur+" "+word : word;
+    if(!cur || wheelTextWidth(test, fontSize) <= wheelLineBudget(li, fontSize, anglePerRad, r)){
+      cur = test;
+    } else {
+      lines.push(cur);
+      li++;
+      if(li >= WHEEL_MAX_LINES){
+        const budget = wheelLineBudget(li-1, fontSize, anglePerRad, r);
+        lines[lines.length-1] = truncateWheelText(lines[lines.length-1]+" "+word, budget, fontSize);
+        return { lines, overflow:true };
+      }
+      cur = word;
+    }
+  }
+  if(cur) lines.push(cur);
+  return { lines, overflow:false };
+}
+function fitWheelFontSize(segments, anglePerRad, r){
+  const candidates = [16,15,14,13,12,11,10,9,8,7];
+  for(const fs of candidates){
+    const fits = segments.every(seg => !wrapWheelLabel(seg, fs, anglePerRad, r).overflow);
+    if(fits) return fs;
+  }
+  return 7; // dernier recours : la plus petite taille, quitte à tronquer la dernière ligne de certains secteurs
+}
+
 /* Secteurs = camembert SVG généré en JS (pas de dépendance). Convention d'angle :
    0° = est (droite), sens horaire — le secteur 0 démarre à -90° (haut du cadre),
    là où se trouve le pointeur fixe. */
@@ -1423,17 +1501,20 @@ function buildWheelSVG(segments){
   const n = segments.length;
   const cx=150, cy=150, r=140;
   const anglePer = 360/n;
+  const anglePerRad = anglePer*Math.PI/180;
   const pt = (angleDeg, radius)=>{ const a=angleDeg*Math.PI/180; return { x: cx+radius*Math.cos(a), y: cy+radius*Math.sin(a) }; };
-  const fontSize = Math.max(9, Math.min(15, 15 - Math.max(0,n-6)*0.6));
+  const fontSize = fitWheelFontSize(segments, anglePerRad, r);
   const parts = segments.map((seg,i)=>{
     const start = -90 + i*anglePer, end = start + anglePer, mid = start + anglePer/2;
     const p1 = pt(start,r), p2 = pt(end,r);
     const largeArc = anglePer>180 ? 1 : 0;
     const color = WHEEL_PALETTE[i % WHEEL_PALETTE.length];
-    const tp = pt(mid, r*0.62);
-    const label = esc(seg.length>28 ? seg.slice(0,27)+"…" : seg);
-    return `<path d="M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z" style="fill:${color}"></path>
-      <text x="${tp.x.toFixed(2)}" y="${tp.y.toFixed(2)}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${(mid+90).toFixed(2)} ${tp.x.toFixed(2)} ${tp.y.toFixed(2)})">${label}</text>`;
+    const { lines } = wrapWheelLabel(seg, fontSize, anglePerRad, r);
+    const textParts = lines.map((line,li)=>{
+      const tp = pt(mid, r*0.40 + li*fontSize*1.15);
+      return `<text x="${tp.x.toFixed(2)}" y="${tp.y.toFixed(2)}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${(mid+90).toFixed(2)} ${tp.x.toFixed(2)} ${tp.y.toFixed(2)})">${esc(line)}</text>`;
+    }).join("");
+    return `<path d="M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z" style="fill:${color}"></path>${textParts}`;
   }).join("");
   return `<svg class="wheel-rotor" id="wheel-rotor" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">${parts}</svg>`;
 }
