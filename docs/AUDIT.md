@@ -113,6 +113,36 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   lecture seule que `hexmaps`/`spells`) — à exécuter par Tristan dans
   l'éditeur SQL Supabase, à confirmer et à reporter dans le ledger ci-dessous
   une fois fait.
+- **Onglet « Roue » (implémenté le 6/08/2026)** : roue de la fortune (bonus à
+  gagner), présente dans les 6 emplacements du ledger de collections (`TABS`,
+  `DB_COLS`, `TAB_OF`, `TYPE_OF_TAB`, `collectionOf`, `emptyDB`) sous la clé
+  `wheel`. Contrairement aux autres collections, `db.wheel` ne contient en
+  pratique **qu'un seul enregistrement** (la liste des bonus texte définie par
+  le MJ, éditée via une modale — pas de page detail/edit générique). **Aucun
+  état de tirage partagé** : chaque client tire localement
+  (`Math.random()`, uniforme) au clic sur « Tourner la roue » — décision
+  volontaire pour rester simple (pas de synchro temps réel à gérer, pas de
+  conflit si plusieurs joueurs tournent en même temps). Roue en SVG généré en
+  JS (camembert calculé par trigonométrie, pas de dépendance), rotation
+  CSS (`transition` sur `.wheel-rotor`, durée `WHEEL_SPIN_MS` = 5400ms côté
+  JS — les deux doivent rester synchronisées si l'une des deux change). Son de
+  tension pendant le tirage en **Web Audio API pure** (bruit blanc filtré +
+  cliquets à intervalle géométrique croissant, aucun fichier audio externe),
+  démarré/arrêté par `startWheelTensionSound()`/`stopWheelTensionSound()` —
+  coupé proprement à la fin du tirage, en cas de changement d'onglet
+  (nettoyage dans `render()`, même schéma que `stopInitiativePolling()`), ou
+  si le joueur relance un tirage. Easter egg à la révélation : boîte cadeau
+  animée + confettis + bannière « Joyeux anniversaire », en pur CSS/JS
+  (`showWheelReward()`), overlay `#wheel-reward` indépendant de `#modal`.
+  **Table Supabase à créer** : script fourni dans
+  `outils/supabase_wheel_setup.sql` (même modèle GM CRUD / joueur lecture
+  seule que `hexmaps`/`spells`/`initiative`) — à exécuter par Tristan dans
+  l'éditeur SQL Supabase, à confirmer et à reporter dans le ledger ci-dessous
+  une fois fait. **Non vérifié visuellement/à l'oreille** : le rendu de la
+  roue, le calage de l'animation et le son n'ont pas pu être confirmés en
+  direct dans un navigateur pendant l'implémentation (pas de panneau
+  navigateur composé de frames disponible dans cette session) — à confirmer
+  par toi après déploiement.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
@@ -148,6 +178,7 @@ tables existent, mais ne peut pas le garantir).
 | spells | ✅ | ✅ | ✅ | confirmé (corrigé après une 1ère erreur `42P01`) |
 | roadbook | ⚠️ | ⚠️ | ⚠️ | **à confirmer** — voir Constats ci-dessous |
 | initiative | ⏳ | ⏳ | ⏳ | script fourni (`outils/supabase_initiative_setup.sql`), **à exécuter par toi** |
+| wheel | ⏳ | ⏳ | ⏳ | script fourni (`outils/supabase_wheel_setup.sql`), **à exécuter par toi** |
 
 ## Journal des audits
 
