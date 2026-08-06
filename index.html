@@ -1500,7 +1500,6 @@ function playWheelFanfare(){
 const WHEEL_CHAR_W = 0.6;     // largeur moyenne d'un caractère, en fraction de la taille de police (police --ui, semi-gras)
 const WHEEL_MAX_LINES = 4;
 const WHEEL_LABEL_BASE_R = 0.52; // fraction du rayon où démarre la 1ère ligne — plus haut/loin du centre que l'ancien 0.40
-const WHEEL_LABEL_DAMPING = 0.55; // atténue l'inclinaison du texte (1 = suit le rayon exactement, illisible près de 3h/9h)
 function wheelLineRadius(lineIdx, fontSize, r){ return r*WHEEL_LABEL_BASE_R + lineIdx*fontSize*1.15; }
 function wheelLineBudget(lineIdx, fontSize, anglePerRad, r){
   const rr = wheelLineRadius(lineIdx, fontSize, r);
@@ -1563,14 +1562,11 @@ function buildWheelSVG(segments){
     const largeArc = anglePer>180 ? 1 : 0;
     const color = WHEEL_PALETTE[i % WHEEL_PALETTE.length];
     const { lines } = wrapWheelLabel(seg, fontSize, anglePerRad, r);
-    // Texte tangentiel (aligné sur la tangente au rayon, mid+90°), avec deux garde-fous :
-    // 1) normalisation dans [-90°,90°] pour ne JAMAIS afficher de texte à l'envers (180°) ;
-    // 2) atténuation (WHEEL_LABEL_DAMPING) de l'inclinaison — sans ça, les secteurs proches
-    //    de 3h/9h se retrouvent inclinés à ±90° (quasi vertical, illisible même si "à l'endroit").
-    let n = ((mid + 90) % 360 + 360) % 360; // 0..360
-    if(n > 180) n -= 360;                    // -180..180
-    if(n > 90) n -= 180; else if(n < -90) n += 180; // -90..90, jamais à l'envers
-    const textRot = n * WHEEL_LABEL_DAMPING;
+    // Texte tangentiel fixe (aligné sur la tangente au rayon, mid+90°) — comme peint sur une
+    // vraie roue de fête foraine : orientation propre à chaque secteur, ne se réajuste jamais
+    // pour "rester lisible" une fois la roue tournée. Si un secteur atterrit en bas après un
+    // tirage, son texte est à l'envers à ce moment-là, et c'est normal — voulu par Tristan.
+    const textRot = mid + 90;
     const textParts = lines.map((line,li)=>{
       const tp = pt(mid, wheelLineRadius(li, fontSize, r));
       return `<text x="${tp.x.toFixed(2)}" y="${tp.y.toFixed(2)}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${textRot.toFixed(2)} ${tp.x.toFixed(2)} ${tp.y.toFixed(2)})">${esc(line)}</text>`;
