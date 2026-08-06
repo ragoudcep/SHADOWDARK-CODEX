@@ -1556,9 +1556,16 @@ function buildWheelSVG(segments){
     const largeArc = anglePer>180 ? 1 : 0;
     const color = WHEEL_PALETTE[i % WHEEL_PALETTE.length];
     const { lines } = wrapWheelLabel(seg, fontSize, anglePerRad, r);
+    // Texte tangentiel : on aligne la ligne sur la tangente au rayon (mid+90°). Sur la moitié
+    // basse de la roue (angle normalisé entre 90° et 270°), cette rotation retournerait le texte
+    // à l'envers (illisible) — on rajoute 180° pour le remettre à l'endroit, toujours sur la même
+    // ligne tangentielle, juste lu dans l'autre sens.
+    let textRot = mid + 90;
+    const normRot = ((textRot % 360) + 360) % 360;
+    if(normRot > 90 && normRot < 270) textRot += 180;
     const textParts = lines.map((line,li)=>{
       const tp = pt(mid, r*0.40 + li*fontSize*1.15);
-      return `<text x="${tp.x.toFixed(2)}" y="${tp.y.toFixed(2)}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${(mid+90).toFixed(2)} ${tp.x.toFixed(2)} ${tp.y.toFixed(2)})">${esc(line)}</text>`;
+      return `<text x="${tp.x.toFixed(2)}" y="${tp.y.toFixed(2)}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${textRot.toFixed(2)} ${tp.x.toFixed(2)} ${tp.y.toFixed(2)})">${esc(line)}</text>`;
     }).join("");
     return `<path d="M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z" style="fill:${color}"></path>${textParts}`;
   }).join("");
