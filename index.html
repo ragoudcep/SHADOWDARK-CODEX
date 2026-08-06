@@ -1511,30 +1511,36 @@ function truncateWheelText(text, budget, fontSize){
   const maxChars = Math.max(1, Math.floor(budget/(WHEEL_CHAR_W*fontSize)));
   return text.length<=maxChars ? text : text.slice(0, Math.max(1,maxChars-1))+"…";
 }
-/* Répartition gloutonne des mots sur des lignes de largeur croissante (une par rayon).
+/* Répartition gloutonne des mots sur des lignes de largeur croissante (une par rayon, li=0 = la
+   plus proche du centre). Construite à partir de la FIN du texte : la ligne 0 (centre) reçoit les
+   derniers mots, la dernière ligne (bord) reçoit les premiers — pour qu'une lecture du bord vers
+   le centre restitue l'ordre naturel du texte (ex. "1d4 point d'XP" et non "d'XP point 1d4").
    Retourne overflow:true si le texte ne tient pas dans WHEEL_MAX_LINES à cette taille de police,
-   auquel cas on tronque la dernière ligne autorisée plutôt que de laisser déborder sur le secteur voisin. */
+   auquel cas on tronque la ligne la plus externe plutôt que de laisser déborder sur le secteur voisin. */
 function wrapWheelLabel(text, fontSize, anglePerRad, r){
   const words = text.split(/\s+/).filter(Boolean);
-  const lines = [];
-  let cur = "";
+  const revWords = [...words].reverse();
+  const chunkWords = []; // chunkWords[0] = mots de fin de texte (ligne la plus proche du centre)
+  let cur = [];
   let li = 0;
-  for(const word of words){
-    const test = cur ? cur+" "+word : word;
-    if(!cur || wheelTextWidth(test, fontSize) <= wheelLineBudget(li, fontSize, anglePerRad, r)){
+  for(const word of revWords){
+    const test = [word, ...cur]; // remet l'ordre normal des mots à l'intérieur de la ligne
+    if(!cur.length || wheelTextWidth(test.join(" "), fontSize) <= wheelLineBudget(li, fontSize, anglePerRad, r)){
       cur = test;
     } else {
-      lines.push(cur);
+      chunkWords.push(cur);
       li++;
       if(li >= WHEEL_MAX_LINES){
         const budget = wheelLineBudget(li-1, fontSize, anglePerRad, r);
-        lines[lines.length-1] = truncateWheelText(lines[lines.length-1]+" "+word, budget, fontSize);
-        return { lines, overflow:true };
+        const combined = [...chunkWords[chunkWords.length-1], word].join(" ");
+        chunkWords[chunkWords.length-1] = [truncateWheelText(combined, budget, fontSize)];
+        return { lines: chunkWords.map(c=>c.join(" ")), overflow:true };
       }
-      cur = word;
+      cur = [word];
     }
   }
-  if(cur) lines.push(cur);
+  if(cur.length) chunkWords.push(cur);
+  const lines = chunkWords.map(c=>c.join(" "));
   return { lines, overflow:false };
 }
 function fitWheelFontSize(segments, anglePerRad, r){
