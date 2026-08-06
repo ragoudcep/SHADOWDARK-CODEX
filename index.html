@@ -793,6 +793,24 @@ async function saveDB(){
   }
 }
 
+/* Sauvegarde dédiée à la table "initiative", volontairement à part de saveDB().
+   saveDB() parcourt DB_COLS et abandonne dès la première collection en échec (throw) —
+   or "pcs" est traité avant "initiative" dans cette liste : un enregistrement à problème
+   n'importe où dans db.pcs bloquait alors silencieusement toute sauvegarde du suivi
+   d'initiative pour le reste de la session (la carte semblait s'ajouter puis disparaissait
+   au tick de polling suivant, qui re-récupérait l'état distant jamais réellement mis à jour). */
+async function saveInitiative(){
+  try{
+    if(!db.initiative.length) return;
+    const rows = db.initiative.map(o=>({ id:o.id, data:o, updated_at:new Date().toISOString() }));
+    const { error } = await sb.from("initiative").upsert(rows);
+    if(error) throw error;
+  }catch(e){
+    console.error(e);
+    toast("Connexion à la base de données impossible : le suivi d'initiative n'a peut-être pas été synchronisé.");
+  }
+}
+
 async function deleteRemote(col, id){
   try{ const { error } = await sb.from(col).delete().eq("id", id); if(error) throw error; }
   catch(e){ console.error(e); toast("Erreur de synchronisation lors de la suppression."); }
@@ -1076,7 +1094,7 @@ function initiativeEntryInfo(entry){
   const live = entry.kind==="pc" ? db.pcs.find(p=>p.id===entry.refId) : db.creatures.find(c=>c.id===entry.refId);
   // Migration silencieuse des entrées créées avant l'introduction du snapshot (le MJ a toujours
   // la lecture complète, donc c'est le rôle le plus sûr pour combler rétroactivement le snapshot manquant).
-  if(myRole==="gm" && !entry.name && live){ Object.assign(entry, initiativeSnapshot(entry.kind, live)); saveDB(); }
+  if(myRole==="gm" && !entry.name && live){ Object.assign(entry, initiativeSnapshot(entry.kind, live)); saveInitiative(); }
   const name = entry.name || (live && live.name) || (entry.kind==="pc" ? "PJ supprimé" : "Créature supprimée");
   const image = entry.image || "";
   const grayscale = !!entry.grayscale;
@@ -1088,7 +1106,7 @@ function initiativeEntryInfo(entry){
 
 function addInitiativeEntry(entry){
   db.initiative.push(Object.assign({ id:uid(), initiative:null, manual:false }, entry));
-  saveDB(); renderList();
+  saveInitiative(); renderList();
 }
 function addInitiativeFromPC(pcId){
   const pc = db.pcs.find(p=>p.id===pcId); if(!pc) return;
@@ -1111,12 +1129,12 @@ function computeInitiativeRoll(e){
 function rollInitiativeFor(id){
   const e = db.initiative.find(x=>x.id===id); if(!e) return;
   e.initiative = computeInitiativeRoll(e); e.manual = false;
-  saveDB(); renderList();
+  saveInitiative(); renderList();
 }
 function rollInitiativeAll(){
   let n = 0;
   db.initiative.forEach(e=>{ if(!e.manual){ e.initiative = computeInitiativeRoll(e); n++; } });
-  saveDB(); renderList();
+  saveInitiative(); renderList();
   toast(n ? `Initiative lancée pour ${n} participant(s).` : "Rien à lancer — toutes les valeurs sont figées manuellement.");
 }
 function setInitiativeManual(id, raw){
@@ -1124,7 +1142,7 @@ function setInitiativeManual(id, raw){
   const v = raw==="" ? null : parseInt(raw,10);
   e.initiative = (v==null || isNaN(v)) ? null : v;
   e.manual = e.initiative!=null;
-  saveDB();
+  saveInitiative();
 }
 function removeInitiativeEntry(id){ deleteEntity("initiative", id); renderList(); }
 function clearInitiative(){
