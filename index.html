@@ -1050,35 +1050,54 @@ function startInitiativePolling(){
   }, 4500);
 }
 
+/* Nom/visuel figés au moment de l'ajout au combat — jamais un lookup live pour l'identité.
+   Nécessaire car les joueurs n'ont pas de lecture RLS sur "creatures" (pour ne pas leur
+   spoiler les stats des monstres) : un lookup live échouerait silencieusement côté joueur
+   et affichait à tort "Créature supprimée". Les stats (CA/PV/sous-titre) restent en direct
+   dans initiativeEntryInfo() et n'apparaissent donc que pour un rôle qui peut les lire. */
+function initiativeSnapshot(kind, entity){
+  if(kind==="pc"){
+    return {
+      name: entity.name || "Sans nom",
+      image: entity.portrait ? `portraits/${entity.portrait}` : ((entity.images&&entity.images[0]) ? entity.images[0].data : ""),
+      grayscale: !!entity.portrait
+    };
+  }
+  return {
+    name: entity.name || "Sans nom",
+    image: (entity.images&&entity.images[0]) ? entity.images[0].data : "",
+    grayscale: false
+  };
+}
+
 function initiativeEntryInfo(entry){
-  if(entry.kind==="pc"){
-    const pc = db.pcs.find(p=>p.id===entry.refId);
-    if(!pc) return { name:"PJ supprimé", sub:"", image:"", grayscale:false, icon:"🛡", ac:"", hp:"" };
-    return {
-      name: pc.name || "Sans nom",
-      sub: [pc.ancestry, pc.cls].filter(Boolean).join(" · "),
-      image: pc.portrait ? `portraits/${pc.portrait}` : ((pc.images&&pc.images[0]) ? pc.images[0].data : ""),
-      grayscale: !!pc.portrait, icon:"🛡", ac: pc.ac, hp: pc.hpCurrent||pc.hp
-    };
-  }
-  if(entry.kind==="creature"){
-    const c = db.creatures.find(cr=>cr.id===entry.refId);
-    if(!c) return { name:"Créature supprimée", sub:"", image:"", grayscale:false, icon:"🐲", ac:"", hp:"" };
-    return {
-      name: c.name || "Sans nom", sub: c.category || "",
-      image: (c.images&&c.images[0]) ? c.images[0].data : "", grayscale:false,
-      icon:"🐲", ac: c.ac, hp: c.hp
-    };
-  }
-  return { name: entry.name || "Sans nom", sub:"", image:"", grayscale:false, icon:"⚔", ac:"", hp:"" };
+  if(entry.kind==="custom") return { name: entry.name || "Sans nom", sub:"", image:"", grayscale:false, icon:"⚔", ac:"", hp:"" };
+  const icon = entry.kind==="pc" ? "🛡" : "🐲";
+  const live = entry.kind==="pc" ? db.pcs.find(p=>p.id===entry.refId) : db.creatures.find(c=>c.id===entry.refId);
+  // Migration silencieuse des entrées créées avant l'introduction du snapshot (le MJ a toujours
+  // la lecture complète, donc c'est le rôle le plus sûr pour combler rétroactivement le snapshot manquant).
+  if(myRole==="gm" && !entry.name && live){ Object.assign(entry, initiativeSnapshot(entry.kind, live)); saveDB(); }
+  const name = entry.name || (live && live.name) || (entry.kind==="pc" ? "PJ supprimé" : "Créature supprimée");
+  const image = entry.image || "";
+  const grayscale = !!entry.grayscale;
+  if(!live) return { name, sub:"", image, grayscale, icon, ac:"", hp:"" };
+  const sub = entry.kind==="pc" ? [live.ancestry, live.cls].filter(Boolean).join(" · ") : (live.category || "");
+  const ac = live.ac, hp = entry.kind==="pc" ? (live.hpCurrent||live.hp) : live.hp;
+  return { name, sub, image, grayscale, icon, ac, hp };
 }
 
 function addInitiativeEntry(entry){
   db.initiative.push(Object.assign({ id:uid(), initiative:null, manual:false }, entry));
   saveDB(); renderList();
 }
-function addInitiativeFromPC(pcId){ addInitiativeEntry({ kind:"pc", refId:pcId }); }
-function addInitiativeFromCreature(creatureId){ addInitiativeEntry({ kind:"creature", refId:creatureId }); }
+function addInitiativeFromPC(pcId){
+  const pc = db.pcs.find(p=>p.id===pcId); if(!pc) return;
+  addInitiativeEntry(Object.assign({ kind:"pc", refId:pcId }, initiativeSnapshot("pc", pc)));
+}
+function addInitiativeFromCreature(creatureId){
+  const c = db.creatures.find(cr=>cr.id===creatureId); if(!c) return;
+  addInitiativeEntry(Object.assign({ kind:"creature", refId:creatureId }, initiativeSnapshot("creature", c)));
+}
 function addInitiativeCustom(name){
   const n = (name||"").trim();
   if(!n) return;
