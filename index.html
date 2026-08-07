@@ -1826,10 +1826,33 @@ function openWheelEditModal(){
         <option value="chest" ${mode==="chest"?"selected":""}>🗝️ Coffre mystérieux — « Vous avez trouvé… »</option>
       </select>
     </div>
+    <div class="field" style="margin-bottom:.9rem">
+      <label>Préréglages <span class="hint">(remplace la liste ci-dessous par le contenu d'une collection existante — modifiable avant d'enregistrer)</span></label>
+      <div style="display:flex; flex-wrap:wrap; gap:.4rem">
+        <button type="button" class="btn ghost sm" data-wheel-preset="spell">📜 Parchemins de sort</button>
+        <button type="button" class="btn ghost sm" data-wheel-preset="trouvaille">🔍 Trouvaille</button>
+        <button type="button" class="btn ghost sm" data-wheel-preset="relique">💠 Relique</button>
+        <button type="button" class="btn ghost sm" data-wheel-preset="regalia">👑 Régalia</button>
+      </div>
+    </div>
     <p class="wheel-seg-hint">Un bonus par ligne, texte court conseillé. Tirage à chances égales entre toutes les lignes non vides.</p>
     <div id="wheel-seg-wrap">${segs.map(wheelRowHTML).join("")}</div>
     <button class="btn ghost sm" data-wheel-add-seg="1">+ Ajouter un bonus</button>
     <div class="form-actions" style="margin-top:1rem"><button class="btn" data-wheel-save-segments="1">✓ Enregistrer</button><button class="btn ghost" data-modal-close="1">Annuler</button></div>`);
+}
+/* Préréglages : remplacent la liste de segments par le contenu actuel d'une collection existante
+   (sorts, ou trésors filtrés par catégorie) — un simple "remplissage rapide" modifiable ensuite,
+   pas un lien permanent. Pas de préréglage "Potion" pour l'instant : les tables aléatoires de
+   potions sont encore à retravailler (demande explicite de Tristan, chantier séparé). */
+function applyWheelPreset(kind){
+  let names;
+  if(kind==="spell") names = db.spells.map(s=>`Parchemin de ${s.name||"sort inconnu"}`);
+  else names = db.treasures.filter(t=>(t.category||"trouvaille")===kind).map(t=>t.name||"Objet sans nom");
+  names = names.filter(Boolean);
+  if(!names.length){ toast("Aucune donnée trouvée pour ce préréglage — remplis d'abord la collection correspondante."); return; }
+  const wrap = $("#wheel-seg-wrap");
+  wrap.innerHTML = names.map(wheelRowHTML).join("");
+  reindexWheelSegRows();
 }
 function saveWheelSegments(){
   const vals = [...document.querySelectorAll(".wheel-seg-input")].map(i=>i.value.trim()).filter(Boolean);
@@ -5286,6 +5309,7 @@ $("#modal").addEventListener("click", e=>{
   if(e.target.closest("[data-wheel-add-seg]")){ const w=$("#wheel-seg-wrap"); w.insertAdjacentHTML("beforeend", wheelRowHTML("", w.children.length)); reindexWheelSegRows(); return; }
   if((el=e.target.closest("[data-wheel-remove-seg]"))){ const it=el.closest(".wheel-seg-item"); if(it) it.remove(); reindexWheelSegRows(); return; }
   if(e.target.closest("[data-wheel-save-segments]")){ saveWheelSegments(); return; }
+  if((el=e.target.closest("[data-wheel-preset]"))){ applyWheelPreset(el.dataset.wheelPreset); return; }
 });
 
 /* =========================================================================
