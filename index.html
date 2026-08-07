@@ -1410,6 +1410,25 @@ const WHEEL_SPIN_MS = 5400; // durée du tirage — au moins 5s de suspense dema
 let wheelRotation = 0;   // rotation cumulée en degrés du <svg> roue — remise à 0 à chaque (re)rendu de l'onglet
 let wheelSpinning = false;
 
+/* Avec un préréglage (ex. tous les parchemins de sort), la liste de bonus peut compter des
+   dizaines d'entrées — un camembert avec autant de quartiers devient illisible ("un milliard de
+   camemberts" — retour de Tristan). On plafonne donc l'AFFICHAGE à WHEEL_MAX_VISIBLE quartiers,
+   sans jamais restreindre le TIRAGE réel : le gagnant est toujours choisi uniformément dans la
+   liste complète, puis on construit un sous-ensemble aléatoire d'au plus WHEEL_MAX_VISIBLE bonus
+   qui l'inclut de force. La roue affichée change donc de composition à chaque tirage (et à chaque
+   fois qu'on rouvre l'onglet) plutôt que de figer les mêmes 10 premiers — chaque bonus configuré
+   garde une chance égale d'être vu ET gagné, juste pas tous visibles en même temps. */
+const WHEEL_MAX_VISIBLE = 10;
+function wheelPickDisplaySubset(pool, forcedIdx){
+  if(pool.length <= WHEEL_MAX_VISIBLE) return { texts: pool.slice(), winnerLocalIdx: forcedIdx };
+  const indices = pool.map((_,i)=>i);
+  for(let i=indices.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [indices[i],indices[j]]=[indices[j],indices[i]]; }
+  const chosen = indices.slice(0, WHEEL_MAX_VISIBLE);
+  if(forcedIdx!=null && !chosen.includes(forcedIdx)) chosen[Math.floor(Math.random()*chosen.length)] = forcedIdx;
+  for(let i=chosen.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [chosen[i],chosen[j]]=[chosen[j],chosen[i]]; }
+  return { texts: chosen.map(i=>pool[i]), winnerLocalIdx: forcedIdx!=null ? chosen.indexOf(forcedIdx) : null };
+}
+
 /* --------- Son de tension (Web Audio API pure, aucun fichier externe) ---------
    Bruit blanc filtré ("brrrr" continu qui s'essouffle) + cliquets discrets qui
    ralentissent progressivement (roue à cliquet), tous deux calés sur WHEEL_SPIN_MS.
@@ -1703,8 +1722,9 @@ function viewWheel(){
   wheelRotation = 0; wheelSpinning = false; // le SVG est reconstruit à chaque appel, sa rotation visuelle repart de 0
   const segments = wheelSegments();
   const editBtn = myRole==="gm" ? `<button class="btn ghost sm" data-wheel-edit="1">✎ Modifier les bonus</button>` : "";
+  const capNote = segments.length > WHEEL_MAX_VISIBLE ? ` — ${WHEEL_MAX_VISIBLE} affichés à la fois, ça change à chaque tirage` : "";
   const head = `<div class="page-head">
-    <div><h1>Roue des bonus</h1><div class="sub">${segments.length} bonus configuré(s)</div></div>
+    <div><h1>Roue des bonus</h1><div class="sub">${segments.length} bonus configuré(s)${capNote}</div></div>
     ${editBtn ? `<div class="hbtns">${editBtn}</div>` : ""}
   </div>`;
 
@@ -1715,11 +1735,12 @@ function viewWheel(){
     return;
   }
 
+  const { texts } = wheelPickDisplaySubset(segments, null);
   app.innerHTML = `${head}
     <div class="wheel-stage">
       <div class="wheel-frame">
         <div class="wheel-pointer"></div>
-        ${buildWheelSVG(segments)}
+        ${buildWheelSVG(texts)}
         <div class="wheel-hub"></div>
       </div>
       <button class="btn wheel-spin-btn" data-wheel-spin="1">🎡 Tourner la roue</button>
@@ -1731,15 +1752,26 @@ function spinWheel(){
   stopWheelTensionSound(); // garde-fou : coupe un éventuel reliquat sonore avant de relancer
   const segments = wheelSegments();
   if(segments.length < 2) return;
-  const rotor = document.getElementById("wheel-rotor");
+  let rotor = document.getElementById("wheel-rotor");
   const btn = document.querySelector("[data-wheel-spin]");
   if(!rotor) return;
   wheelSpinning = true;
   if(btn) btn.disabled = true;
 
-  const n = segments.length;
+  // Le gagnant est toujours tiré dans la liste COMPLÈTE (chances égales entre tous les bonus
+  // configurés), même quand la roue n'en affiche qu'un sous-ensemble plafonné à WHEEL_MAX_VISIBLE.
+  const winnerIdx = Math.floor(Math.random()*segments.length);
+  const winnerText = segments[winnerIdx];
+  let idx = winnerIdx, n = segments.length;
+  if(segments.length > WHEEL_MAX_VISIBLE){
+    const { texts, winnerLocalIdx } = wheelPickDisplaySubset(segments, winnerIdx);
+    wheelRotation = 0; // nouveau <svg> : sa rotation visuelle repart de 0
+    rotor.outerHTML = buildWheelSVG(texts);
+    rotor = document.getElementById("wheel-rotor");
+    idx = winnerLocalIdx; n = texts.length;
+  }
+
   const anglePer = 360/n;
-  const idx = Math.floor(Math.random()*n);
   const segMidAngle = -90 + idx*anglePer + anglePer/2;
   let delta = (-90 - segMidAngle) % 360;
   if(delta < 0) delta += 360;
@@ -1755,7 +1787,7 @@ function spinWheel(){
     wheelSpinning = false;
     if(btn) btn.disabled = false;
     stopWheelTensionSound();
-    showWheelReward(segments[idx]);
+    showWheelReward(winnerText);
   }, { once:true });
 }
 
@@ -1822,9 +1854,15 @@ function openWheelEditModal(){
   const w = ensureWheelConfig();
   const segs = w.segments.length ? w.segments : ["",""];
   const mode = w.revealMode || "gift";
-  openModal(`<div style="display:flex;justify-content:space-between;align-items:center">
+  openModal(`<div style="position:sticky; top:-1.3rem; margin:-1.3rem -1.3rem 0; padding:1.3rem 1.3rem .8rem;
+        background:var(--panel2); z-index:5; border-bottom:1px solid var(--border);
+        display:flex; justify-content:space-between; align-items:center; gap:.6rem">
       <h2 style="margin:0;color:var(--gold2)">Bonus de la roue</h2>
-      <button class="icon-btn" data-modal-close="1">✕</button></div>
+      <div style="display:flex; gap:.4rem; align-items:center; flex:0 0 auto">
+        <button type="button" class="btn sm" data-wheel-save-segments="1">✓ Enregistrer</button>
+        <button class="icon-btn" data-modal-close="1">✕</button>
+      </div>
+    </div>
     <div class="field" style="margin:.7rem 0 1rem">
       <label>Ambiance de révélation</label>
       <select id="f-wheel-mode">
