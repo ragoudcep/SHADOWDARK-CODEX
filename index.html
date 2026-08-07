@@ -1747,12 +1747,23 @@ function buildWheelSVG(segments){
   return `<svg class="wheel-rotor" id="wheel-rotor" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">${parts}</svg>`;
 }
 
+// Sous-ensemble actuellement affiché sur la roue (≤ WHEEL_MAX_VISIBLE), fixé au rendu de l'onglet
+// (ou au clic sur "Changer l'assortiment") et JAMAIS modifié pendant un tirage — le <svg> n'est
+// donc plus jamais recréé au clic sur "Tourner", ce qui élimine la classe de bug liée au timing
+// de la transition CSS sur un élément tout juste (re)créé (retour de Tristan : avec beaucoup de
+// bonus type "Parchemins de sort", la roue restait bloquée "en train de tourner" sans jamais
+// visiblement tourner ni conclure — la reconstruction à chaud du <svg> pendant spinWheel() en
+// était la cause). Le tirage porte donc uniquement sur cet assortiment affiché, jamais sur la
+// liste complète directement — c'est le prix de la robustesse : plus simple, plus fiable.
+let wheelDisplayedSegs = [];
+
 function viewWheel(){
   wheelRotation = 0; wheelSpinning = false; // le SVG est reconstruit à chaque appel, sa rotation visuelle repart de 0
   const segments = wheelSegments();
   const mystery = wheelMysteryMode();
   const editBtn = myRole==="gm" ? `<button class="btn ghost sm" data-wheel-edit="1">✎ Modifier les bonus</button>` : "";
-  const capNote = segments.length > WHEEL_MAX_VISIBLE ? ` — ${WHEEL_MAX_VISIBLE} affichés à la fois, ça change à chaque tirage` : "";
+  const capped = segments.length > WHEEL_MAX_VISIBLE;
+  const capNote = capped ? ` — ${WHEEL_MAX_VISIBLE} affichés à la fois` : "";
   const mysteryNote = mystery ? " · 🎭 mode mystère" : "";
   const head = `<div class="page-head">
     <div><h1>Roue des bonus</h1><div class="sub">${segments.length} bonus configuré(s)${capNote}${mysteryNote}</div></div>
@@ -1767,6 +1778,8 @@ function viewWheel(){
   }
 
   const { segs } = wheelPickDisplaySubset(segments, null);
+  wheelDisplayedSegs = segs;
+  const reshuffleBtn = capped ? `<button class="btn ghost sm" data-wheel-reshuffle="1">🔀 Changer l'assortiment affiché</button>` : "";
   app.innerHTML = `${head}
     <div class="wheel-stage">
       <div class="wheel-frame">
@@ -1774,42 +1787,29 @@ function viewWheel(){
         ${buildWheelSVG(wheelDisplayTexts(segs, mystery))}
         <div class="wheel-hub"></div>
       </div>
-      <button class="btn wheel-spin-btn" data-wheel-spin="1">🎡 Tourner la roue</button>
+      <div class="hbtns">
+        <button class="btn wheel-spin-btn" data-wheel-spin="1">🎡 Tourner la roue</button>
+        ${reshuffleBtn}
+      </div>
     </div>`;
 }
 
 function spinWheel(){
   if(wheelSpinning) return;
   stopWheelTensionSound(); // garde-fou : coupe un éventuel reliquat sonore avant de relancer
-  const segments = wheelSegments();
-  if(segments.length < 2) return;
-  let rotor = document.getElementById("wheel-rotor");
+  const displayed = wheelDisplayedSegs;
+  if(displayed.length < 2) return;
+  const rotor = document.getElementById("wheel-rotor");
   const btn = document.querySelector("[data-wheel-spin]");
   if(!rotor) return;
   wheelSpinning = true;
   if(btn) btn.disabled = true;
-  const mystery = wheelMysteryMode();
 
-  // Le gagnant est toujours tiré dans la liste COMPLÈTE (chances égales entre tous les bonus
-  // configurés), même quand la roue n'en affiche qu'un sous-ensemble plafonné à WHEEL_MAX_VISIBLE
-  // ou masqué en mode mystère — ces deux réglages n'affectent jamais le tirage, juste l'affichage.
-  const winnerIdx = Math.floor(Math.random()*segments.length);
-  const winnerSeg = segments[winnerIdx];
-  let idx = winnerIdx, n = segments.length;
-  if(segments.length > WHEEL_MAX_VISIBLE){
-    const { segs, winnerLocalIdx } = wheelPickDisplaySubset(segments, winnerIdx);
-    wheelRotation = 0; // nouveau <svg> : sa rotation visuelle repart de 0
-    rotor.outerHTML = buildWheelSVG(wheelDisplayTexts(segs, mystery));
-    rotor = document.getElementById("wheel-rotor");
-    void rotor.offsetHeight; // force un reflow avant de toucher au transform juste en dessous : sans
-    // ça, un <svg> tout juste inséré peut voir son "transform" changer dans le même tick que sa
-    // création et le navigateur saute alors la transition CSS (pas d'état "avant" jamais peint) —
-    // la roue ne tourne plus visuellement, transitionend ne se déclenche jamais, et wheelSpinning
-    // reste bloqué à true pour toujours (bouton désactivé, page qui semble figée). Ce bug ne se
-    // déclenchait que dans CE cas précis (plus de WHEEL_MAX_VISIBLE bonus, ex. "Parchemins de
-    // sort" avec beaucoup de sorts) puisque c'est le seul chemin qui recrée le <svg> à chaud.
-    idx = winnerLocalIdx; n = segs.length;
-  }
+  // Tirage uniquement parmi l'assortiment actuellement affiché (voir wheelDisplayedSegs) — le
+  // <svg> n'est jamais touché avant d'être une seule fois animé via son transform ci-dessous.
+  const idx = Math.floor(Math.random()*displayed.length);
+  const winnerSeg = displayed[idx];
+  const n = displayed.length;
 
   const anglePer = 360/n;
   const segMidAngle = -90 + idx*anglePer + anglePer/2;
@@ -1823,10 +1823,9 @@ function spinWheel(){
 
   rotor.style.transform = `rotate(${wheelRotation}deg)`; // la transition (durée = WHEEL_SPIN_MS) vient de la classe .wheel-rotor
   startWheelTensionSound(WHEEL_SPIN_MS);
-  // Garde-fou : si transitionend ne se déclenche jamais pour une raison ou une autre (bug
-  // navigateur, onglet passé en arrière-plan qui suspend les transitions CSS…), l'appli ne doit
-  // jamais rester bloquée indéfiniment en "roue en train de tourner" — on force la conclusion du
-  // tirage un peu après la durée théorique si transitionend n'a toujours rien dit.
+  // Garde-fou (défense en profondeur, gardé même si la cause principale du blocage est éliminée
+  // ci-dessus) : si transitionend ne se déclenche jamais pour une autre raison (onglet en
+  // arrière-plan qui suspend les transitions…), l'appli ne doit jamais rester bloquée indéfiniment.
   let wheelSpinSettled = false;
   const finishWheelSpin = ()=>{
     if(wheelSpinSettled) return;
@@ -5353,6 +5352,7 @@ app.addEventListener("click", e=>{
   // Roue
   if(closest("data-wheel-spin")){ spinWheel(); return; }
   if(closest("data-wheel-edit")){ openWheelEditModal(); return; }
+  if(closest("data-wheel-reshuffle")){ if(!wheelSpinning) viewWheel(); return; }
 });
 
 function applyRowCount(){
