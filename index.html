@@ -992,6 +992,10 @@ function findByName(name){
   return null;
 }
 const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook", hexmap:"hexmaps", dungeonmap:"dungeonmaps", spell:"spells", initiative:"initiative", wheel:"wheel" };
+// Hoisté hors de applyRoleUI() pour être réutilisable ailleurs (ex. wheelRefViewable() : le bouton
+// "Voir" d'un bonus gagné à la roue ne doit être proposé à un joueur que pour un type d'entité
+// déjà public via cette même liste — une seule règle de visibilité, pas une inventée en double).
+const PLAYER_VISIBLE_TABS = ["roadbook","hexmaps","dungeonmaps","spells","pcs","initiative","wheel"];
 
 /* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
 function renderText(text){
@@ -1393,9 +1397,29 @@ function ensureWheelConfig(){
   if(!w){ w = { id:uid(), segments:[], revealMode:"gift" }; db.wheel.push(w); }
   return w;
 }
+/* Un segment stocké peut être soit une chaîne brute (ancien format, sans lien), soit un objet
+   {text, ref:{type,id}|null} (nouveau format — ref pointe vers l'entité d'origine quand le
+   segment vient d'un préréglage, pour le bouton "Voir" sur l'écran de révélation). Les deux
+   formats coexistent en base sans migration : on normalise à la lecture. */
+function wheelNormSeg(s){
+  if(s && typeof s === "object") return { text:(s.text||"").trim(), ref:s.ref||null };
+  return { text:(s||"").trim(), ref:null };
+}
 function wheelSegments(){
   const w = wheelConfig();
-  return (w && w.segments || []).filter(s=>s && s.trim());
+  return (w && w.segments || []).map(wheelNormSeg).filter(s=>s.text);
+}
+/* Le bouton "Voir" (fiche de l'entité gagnée) ne doit jamais faire planter l'appli si l'entité a
+   été supprimée depuis, et ne doit jamais donner à un joueur accès à un type d'entité qu'il ne
+   verrait pas autrement dans l'appli (ex. Trésor, qui porte des champs MJ comme boon/curse) —
+   on réutilise donc PLAYER_VISIBLE_TABS, la même règle qui cache déjà les onglets, plutôt que
+   d'inventer un second système de permissions. */
+function wheelRefViewable(ref){
+  if(!ref || !ref.type || !ref.id) return false;
+  if(!getEntity(ref.type, ref.id)) return false;
+  if(myRole==="gm") return true;
+  const tab = TAB_OF[ref.type];
+  return !!tab && PLAYER_VISIBLE_TABS.includes(tab);
 }
 /* Choix MJ entre deux habillages de révélation, éditable via openWheelEditModal() :
    "gift" = paquet cadeau, "Joyeux anniversaire", fanfare musicale ;
@@ -1420,14 +1444,19 @@ let wheelSpinning = false;
    garde une chance égale d'être vu ET gagné, juste pas tous visibles en même temps. */
 const WHEEL_MAX_VISIBLE = 10;
 function wheelPickDisplaySubset(pool, forcedIdx){
-  if(pool.length <= WHEEL_MAX_VISIBLE) return { texts: pool.slice(), winnerLocalIdx: forcedIdx };
+  if(pool.length <= WHEEL_MAX_VISIBLE) return { segs: pool.slice(), winnerLocalIdx: forcedIdx };
   const indices = pool.map((_,i)=>i);
   for(let i=indices.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [indices[i],indices[j]]=[indices[j],indices[i]]; }
   const chosen = indices.slice(0, WHEEL_MAX_VISIBLE);
   if(forcedIdx!=null && !chosen.includes(forcedIdx)) chosen[Math.floor(Math.random()*chosen.length)] = forcedIdx;
   for(let i=chosen.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [chosen[i],chosen[j]]=[chosen[j],chosen[i]]; }
-  return { texts: chosen.map(i=>pool[i]), winnerLocalIdx: forcedIdx!=null ? chosen.indexOf(forcedIdx) : null };
+  return { segs: chosen.map(i=>pool[i]), winnerLocalIdx: forcedIdx!=null ? chosen.indexOf(forcedIdx) : null };
 }
+/* Mode mystère (case à cocher côté MJ) : la roue affiche "?" à la place des noms tant qu'elle n'a
+   pas tourné — seul l'écran de révélation montre le vrai texte gagné. Ne change que l'affichage,
+   jamais le tirage (toujours équitable sur la liste réelle). */
+function wheelMysteryMode(){ const w = wheelConfig(); return !!(w && w.mystery); }
+function wheelDisplayTexts(segs, mystery){ return mystery ? segs.map(()=>"?") : segs.map(s=>s.text); }
 
 /* --------- Son de tension (Web Audio API pure, aucun fichier externe) ---------
    Bruit blanc filtré ("brrrr" continu qui s'essouffle) + cliquets discrets qui
@@ -1721,10 +1750,12 @@ function buildWheelSVG(segments){
 function viewWheel(){
   wheelRotation = 0; wheelSpinning = false; // le SVG est reconstruit à chaque appel, sa rotation visuelle repart de 0
   const segments = wheelSegments();
+  const mystery = wheelMysteryMode();
   const editBtn = myRole==="gm" ? `<button class="btn ghost sm" data-wheel-edit="1">✎ Modifier les bonus</button>` : "";
   const capNote = segments.length > WHEEL_MAX_VISIBLE ? ` — ${WHEEL_MAX_VISIBLE} affichés à la fois, ça change à chaque tirage` : "";
+  const mysteryNote = mystery ? " · 🎭 mode mystère" : "";
   const head = `<div class="page-head">
-    <div><h1>Roue des bonus</h1><div class="sub">${segments.length} bonus configuré(s)${capNote}</div></div>
+    <div><h1>Roue des bonus</h1><div class="sub">${segments.length} bonus configuré(s)${capNote}${mysteryNote}</div></div>
     ${editBtn ? `<div class="hbtns">${editBtn}</div>` : ""}
   </div>`;
 
@@ -1735,12 +1766,12 @@ function viewWheel(){
     return;
   }
 
-  const { texts } = wheelPickDisplaySubset(segments, null);
+  const { segs } = wheelPickDisplaySubset(segments, null);
   app.innerHTML = `${head}
     <div class="wheel-stage">
       <div class="wheel-frame">
         <div class="wheel-pointer"></div>
-        ${buildWheelSVG(texts)}
+        ${buildWheelSVG(wheelDisplayTexts(segs, mystery))}
         <div class="wheel-hub"></div>
       </div>
       <button class="btn wheel-spin-btn" data-wheel-spin="1">🎡 Tourner la roue</button>
@@ -1757,18 +1788,20 @@ function spinWheel(){
   if(!rotor) return;
   wheelSpinning = true;
   if(btn) btn.disabled = true;
+  const mystery = wheelMysteryMode();
 
   // Le gagnant est toujours tiré dans la liste COMPLÈTE (chances égales entre tous les bonus
-  // configurés), même quand la roue n'en affiche qu'un sous-ensemble plafonné à WHEEL_MAX_VISIBLE.
+  // configurés), même quand la roue n'en affiche qu'un sous-ensemble plafonné à WHEEL_MAX_VISIBLE
+  // ou masqué en mode mystère — ces deux réglages n'affectent jamais le tirage, juste l'affichage.
   const winnerIdx = Math.floor(Math.random()*segments.length);
-  const winnerText = segments[winnerIdx];
+  const winnerSeg = segments[winnerIdx];
   let idx = winnerIdx, n = segments.length;
   if(segments.length > WHEEL_MAX_VISIBLE){
-    const { texts, winnerLocalIdx } = wheelPickDisplaySubset(segments, winnerIdx);
+    const { segs, winnerLocalIdx } = wheelPickDisplaySubset(segments, winnerIdx);
     wheelRotation = 0; // nouveau <svg> : sa rotation visuelle repart de 0
-    rotor.outerHTML = buildWheelSVG(texts);
+    rotor.outerHTML = buildWheelSVG(wheelDisplayTexts(segs, mystery));
     rotor = document.getElementById("wheel-rotor");
-    idx = winnerLocalIdx; n = texts.length;
+    idx = winnerLocalIdx; n = segs.length;
   }
 
   const anglePer = 360/n;
@@ -1787,7 +1820,7 @@ function spinWheel(){
     wheelSpinning = false;
     if(btn) btn.disabled = false;
     stopWheelTensionSound();
-    showWheelReward(winnerText);
+    showWheelReward(winnerSeg);
   }, { once:true });
 }
 
@@ -1796,15 +1829,22 @@ function spinWheel(){
    "gift" : paquet cadeau, "Joyeux anniversaire", fanfare musicale.
    "chest" : coffre mystérieux, "Vous avez trouvé…", grincement de charnière rouillée. */
 const WHEEL_REVEAL_TEXT = { gift:"Joyeux anniversaire", chest:"Vous avez trouvé…" };
-function showWheelReward(text){
+function showWheelReward(seg){
+  // Tolère un appel avec du texte brut (compat) en plus de l'objet {text,ref} normal.
+  const s = seg && typeof seg === "object" ? seg : { text:seg, ref:null };
   const mode = wheelRevealMode();
   const overlay = document.getElementById("wheel-reward");
   const inner = overlay.querySelector(".wheel-reward-inner");
+  const viewBtn = wheelRefViewable(s.ref)
+    ? `<button type="button" class="btn ghost" data-wheel-view-ref="${esc(s.ref.type)}:${esc(s.ref.id)}">👁 Voir la fiche</button>` : "";
   inner.innerHTML = `<div class="reveal-box ${mode}" id="wheel-gift"><div class="reveal-lid"></div><div class="reveal-base"></div></div>
     <div class="wheel-reward-banner" id="wheel-banner">
       <div class="wheel-reward-happy">${esc(WHEEL_REVEAL_TEXT[mode] || WHEEL_REVEAL_TEXT.gift)}</div>
-      <div class="wheel-reward-prize">${esc(text)}</div>
-      <button type="button" class="btn" data-wheel-reward-close="1">✦ Fermer</button>
+      <div class="wheel-reward-prize">${esc(s.text)}</div>
+      <div class="hbtns" style="justify-content:center">
+        ${viewBtn}
+        <button type="button" class="btn" data-wheel-reward-close="1">✦ Fermer</button>
+      </div>
     </div>
     <div class="confetti-layer" id="wheel-confetti"></div>`;
   overlay.classList.remove("hidden");
@@ -1839,11 +1879,14 @@ function spawnWheelConfetti(){
 }
 
 /* --------- Édition MJ des bonus (modale, liste simple ajout/suppr) --------- */
-function wheelRowHTML(val,i){
-  return `<div class="repeat-item wheel-seg-item" data-wheelrowitem>
+function wheelRowHTML(seg,i){
+  const s = wheelNormSeg(seg);
+  const refAttr = s.ref ? `${s.ref.type}:${s.ref.id}` : "";
+  return `<div class="repeat-item wheel-seg-item" data-wheelrowitem data-seg-ref="${esc(refAttr)}" data-seg-orig-text="${esc(s.text)}">
     <div class="rrow">
       <div class="field" style="flex:0 0 2.5rem"><label>#${i+1}</label></div>
-      <div class="field" style="flex:1 1 200px"><input type="text" class="wheel-seg-input" value="${esc(val)}" placeholder="Ex. Potion de soin gratuite"></div>
+      <div class="field" style="flex:1 1 200px"><input type="text" class="wheel-seg-input" value="${esc(s.text)}" placeholder="Ex. Potion de soin gratuite"></div>
+      ${s.ref ? `<span class="tag gold" style="flex:0 0 auto" title="Lié à une fiche existante — se délie si tu modifies le texte">🔗</span>` : ""}
       <button class="btn danger sm" data-wheel-remove-seg>✕</button>
     </div></div>`;
 }
@@ -1871,7 +1914,13 @@ function openWheelEditModal(){
       </select>
     </div>
     <div class="field" style="margin-bottom:.9rem">
-      <label>Préréglages <span class="hint">(remplace la liste ci-dessous par le contenu d'une collection existante — modifiable avant d'enregistrer)</span></label>
+      <label style="display:flex; align-items:center; gap:.5rem; cursor:pointer">
+        <input type="checkbox" id="f-wheel-mystery" style="width:auto" ${w.mystery?"checked":""}>
+        🎭 Mode mystère — la roue affiche « ? » à la place des noms, révélés seulement au tirage
+      </label>
+    </div>
+    <div class="field" style="margin-bottom:.9rem">
+      <label>Préréglages <span class="hint">(remplace la liste ci-dessous par le contenu d'une collection existante — modifiable avant d'enregistrer, et garde un lien vers la fiche d'origine pour le bouton « Voir » à la révélation)</span></label>
       <div style="display:flex; flex-wrap:wrap; gap:.4rem">
         <button type="button" class="btn ghost sm" data-wheel-preset="spell">📜 Parchemins de sort</button>
         <button type="button" class="btn ghost sm" data-wheel-preset="trouvaille">🔍 Trouvaille</button>
@@ -1886,25 +1935,41 @@ function openWheelEditModal(){
 }
 /* Préréglages : remplacent la liste de segments par le contenu actuel d'une collection existante
    (sorts, ou trésors filtrés par catégorie) — un simple "remplissage rapide" modifiable ensuite,
-   pas un lien permanent. Pas de préréglage "Potion" pour l'instant : les tables aléatoires de
-   potions sont encore à retravailler (demande explicite de Tristan, chantier séparé). */
+   pas un lien permanent. Chaque ligne garde une référence {type,id} vers l'entité d'origine (pour
+   le bouton "Voir" à la révélation), perdue si le texte de la ligne est modifié à la main. Pas de
+   préréglage "Potion" pour l'instant : les tables aléatoires de potions sont encore à retravailler
+   (demande explicite de Tristan, chantier séparé). */
 function applyWheelPreset(kind){
-  let names;
-  if(kind==="spell") names = db.spells.map(s=>`Parchemin de ${s.name||"sort inconnu"}`);
-  else names = db.treasures.filter(t=>(t.category||"trouvaille")===kind).map(t=>t.name||"Objet sans nom");
-  names = names.filter(Boolean);
-  if(!names.length){ toast("Aucune donnée trouvée pour ce préréglage — remplis d'abord la collection correspondante."); return; }
+  let segs;
+  if(kind==="spell") segs = db.spells.map(s=>({ text:`Parchemin de ${s.name||"sort inconnu"}`, ref:{type:"spell",id:s.id} }));
+  else segs = db.treasures.filter(t=>(t.category||"trouvaille")===kind).map(t=>({ text:t.name||"Objet sans nom", ref:{type:"treasure",id:t.id} }));
+  segs = segs.filter(s=>s.text);
+  if(!segs.length){ toast("Aucune donnée trouvée pour ce préréglage — remplis d'abord la collection correspondante."); return; }
   const wrap = $("#wheel-seg-wrap");
-  wrap.innerHTML = names.map(wheelRowHTML).join("");
+  wrap.innerHTML = segs.map(wheelRowHTML).join("");
   reindexWheelSegRows();
 }
 function saveWheelSegments(){
-  const vals = [...document.querySelectorAll(".wheel-seg-input")].map(i=>i.value.trim()).filter(Boolean);
+  const rows = [...document.querySelectorAll("#wheel-seg-wrap .wheel-seg-item")];
+  const vals = [];
+  rows.forEach(row=>{
+    const text = row.querySelector(".wheel-seg-input").value.trim();
+    if(!text) return;
+    let ref = null;
+    const refAttr = row.dataset.segRef;
+    if(refAttr && text===row.dataset.segOrigText){
+      const sep = refAttr.indexOf(":");
+      if(sep>0) ref = { type:refAttr.slice(0,sep), id:refAttr.slice(sep+1) };
+    }
+    vals.push({ text, ref });
+  });
   if(vals.length < 2){ toast("Il faut au moins deux bonus non vides."); return; }
   const w = ensureWheelConfig();
   w.segments = vals;
   const modeEl = $("#f-wheel-mode");
   w.revealMode = modeEl && modeEl.value==="chest" ? "chest" : "gift";
+  const mysteryEl = $("#f-wheel-mystery");
+  w.mystery = !!(mysteryEl && mysteryEl.checked);
   saveDB();
   closeModal();
   toast("Roue mise à jour.");
@@ -5306,7 +5371,15 @@ $("#lightbox").addEventListener("click", ()=>$("#lightbox").classList.add("hidde
 
 // Révélation du résultat de la roue (cadeau/confettis) — overlay indépendant de #modal
 $("#wheel-reward").addEventListener("click", e=>{
-  if(e.target.id==="wheel-reward" || e.target.closest("[data-wheel-reward-close]")) hideWheelReward();
+  if(e.target.id==="wheel-reward" || e.target.closest("[data-wheel-reward-close]")){ hideWheelReward(); return; }
+  const viewBtn = e.target.closest("[data-wheel-view-ref]");
+  if(viewBtn){
+    const sep = viewBtn.dataset.wheelViewRef.indexOf(":");
+    const ref = { type:viewBtn.dataset.wheelViewRef.slice(0,sep), id:viewBtn.dataset.wheelViewRef.slice(sep+1) };
+    if(!wheelRefViewable(ref)) return; // re-vérifié ici : garde-fou en plus du bouton déjà conditionné
+    hideWheelReward();
+    goto(ref.type, ref.id);
+  }
 });
 // Garde-fou supplémentaire : Échap ferme aussi l'écran de récompense
 document.addEventListener("keydown", e=>{
@@ -5828,7 +5901,6 @@ async function fetchMyRole(){
 
 /* Cache les onglets et actions réservés au MJ pour un compte joueur */
 function applyRoleUI(){
-  const PLAYER_VISIBLE_TABS = ["roadbook","hexmaps","dungeonmaps","spells","pcs","initiative","wheel"];
   document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{
     b.classList.toggle("hidden", myRole!=="gm" && !PLAYER_VISIBLE_TABS.includes(b.dataset.tab));
   });
