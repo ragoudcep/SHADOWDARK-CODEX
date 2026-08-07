@@ -1801,6 +1801,13 @@ function spinWheel(){
     wheelRotation = 0; // nouveau <svg> : sa rotation visuelle repart de 0
     rotor.outerHTML = buildWheelSVG(wheelDisplayTexts(segs, mystery));
     rotor = document.getElementById("wheel-rotor");
+    void rotor.offsetHeight; // force un reflow avant de toucher au transform juste en dessous : sans
+    // ça, un <svg> tout juste inséré peut voir son "transform" changer dans le même tick que sa
+    // création et le navigateur saute alors la transition CSS (pas d'état "avant" jamais peint) —
+    // la roue ne tourne plus visuellement, transitionend ne se déclenche jamais, et wheelSpinning
+    // reste bloqué à true pour toujours (bouton désactivé, page qui semble figée). Ce bug ne se
+    // déclenchait que dans CE cas précis (plus de WHEEL_MAX_VISIBLE bonus, ex. "Parchemins de
+    // sort" avec beaucoup de sorts) puisque c'est le seul chemin qui recrée le <svg> à chaud.
     idx = winnerLocalIdx; n = segs.length;
   }
 
@@ -1816,12 +1823,21 @@ function spinWheel(){
 
   rotor.style.transform = `rotate(${wheelRotation}deg)`; // la transition (durée = WHEEL_SPIN_MS) vient de la classe .wheel-rotor
   startWheelTensionSound(WHEEL_SPIN_MS);
-  rotor.addEventListener("transitionend", ()=>{
+  // Garde-fou : si transitionend ne se déclenche jamais pour une raison ou une autre (bug
+  // navigateur, onglet passé en arrière-plan qui suspend les transitions CSS…), l'appli ne doit
+  // jamais rester bloquée indéfiniment en "roue en train de tourner" — on force la conclusion du
+  // tirage un peu après la durée théorique si transitionend n'a toujours rien dit.
+  let wheelSpinSettled = false;
+  const finishWheelSpin = ()=>{
+    if(wheelSpinSettled) return;
+    wheelSpinSettled = true;
     wheelSpinning = false;
     if(btn) btn.disabled = false;
     stopWheelTensionSound();
     showWheelReward(winnerSeg);
-  }, { once:true });
+  };
+  rotor.addEventListener("transitionend", finishWheelSpin, { once:true });
+  setTimeout(finishWheelSpin, WHEEL_SPIN_MS + 600);
 }
 
 /* Révélation : boîte (cadeau ou coffre, selon wheelRevealMode()) qui s'ouvre + confettis +
