@@ -1928,10 +1928,36 @@ function openWheelEditModal(){
         <button type="button" class="btn ghost sm" data-wheel-preset="regalia">👑 Régalia</button>
       </div>
     </div>
+    <div class="field" style="margin-bottom:.9rem">
+      <label>Mes préréglages <span class="hint">(tes propres listes sauvegardées, réutilisables à tout moment)</span></label>
+      <div style="display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.5rem">
+        ${(w.presets||[]).length ? (w.presets||[]).map(p=>`<span style="display:inline-flex; align-items:stretch; border:1px solid var(--border); border-radius:8px; overflow:hidden">
+            <button type="button" class="btn ghost sm" style="border:none; border-radius:0" data-wheel-custom-preset="${esc(p.id)}">${esc(p.name)}</button>
+            <button type="button" class="icon-btn" style="border-left:1px solid var(--border); border-radius:0" data-wheel-delete-preset="${esc(p.id)}" title="Supprimer ce préréglage">✕</button>
+          </span>`).join("") : `<span class="faint" style="font-family:var(--ui);font-size:.82rem">Aucun pour l'instant.</span>`}
+      </div>
+      <button type="button" class="btn ghost sm" data-wheel-save-preset="1">💾 Enregistrer la liste actuelle comme préréglage</button>
+    </div>
     <p class="wheel-seg-hint">Un bonus par ligne, texte court conseillé. Tirage à chances égales entre toutes les lignes non vides.</p>
     <div id="wheel-seg-wrap">${segs.map(wheelRowHTML).join("")}</div>
     <button class="btn ghost sm" data-wheel-add-seg="1">+ Ajouter un bonus</button>
     <div class="form-actions" style="margin-top:1rem"><button class="btn" data-wheel-save-segments="1">✓ Enregistrer</button><button class="btn ghost" data-modal-close="1">Annuler</button></div>`);
+}
+/* Lit l'état actuel des lignes de l'éditeur en {text,ref}[] — partagé entre saveWheelSegments()
+   et l'enregistrement d'un préréglage personnalisé, pour ne pas dupliquer la logique de rupture
+   de lien (ref conservée seulement si le texte de la ligne n'a pas été modifié à la main). */
+function wheelReadRows(){
+  return [...document.querySelectorAll("#wheel-seg-wrap .wheel-seg-item")].map(row=>{
+    const text = row.querySelector(".wheel-seg-input").value.trim();
+    if(!text) return null;
+    let ref = null;
+    const refAttr = row.dataset.segRef;
+    if(refAttr && text===row.dataset.segOrigText){
+      const sep = refAttr.indexOf(":");
+      if(sep>0) ref = { type:refAttr.slice(0,sep), id:refAttr.slice(sep+1) };
+    }
+    return { text, ref };
+  }).filter(Boolean);
 }
 /* Préréglages : remplacent la liste de segments par le contenu actuel d'une collection existante
    (sorts, ou trésors filtrés par catégorie) — un simple "remplissage rapide" modifiable ensuite,
@@ -1950,19 +1976,7 @@ function applyWheelPreset(kind){
   reindexWheelSegRows();
 }
 function saveWheelSegments(){
-  const rows = [...document.querySelectorAll("#wheel-seg-wrap .wheel-seg-item")];
-  const vals = [];
-  rows.forEach(row=>{
-    const text = row.querySelector(".wheel-seg-input").value.trim();
-    if(!text) return;
-    let ref = null;
-    const refAttr = row.dataset.segRef;
-    if(refAttr && text===row.dataset.segOrigText){
-      const sep = refAttr.indexOf(":");
-      if(sep>0) ref = { type:refAttr.slice(0,sep), id:refAttr.slice(sep+1) };
-    }
-    vals.push({ text, ref });
-  });
+  const vals = wheelReadRows();
   if(vals.length < 2){ toast("Il faut au moins deux bonus non vides."); return; }
   const w = ensureWheelConfig();
   w.segments = vals;
@@ -1974,6 +1988,38 @@ function saveWheelSegments(){
   closeModal();
   toast("Roue mise à jour.");
   if(view.tab==="wheel") viewWheel();
+}
+
+/* Préréglages personnalisés (distincts des 4 préréglages de collection ci-dessus) : le MJ
+   sauvegarde la liste de segments actuellement dans l'éditeur, sous un nom choisi, pour la
+   réappliquer plus tard — stockés directement sur l'enregistrement wheel (w.presets), pas besoin
+   d'une table Supabase dédiée. */
+function wheelSaveCurrentAsPreset(name){
+  const n = (name||"").trim();
+  if(!n) return;
+  const vals = wheelReadRows();
+  if(vals.length < 2){ toast("Remplis au moins deux bonus avant d'enregistrer un préréglage."); return; }
+  const w = ensureWheelConfig();
+  if(!w.presets) w.presets = [];
+  w.presets.push({ id:uid(), name:n, segments:vals });
+  saveDB();
+  toast(`Préréglage « ${n} » enregistré.`);
+  openWheelEditModal();
+}
+function wheelApplyCustomPreset(id){
+  const w = wheelConfig();
+  const preset = w && (w.presets||[]).find(p=>p.id===id);
+  if(!preset){ toast("Préréglage introuvable."); return; }
+  const wrap = $("#wheel-seg-wrap");
+  wrap.innerHTML = preset.segments.map(wheelRowHTML).join("");
+  reindexWheelSegRows();
+}
+function wheelDeleteCustomPreset(id){
+  const w = ensureWheelConfig();
+  w.presets = (w.presets||[]).filter(p=>p.id!==id);
+  saveDB();
+  toast("Préréglage supprimé.");
+  openWheelEditModal();
 }
 
 function pageHead(title, sub, newLabel, extra){
@@ -5427,6 +5473,14 @@ $("#modal").addEventListener("click", e=>{
   if((el=e.target.closest("[data-wheel-remove-seg]"))){ const it=el.closest(".wheel-seg-item"); if(it) it.remove(); reindexWheelSegRows(); return; }
   if(e.target.closest("[data-wheel-save-segments]")){ saveWheelSegments(); return; }
   if((el=e.target.closest("[data-wheel-preset]"))){ applyWheelPreset(el.dataset.wheelPreset); return; }
+  if(e.target.closest("[data-wheel-save-preset]")){
+    const vals = wheelReadRows();
+    if(vals.length < 2){ toast("Remplis au moins deux bonus avant d'enregistrer un préréglage."); return; }
+    promptModal("Nom du préréglage :", "", name=>wheelSaveCurrentAsPreset(name));
+    return;
+  }
+  if((el=e.target.closest("[data-wheel-custom-preset]"))){ wheelApplyCustomPreset(el.dataset.wheelCustomPreset); return; }
+  if((el=e.target.closest("[data-wheel-delete-preset]"))){ wheelDeleteCustomPreset(el.dataset.wheelDeletePreset); return; }
 });
 
 /* =========================================================================
