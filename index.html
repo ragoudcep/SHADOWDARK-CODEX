@@ -550,9 +550,10 @@
   .dmap-overlay-gm .dmap-stroke-hit{stroke:transparent; pointer-events:stroke; cursor:pointer}
   .dmap-stroke-hidden{pointer-events:stroke; cursor:pointer; opacity:.6}
   .dmap-stroke-revealed{pointer-events:stroke; cursor:pointer; opacity:.16; stroke-dasharray:8 8}
-  .dmap-stroke-player{stroke:#000; opacity:1; pointer-events:none}
   .dmap-stroke-draft{stroke:var(--gold2); opacity:.5; pointer-events:none}
   .dmap-tool-add{cursor:crosshair}
+  .dmap-darkness{pointer-events:none}
+  .dmap-darkness-gm{opacity:.55}
 
   /* toast */
   #toast{position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%) translateY(20px);
@@ -4743,36 +4744,64 @@ function detailDungeonMap(m){
 
 /* viewBox aux dimensions naturelles de l'image (m.imgW/m.imgH, mises en cache à l'upload) —
    scale uniforme garanti puisque .dmap-frame est déjà à ce même ratio (dicté par <img>), donc
-   pas de distorsion des ronds de pinceau. isGM=false (vue joueur) : uniquement les zones encore
-   cachées, en noir opaque, sans aucune interactivité (ni pointer-events, ni gestionnaire posé). */
+   pas de distorsion des ronds de pinceau.
+   Brouillard "à l'envers" (demandé par Tristan) : la carte est noire PAR DÉFAUT, une zone ne
+   fait qu'"éclairer" un trou dans ce noir quand elle est révélée (!s.hidden) — pas l'inverse
+   (v3 précédente : tout visible par défaut, une zone cachée peignait du noir par-dessus). Plus
+   sûr en pratique : une zone du plan que le MJ n'a jamais dessinée reste cachée par défaut,
+   au lieu d'être visible par erreur faute d'y avoir pensé. Implémenté avec un <mask> SVG
+   (technique standard, équivalent SVG du destination-out canvas de la v2) : un rectangle blanc
+   plein (= le calque noir reste visible partout) percé de traits noirs à l'emplacement de
+   chaque zone révélée (= trou = calque noir invisible = carte visible en dessous à cet endroit).
+   Vue joueur : calque noir 100% opaque, aucun autre repère. Vue MJ : même calque mais
+   semi-transparent (pour voir la carte en dessous en travaillant) + les zones colorées
+   par-dessus (toutes, cachées ou révélées) pour rester tapotables quel que soit leur état. */
 function dungeonMapFrame(m, isGM){
   if(!m.image) return `<p class="faint" style="font-family:var(--ui);padding:1rem">Pas d'image pour cette carte.</p>`;
   const w = m.imgW||1000, h = m.imgH||1000;
-  const strokes = (m.strokes||[]).filter(s=> isGM || s.hidden).map(s=>{
+  const revealHoles = (m.strokes||[]).filter(s=>!s.hidden)
+    .map(s=>`<path d="${pathDFromPoints(s.points)}" stroke="#000" stroke-width="${s.radius*2}"></path>`).join("");
+  const darkness = `<mask id="dmap-mask">
+      <rect x="0" y="0" width="${w}" height="${h}" fill="#fff"></rect>
+      ${revealHoles}
+    </mask>
+    <rect x="0" y="0" width="${w}" height="${h}" fill="#000" mask="url(#dmap-mask)" class="dmap-darkness${isGM?' dmap-darkness-gm':''}"></rect>`;
+  const strokes = isGM ? (m.strokes||[]).map(s=>{
     const d = pathDFromPoints(s.points);
-    if(isGM){
-      const cls = s.hidden ? "dmap-stroke dmap-stroke-hidden" : "dmap-stroke dmap-stroke-revealed";
-      return `<g data-dmap-stroke="${s.id}">
-        <path class="dmap-stroke-hit" d="${d}" stroke-width="${Math.max(s.radius*2, 24)}"></path>
-        <path class="${cls}" d="${d}" stroke="${s.color}" stroke-width="${s.radius*2}"></path>
-      </g>`;
-    }
-    return `<path class="dmap-stroke dmap-stroke-player" d="${d}" stroke-width="${s.radius*2}"></path>`;
-  }).join("");
+    const cls = s.hidden ? "dmap-stroke dmap-stroke-hidden" : "dmap-stroke dmap-stroke-revealed";
+    return `<g data-dmap-stroke="${s.id}">
+      <path class="dmap-stroke-hit" d="${d}" stroke-width="${Math.max(s.radius*2, 24)}"></path>
+      <path class="${cls}" d="${d}" stroke="${s.color}" stroke-width="${s.radius*2}"></path>
+    </g>`;
+  }).join("") : "";
   const draft = (isGM && dmapDraftStroke) ? `<path class="dmap-stroke dmap-stroke-draft" d="${pathDFromPoints(dmapDraftStroke.points)}" stroke-width="${dmapBrushRadiusPx(m)*2}"></path>` : "";
   return `<div class="dmap-frame">
     <img class="dmap-img" src="${m.image}" alt="">
-    <svg class="dmap-overlay${isGM?` dmap-overlay-gm dmap-tool-${dmapTool}`:''}" id="dmap-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${strokes}${draft}</svg>
+    <svg class="dmap-overlay${isGM?` dmap-overlay-gm dmap-tool-${dmapTool}`:''}" id="dmap-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${darkness}${strokes}${draft}</svg>
   </div>`;
 }
 function pathDFromPoints(points){
   if(!points || !points.length) return "";
+  // Un seul point (tap sans glisser) : "M x,y" seul ne trace aucun segment, donc rien ne serait
+  // rendu (ni visible, ni tapotable) malgré le stroke-linecap:round — on double le point en
+  // "M x,y L x,y" pour forcer un segment de longueur nulle, qui lui affiche bien un point rond.
+  if(points.length===1){ const p=points[0]; return `M${p.x.toFixed(1)},${p.y.toFixed(1)} L${p.x.toFixed(1)},${p.y.toFixed(1)}`; }
   return "M" + points.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L");
 }
 function dmapBrushRadiusPx(m){ return (dmapBrushSize/100) * Math.max(m.imgW||1000, m.imgH||1000); }
+/* Conversion écran → coordonnées SVG via la matrice de transformation native (getScreenCTM),
+   PAS un calcul manuel à base de getBoundingClientRect()/viewBox — cette dernière approche
+   est fragile dès qu'il y a le moindre écart d'arrondi entre la boîte CSS réelle et le ratio
+   du viewBox (preserveAspectRatio="meet" centre alors le contenu avec une marge que
+   getBoundingClientRect ne reflète pas), ce qui décalait le tracé par rapport au curseur.
+   getScreenCTM().inverse() gère ça correctement quel que soit le viewBox/scale/transform. */
 function svgPtFromEvent(svg, m, ev){
-  const r = svg.getBoundingClientRect();
-  return { x:(ev.clientX-r.left)/r.width*(m.imgW||1000), y:(ev.clientY-r.top)/r.height*(m.imgH||1000) };
+  const ctm = svg.getScreenCTM();
+  if(!ctm) return { x:0, y:0 };
+  const pt = svg.createSVGPoint();
+  pt.x = ev.clientX; pt.y = ev.clientY;
+  const svgPt = pt.matrixTransform(ctm.inverse());
+  return { x: svgPt.x, y: svgPt.y };
 }
 
 function wireDungeonMapSVG(m){

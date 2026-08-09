@@ -252,6 +252,55 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   de lecture joueur filtrée sur `active`), inchangé depuis la v1 — à
   exécuter par Tristan dans l'éditeur SQL Supabase, à confirmer et à
   reporter dans le ledger ci-dessous une fois fait.
+- **Cartes de donjon — deux corrections après premier essai réel de
+  Tristan (v3, même soirée)** :
+  1. **Décalage entre le clic et l'endroit où le tracé apparaissait.**
+     `svgPtFromEvent()` convertissait `clientX/Y` en coordonnées SVG à la
+     main (`(clientX-rect.left)/rect.width*imgW`), en se basant sur
+     `getBoundingClientRect()` du `<svg>`. Ce calcul suppose implicitement
+     que la boîte CSS de l'élément a exactement le même ratio que le
+     `viewBox` — dès qu'il y a le moindre écart (arrondi de layout, ou tout
+     cas où `preserveAspectRatio="xMidYMid meet"` doit réellement composer
+     avec un ratio différent), le rendu ajoute une marge de letterboxing
+     centrée que `getBoundingClientRect()` ne reflète pas, et le calcul
+     devient faux de façon visible. Reproduit et confirmé en forçant
+     volontairement un écart de ratio (`imgW/imgH` déclarés différents du
+     ratio réel affiché) : l'ancien calcul donnait un point à `y=450`, le
+     bon point (confirmé par le rendu réel) est `y=500`. **Fix** : remplacé
+     par l'API SVG native faite pour ça —
+     `svg.createSVGPoint()` + `point.matrixTransform(svg.getScreenCTM().inverse())`
+     — qui tient compte automatiquement du `viewBox`, du
+     `preserveAspectRatio` et de toute transformation CSS, sans recalcul
+     manuel. Élimine toute la classe de bug, pas seulement le cas précis
+     observé.
+  2. **Brouillard inversé, à la demande de Tristan.** Jusque-là : tout le
+     plan visible par défaut, une zone cachée peignait du noir par-dessus
+     (modèle additif "on cache ce qu'on a pensé à cacher"). Nouveau modèle,
+     plus sûr en pratique (une zone jamais dessinée reste cachée par défaut
+     au lieu d'être visible par oubli) : le plan est **noir partout par
+     défaut**, une zone **révélée** (`!s.hidden`) perce un trou de
+     visibilité à son emplacement — l'inverse exact. Implémenté avec un
+     `<mask>` SVG (équivalent du `destination-out` canvas de la v2, mais en
+     SVG) : un rectangle blanc plein (= le calque noir reste visible
+     partout) percé de tracés noirs uniquement aux zones révélées (= trou
+     dans le masque = calque noir invisible = carte visible à cet endroit).
+     Vue joueur : calque 100% opaque, aucune zone rendue individuellement.
+     Vue MJ : même calque en semi-transparent (`opacity:.55`) pour garder
+     la carte visible en travaillant, plus les zones colorées par-dessus
+     (toutes, cachées ou révélées) pour rester tapotables. Effet de bord
+     découvert en testant : une zone créée par un simple tap sans glisser
+     (un seul point, ex. pour marquer un petit élément ponctuel) générait
+     un chemin SVG `"M x,y"` sans segment — ne s'affichait pas du tout et
+     n'était donc plus jamais tapotable/supprimable (chemin fantôme,
+     silencieusement invisible). Fix dans `pathDFromPoints()` : un point
+     unique est dédoublé en `"M x,y L x,y"` pour forcer un segment de
+     longueur nulle, qui affiche bien un point rond grâce à
+     `stroke-linecap:round`.
+  Les deux fixes testés dans un navigateur avec un vrai viewport (clics
+  simulés avec résolution géométrique réelle via
+  `document.elementFromPoint`, et un écart de ratio `imgW`/`imgH` forcé
+  exprès pour vérifier le fix #1) — non testé au doigt sur un vrai
+  téléphone, cette confirmation reste à faire par Tristan.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
