@@ -392,6 +392,13 @@
   .wheel-rotor path{stroke:var(--bg); stroke-width:2}
   .wheel-rotor text{fill:#f3ead9; stroke:rgba(0,0,0,.6); stroke-width:3px; paint-order:stroke fill;
     font-family:var(--ui); font-weight:600}
+  /* Trop de bonus pour être lisibles individuellement (> WHEEL_MAX_VISIBLE) : la roue affiche tous
+     les quartiers (tirage équitable sur la liste complète, jamais reconstruite pendant le tirage)
+     mais sans texte dessus, et tourne plus vite avec un flou de mouvement qui se dissipe à
+     l'arrêt — le nom gagné n'apparaît que sur l'écran de révélation. Durée de l'animation calée
+     sur WHEEL_SPIN_MS (5400ms), comme la transition de rotation ci-dessus — à garder synchronisée. */
+  @keyframes wheel-spin-blur{ 0%{filter:blur(7px)} 70%{filter:blur(6px)} 100%{filter:blur(0px)} }
+  .wheel-rotor-blank.spinning-blur{ animation:wheel-spin-blur 5400ms ease-out both }
   .wheel-spin-btn{font-size:1.02rem; padding:.7rem 1.7rem}
   .wheel-spin-btn:disabled{opacity:.55; cursor:default; filter:grayscale(.4)}
   .wheel-empty-hint{max-width:420px; text-align:center}
@@ -1435,23 +1442,16 @@ let wheelRotation = 0;   // rotation cumulée en degrés du <svg> roue — remis
 let wheelSpinning = false;
 
 /* Avec un préréglage (ex. tous les parchemins de sort), la liste de bonus peut compter des
-   dizaines d'entrées — un camembert avec autant de quartiers devient illisible ("un milliard de
-   camemberts" — retour de Tristan). On plafonne donc l'AFFICHAGE à WHEEL_MAX_VISIBLE quartiers,
-   sans jamais restreindre le TIRAGE réel : le gagnant est toujours choisi uniformément dans la
-   liste complète, puis on construit un sous-ensemble aléatoire d'au plus WHEEL_MAX_VISIBLE bonus
-   qui l'inclut de force. La roue affichée change donc de composition à chaque tirage (et à chaque
-   fois qu'on rouvre l'onglet) plutôt que de figer les mêmes 10 premiers — chaque bonus configuré
-   garde une chance égale d'être vu ET gagné, juste pas tous visibles en même temps. */
+   dizaines d'entrées — un camembert avec autant de quartiers textuels devient illisible ("un
+   milliard de camemberts" — retour de Tristan) ; et reconstruire la roue à chaud juste avant de la
+   faire tourner (pour piocher un sous-ensemble différent à chaque tirage) provoquait un blocage
+   (transition CSS jamais déclenchée sur un <svg> tout juste recréé — retour de Tristan également).
+   Au-delà de WHEEL_MAX_VISIBLE, la roue affiche donc TOUS les quartiers (tirage réellement
+   équitable sur la liste complète, roue jamais reconstruite pendant un tirage — voir
+   buildWheelSVG(..., blank) et spinWheel()) mais sans texte dessus, avec un effet de flou de
+   mouvement pendant qu'elle tourne plus vite ; le nom gagné n'apparaît que sur l'écran de
+   révélation. En dessous du seuil, les quartiers restent lisibles comme avant. */
 const WHEEL_MAX_VISIBLE = 10;
-function wheelPickDisplaySubset(pool, forcedIdx){
-  if(pool.length <= WHEEL_MAX_VISIBLE) return { segs: pool.slice(), winnerLocalIdx: forcedIdx };
-  const indices = pool.map((_,i)=>i);
-  for(let i=indices.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [indices[i],indices[j]]=[indices[j],indices[i]]; }
-  const chosen = indices.slice(0, WHEEL_MAX_VISIBLE);
-  if(forcedIdx!=null && !chosen.includes(forcedIdx)) chosen[Math.floor(Math.random()*chosen.length)] = forcedIdx;
-  for(let i=chosen.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [chosen[i],chosen[j]]=[chosen[j],chosen[i]]; }
-  return { segs: chosen.map(i=>pool[i]), winnerLocalIdx: forcedIdx!=null ? chosen.indexOf(forcedIdx) : null };
-}
 /* Mode mystère (case à cocher côté MJ) : la roue affiche "?" à la place des noms tant qu'elle n'a
    pas tourné — seul l'écran de révélation montre le vrai texte gagné. Ne change que l'affichage,
    jamais le tirage (toujours équitable sur la liste réelle). */
@@ -1720,18 +1720,20 @@ function fitWheelFontSize(segments, anglePerRad, r){
 /* Secteurs = camembert SVG généré en JS (pas de dépendance). Convention d'angle :
    0° = est (droite), sens horaire — le secteur 0 démarre à -90° (haut du cadre),
    là où se trouve le pointeur fixe. */
-function buildWheelSVG(segments){
+function buildWheelSVG(segments, blank){
   const n = segments.length;
   const cx=150, cy=150, r=140;
   const anglePer = 360/n;
   const anglePerRad = anglePer*Math.PI/180;
   const pt = (angleDeg, radius)=>{ const a=angleDeg*Math.PI/180; return { x: cx+radius*Math.cos(a), y: cy+radius*Math.sin(a) }; };
-  const fontSize = fitWheelFontSize(segments, anglePerRad, r);
+  const fontSize = blank ? 0 : fitWheelFontSize(segments, anglePerRad, r);
   const parts = segments.map((seg,i)=>{
     const start = -90 + i*anglePer, end = start + anglePer, mid = start + anglePer/2;
     const p1 = pt(start,r), p2 = pt(end,r);
     const largeArc = anglePer>180 ? 1 : 0;
     const color = WHEEL_PALETTE[i % WHEEL_PALETTE.length];
+    const pathEl = `<path d="M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z" style="fill:${color}"></path>`;
+    if(blank) return pathEl; // trop de quartiers pour du texte lisible — voir commentaire plus haut
     const { lines } = wrapWheelLabel(seg, fontSize, anglePerRad, r);
     // Texte tangentiel fixe (aligné sur la tangente au rayon, mid+90°) — comme peint sur une
     // vraie roue de fête foraine : orientation propre à chaque secteur, ne se réajuste jamais
@@ -1742,19 +1744,16 @@ function buildWheelSVG(segments){
       const tp = pt(mid, wheelLineRadius(li, fontSize, r));
       return `<text x="${tp.x.toFixed(2)}" y="${tp.y.toFixed(2)}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${textRot.toFixed(2)} ${tp.x.toFixed(2)} ${tp.y.toFixed(2)})">${esc(line)}</text>`;
     }).join("");
-    return `<path d="M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z" style="fill:${color}"></path>${textParts}`;
+    return pathEl + textParts;
   }).join("");
-  return `<svg class="wheel-rotor" id="wheel-rotor" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">${parts}</svg>`;
+  return `<svg class="wheel-rotor${blank?' wheel-rotor-blank':''}" id="wheel-rotor" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">${parts}</svg>`;
 }
 
-// Sous-ensemble actuellement affiché sur la roue (≤ WHEEL_MAX_VISIBLE), fixé au rendu de l'onglet
-// (ou au clic sur "Changer l'assortiment") et JAMAIS modifié pendant un tirage — le <svg> n'est
-// donc plus jamais recréé au clic sur "Tourner", ce qui élimine la classe de bug liée au timing
-// de la transition CSS sur un élément tout juste (re)créé (retour de Tristan : avec beaucoup de
-// bonus type "Parchemins de sort", la roue restait bloquée "en train de tourner" sans jamais
-// visiblement tourner ni conclure — la reconstruction à chaud du <svg> pendant spinWheel() en
-// était la cause). Le tirage porte donc uniquement sur cet assortiment affiché, jamais sur la
-// liste complète directement — c'est le prix de la robustesse : plus simple, plus fiable.
+// Segments actuellement affichés sur la roue — toujours la liste COMPLÈTE (au-delà de
+// WHEEL_MAX_VISIBLE, juste sans texte, voir buildWheelSVG). Fixé au rendu de l'onglet et JAMAIS
+// modifié pendant un tirage : le <svg> n'est plus jamais recréé au clic sur "Tourner", ce qui
+// élimine la classe de bug liée au timing de la transition CSS sur un élément tout juste (re)créé
+// (retour de Tristan : la roue restait bloquée "en train de tourner" sans jamais conclure).
 let wheelDisplayedSegs = [];
 
 function viewWheel(){
@@ -1762,8 +1761,8 @@ function viewWheel(){
   const segments = wheelSegments();
   const mystery = wheelMysteryMode();
   const editBtn = myRole==="gm" ? `<button class="btn ghost sm" data-wheel-edit="1">✎ Modifier les bonus</button>` : "";
-  const capped = segments.length > WHEEL_MAX_VISIBLE;
-  const capNote = capped ? ` — ${WHEEL_MAX_VISIBLE} affichés à la fois` : "";
+  const blank = segments.length > WHEEL_MAX_VISIBLE;
+  const capNote = blank ? " — trop nombreux pour être affichés lisiblement, la roue tourne « à l'aveugle » (flou, plus rapide)" : "";
   const mysteryNote = mystery ? " · 🎭 mode mystère" : "";
   const head = `<div class="page-head">
     <div><h1>Roue des bonus</h1><div class="sub">${segments.length} bonus configuré(s)${capNote}${mysteryNote}</div></div>
@@ -1777,20 +1776,16 @@ function viewWheel(){
     return;
   }
 
-  const { segs } = wheelPickDisplaySubset(segments, null);
-  wheelDisplayedSegs = segs;
-  const reshuffleBtn = capped ? `<button class="btn ghost sm" data-wheel-reshuffle="1">🔀 Changer l'assortiment affiché</button>` : "";
+  wheelDisplayedSegs = segments; // toujours tout le monde — voir plus haut
+  const svgHTML = blank ? buildWheelSVG(segments.map(()=>""), true) : buildWheelSVG(wheelDisplayTexts(segments, mystery));
   app.innerHTML = `${head}
     <div class="wheel-stage">
       <div class="wheel-frame">
         <div class="wheel-pointer"></div>
-        ${buildWheelSVG(wheelDisplayTexts(segs, mystery))}
+        ${svgHTML}
         <div class="wheel-hub"></div>
       </div>
-      <div class="hbtns">
-        <button class="btn wheel-spin-btn" data-wheel-spin="1">🎡 Tourner la roue</button>
-        ${reshuffleBtn}
-      </div>
+      <button class="btn wheel-spin-btn" data-wheel-spin="1">🎡 Tourner la roue</button>
     </div>`;
 }
 
@@ -1804,9 +1799,10 @@ function spinWheel(){
   if(!rotor) return;
   wheelSpinning = true;
   if(btn) btn.disabled = true;
+  const blank = rotor.classList.contains("wheel-rotor-blank");
 
-  // Tirage uniquement parmi l'assortiment actuellement affiché (voir wheelDisplayedSegs) — le
-  // <svg> n'est jamais touché avant d'être une seule fois animé via son transform ci-dessous.
+  // Tirage uniformément sur toute la liste (voir wheelDisplayedSegs) — le <svg> n'est jamais
+  // touché avant d'être une seule fois animé via son transform ci-dessous.
   const idx = Math.floor(Math.random()*displayed.length);
   const winnerSeg = displayed[idx];
   const n = displayed.length;
@@ -1815,12 +1811,15 @@ function spinWheel(){
   const segMidAngle = -90 + idx*anglePer + anglePer/2;
   let delta = (-90 - segMidAngle) % 360;
   if(delta < 0) delta += 360;
-  const turns = 7 + Math.floor(Math.random()*4); // 7 à 10 tours complets avant l'arrêt, pour le suspense
+  // Beaucoup plus de tours en mode "à l'aveugle" (flou) pour renforcer l'effet "trop rapide pour
+  // lire" — toujours dans la même durée totale (WHEEL_SPIN_MS), donc toujours au moins 5s.
+  const turns = blank ? (14 + Math.floor(Math.random()*5)) : (7 + Math.floor(Math.random()*4));
   const currentMod = ((wheelRotation % 360) + 360) % 360;
   let add = delta - currentMod;
   if(add <= 0) add += 360;
   wheelRotation += add + turns*360;
 
+  if(blank) rotor.classList.add("spinning-blur");
   rotor.style.transform = `rotate(${wheelRotation}deg)`; // la transition (durée = WHEEL_SPIN_MS) vient de la classe .wheel-rotor
   startWheelTensionSound(WHEEL_SPIN_MS);
   // Garde-fou (défense en profondeur, gardé même si la cause principale du blocage est éliminée
@@ -1832,6 +1831,7 @@ function spinWheel(){
     wheelSpinSettled = true;
     wheelSpinning = false;
     if(btn) btn.disabled = false;
+    rotor.classList.remove("spinning-blur"); // pour que la prochaine animation puisse rejouer depuis le début
     stopWheelTensionSound();
     showWheelReward(winnerSeg);
   };
@@ -5352,7 +5352,6 @@ app.addEventListener("click", e=>{
   // Roue
   if(closest("data-wheel-spin")){ spinWheel(); return; }
   if(closest("data-wheel-edit")){ openWheelEditModal(); return; }
-  if(closest("data-wheel-reshuffle")){ if(!wheelSpinning) viewWheel(); return; }
 });
 
 function applyRowCount(){
