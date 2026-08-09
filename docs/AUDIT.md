@@ -375,6 +375,35 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
      `imgW`/`imgH` (comme le ferait le vrai serveur tant que le MJ n'a pas
      rouvert la carte) — le rendu reste stable et se recorrige à chaque
      fois, sans jamais re-bloquer sur un écran de chargement.
+- **Cartes de donjon — "cœur noir" au centre d'une zone en boucle, trouvé
+  par Tristan avec une capture zoomée (même soirée)** : dessiner une zone en
+  formant une boucle (geste naturel pour couvrir toute une pièce — suivre
+  son contour) laissait un trou non peint en plein centre. Cause : un
+  `<path>` en simple `stroke` (sans `fill`) ne peint que la *bande* qui
+  suit le tracé, pas l'intérieur qu'elle délimite — un pinceau qui fait le
+  tour d'une pièce plus grande que lui ne peint donc qu'un anneau, jamais
+  le disque entier (comportement correct pour un pinceau au sens strict,
+  mais pas pour l'usage réel : marquer une pièce entière d'un coup de
+  contour, comme un lasso). **Fix** : `pathDFromPoints()` ferme désormais
+  toujours le chemin (`Z` final), et les trois rendus concernés (trou du
+  masque de brouillard, zone colorée MJ, zone de tap invisible) appliquent
+  un `fill` en plus du `stroke` — une boucle remplit alors tout son
+  intérieur, avec le `stroke` qui ajoute simplement la marge du rayon du
+  pinceau tout autour du contour. `pointer-events` passé de `stroke` à
+  `all` sur la zone de tap et les zones colorées pour que l'intérieur
+  nouvellement rempli reste lui aussi tapotable (pas seulement l'anneau).
+  Un tracé qui ne boucle pas (ligne ouverte) n'est pas affecté visuellement
+  de façon notable : fermer ajoute juste un segment droit discret entre la
+  fin et le début, absorbé par l'épaisseur du trait. Aucune migration de
+  données nécessaire — `pathDFromPoints()` est une fonction de rendu pure,
+  le fix s'applique automatiquement à toutes les zones déjà dessinées dès
+  le prochain rendu. Vérifié : une boucle de rayon 150px dessinée avec un
+  pinceau de rayon 48px (donc un anneau bien plus petit que la boucle, cas
+  qui aurait clairement laissé un trou avant le fix) — le centre de la
+  boucle est maintenant bien identifié comme faisant partie de la zone
+  (`elementFromPoint` en plein centre résout sur le bon `data-dmap-stroke`)
+  et un tap en plein centre bascule effectivement `hidden` sur toute la
+  zone, pas seulement sur l'anneau.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

@@ -546,11 +546,11 @@
   .dmap-frame{position:relative; display:inline-block; max-width:100%; line-height:0}
   .dmap-img{display:block; max-width:100%; height:auto}
   .dmap-overlay{position:absolute; inset:0; width:100%; height:100%; touch-action:none}
-  .dmap-stroke{fill:none; stroke-linecap:round; stroke-linejoin:round}
-  .dmap-overlay-gm .dmap-stroke-hit{stroke:transparent; pointer-events:stroke; cursor:pointer}
-  .dmap-stroke-hidden{pointer-events:stroke; cursor:pointer; opacity:.6}
-  .dmap-stroke-revealed{pointer-events:stroke; cursor:pointer; opacity:.16; stroke-dasharray:8 8}
-  .dmap-stroke-draft{stroke:var(--gold2); opacity:.5; pointer-events:none}
+  .dmap-stroke{stroke-linecap:round; stroke-linejoin:round}
+  .dmap-overlay-gm .dmap-stroke-hit{fill:transparent; stroke:transparent; pointer-events:all; cursor:pointer}
+  .dmap-stroke-hidden{pointer-events:all; cursor:pointer; opacity:.6}
+  .dmap-stroke-revealed{pointer-events:all; cursor:pointer; opacity:.16; stroke-dasharray:8 8}
+  .dmap-stroke-draft{stroke:var(--gold2); fill:var(--gold2); opacity:.5; pointer-events:none}
   .dmap-tool-add{cursor:crosshair}
   .dmap-darkness{pointer-events:none}
   .dmap-darkness-gm{opacity:.55}
@@ -4761,7 +4761,7 @@ function dungeonMapFrame(m, isGM){
   if(!m.image) return `<p class="faint" style="font-family:var(--ui);padding:1rem">Pas d'image pour cette carte.</p>`;
   const w = m.imgW||1000, h = m.imgH||1000;
   const revealHoles = (m.strokes||[]).filter(s=>!s.hidden)
-    .map(s=>`<path d="${pathDFromPoints(s.points)}" stroke="#000" stroke-width="${s.radius*2}"></path>`).join("");
+    .map(s=>`<path d="${pathDFromPoints(s.points)}" fill="#000" stroke="#000" stroke-width="${s.radius*2}"></path>`).join("");
   const darkness = `<mask id="dmap-mask">
       <rect x="0" y="0" width="${w}" height="${h}" fill="#fff"></rect>
       ${revealHoles}
@@ -4772,7 +4772,7 @@ function dungeonMapFrame(m, isGM){
     const cls = s.hidden ? "dmap-stroke dmap-stroke-hidden" : "dmap-stroke dmap-stroke-revealed";
     return `<g data-dmap-stroke="${s.id}">
       <path class="dmap-stroke-hit" d="${d}" stroke-width="${Math.max(s.radius*2, 24)}"></path>
-      <path class="${cls}" d="${d}" stroke="${s.color}" stroke-width="${s.radius*2}"></path>
+      <path class="${cls}" d="${d}" fill="${s.color}" stroke="${s.color}" stroke-width="${s.radius*2}"></path>
     </g>`;
   }).join("") : "";
   const draft = (isGM && dmapDraftStroke) ? `<path class="dmap-stroke dmap-stroke-draft" d="${pathDFromPoints(dmapDraftStroke.points)}" stroke-width="${dmapBrushRadiusPx(m)*2}"></path>` : "";
@@ -4810,21 +4810,29 @@ function fixDungeonMapViewBox(m){
    de points consécutifs (technique standard pour du dessin à main levée) — une simple polyligne
    "L x,y L x,y…" produit des angles vifs à chaque point échantillonné, visibles comme des
    facettes/biseaux dès que le tracé n'est pas parfaitement rectiligne (signalé par Tristan après
-   test réel : le pourtour du trou de brouillard avait un aspect "biseauté" au lieu d'être rond). */
+   test réel : le pourtour du trou de brouillard avait un aspect "biseauté" au lieu d'être rond).
+   Chemin toujours FERMÉ ("Z" final) : un pinceau rendu en simple `stroke` ne peint que la bande
+   qu'il suit, pas l'intérieur — dessiner en boucle autour d'une pièce (geste naturel pour la
+   couvrir en entier) laissait donc un "trou" non peint au centre (confirmé par Tristan avec une
+   capture zoomée montrant un cœur noir au milieu d'une zone jaune). En fermant le chemin ET en le
+   remplissant (`fill`, en plus du `stroke` qui ne fait qu'ajouter la marge du rayon du pinceau
+   tout autour), une boucle couvre bien tout son intérieur — le tracé devient un vrai lasso, pas
+   qu'un simple trait. Pour un tracé qui ne boucle pas, fermer ajoute juste un segment droit
+   discret entre la fin et le début, invisible en pratique sous l'épaisseur du trait. */
 function pathDFromPoints(points){
   if(!points || !points.length) return "";
   // Un seul point (tap sans glisser) : "M x,y" seul ne trace aucun segment, donc rien ne serait
   // rendu (ni visible, ni tapotable) malgré le stroke-linecap:round — on double le point en
   // "M x,y L x,y" pour forcer un segment de longueur nulle, qui lui affiche bien un point rond.
-  if(points.length===1){ const p=points[0]; return `M${p.x.toFixed(1)},${p.y.toFixed(1)} L${p.x.toFixed(1)},${p.y.toFixed(1)}`; }
-  if(points.length===2){ return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`; }
+  if(points.length===1){ const p=points[0]; return `M${p.x.toFixed(1)},${p.y.toFixed(1)} L${p.x.toFixed(1)},${p.y.toFixed(1)} Z`; }
+  if(points.length===2){ return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L${points[1].x.toFixed(1)},${points[1].y.toFixed(1)} Z`; }
   let d = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
   for(let i=1;i<points.length-1;i++){
     const midX = (points[i].x+points[i+1].x)/2, midY = (points[i].y+points[i+1].y)/2;
     d += ` Q${points[i].x.toFixed(1)},${points[i].y.toFixed(1)} ${midX.toFixed(1)},${midY.toFixed(1)}`;
   }
   const last = points[points.length-1];
-  d += ` L${last.x.toFixed(1)},${last.y.toFixed(1)}`;
+  d += ` L${last.x.toFixed(1)},${last.y.toFixed(1)} Z`;
   return d;
 }
 function dmapBrushRadiusPx(m){ return (dmapBrushSize/100) * Math.max(m.imgW||1000, m.imgH||1000); }
