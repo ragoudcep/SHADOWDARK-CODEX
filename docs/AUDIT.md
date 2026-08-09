@@ -310,18 +310,19 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
      corriger — le viewBox retombait donc sur le repli `1000×1000` (carré),
      alors que l'image réelle ne l'est pas. Un viewBox carré dans une boîte
      non carrée + `preserveAspectRatio="meet"` laisse nécessairement des
-     bandes hors du contenu réel. **Fix — auto-réparation** : si
-     `m.imgW`/`m.imgH` sont absents, `detailDungeonMap()` et
-     `playerDungeonMapView()` chargent l'image pour lire ses vraies
-     dimensions avant de calculer le viewBox (état "Chargement…" affiché
-     le temps du chargement, quasi instantané). Le MJ persiste la
-     correction (`saveDB()`, a les droits d'écriture) ; côté joueur la
-     correction ne reste qu'en mémoire pour cette session (RLS ne permet
-     pas l'écriture aux joueurs) — c'est le MJ qui, en ouvrant la carte une
-     fois, corrige la donnée pour de bon. Vérifié : une carte factice sans
-     `imgW`/`imgH` de ratio non carré (632×789) se répare bien à sa vraie
-     taille, et la boîte du SVG correspond alors exactement à celle de
-     l'image (plus aucun écart).
+     bandes hors du contenu réel. **Fix — auto-réparation, v2 après
+     régression (voir point 4 ci-dessous)** : `fixDungeonMapViewBox()`
+     corrige le `viewBox` depuis les vraies dimensions de l'`<img>` une fois
+     chargée (immédiat si déjà en cache navigateur, sinon au `load`), sans
+     jamais bloquer le rendu en attendant — la carte s'affiche tout de
+     suite avec le meilleur viewBox connu, puis se corrige à la volée. Le MJ
+     persiste la correction (`saveDB()`, a les droits d'écriture) ; côté
+     joueur elle ne reste qu'en mémoire pour cette session (RLS interdit
+     l'écriture aux joueurs) et se réappliquera au prochain rendu si besoin
+     — sans conséquence, puisque `fixDungeonMapViewBox()` ne dépend jamais
+     d'une donnée persistée pour fonctionner. Vérifié : une carte factice
+     sans `imgW`/`imgH` de ratio non carré (632×789) se répare bien à sa
+     vraie taille, boîte du SVG exactement égale à celle de l'image.
   2. **Tracés peu fidèles au geste réel** ("les tracés ne sont pas fidèles
      précisément au coup de brush"). Cause : le pas d'échantillonnage des
      points pendant le glissé (`minStep`) était calculé comme
@@ -353,6 +354,27 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   (seule la structure du chemin SVG généré a été vérifiée par assertion,
   pas une capture d'écran) — à confirmer par toi que "biseauté" a bien
   disparu en pratique, idéalement avec le même donjon que sur tes captures.
+  4. **Régression introduite par le point 1 ci-dessus, trouvée par Tristan
+     ("le rafraîchissement ne se fait plus côté joueur")** : la première
+     version du fix #1 affichait un état "Chargement…" bloquant tant que
+     `m.imgW`/`m.imgH` n'étaient pas connus, le temps de charger l'image en
+     arrière-plan. Correct pour le MJ (qui persiste immédiatement la
+     correction), mais **boucle infinie côté joueur** : `startDungeonMapsPolling()`
+     écrase entièrement `db.dungeonmaps` avec les données fraîches du
+     serveur toutes les 4,5s ; si la carte active n'a jamais été réparée
+     côté MJ (donc toujours sans `imgW`/`imgH` sur le serveur), la
+     correction en mémoire du joueur se faisait immédiatement écraser par
+     le tick de polling suivant, qui relançait l'état "Chargement…" — vu
+     par le joueur comme un écran bloqué en permanence, facile à confondre
+     avec "le polling ne tourne plus". **Fix** : plus aucun état bloquant —
+     `fixDungeonMapViewBox()` (point 1) corrige le rendu déjà affiché sans
+     jamais gater le rendu initial sur la disponibilité des dimensions.
+     Reproduit et vérifié le scénario exact : rendu immédiat (pas de
+     "Chargement…"), correction du viewBox après chargement de l'image,
+     PUIS simulation d'un tick de polling qui réinjecte la même carte sans
+     `imgW`/`imgH` (comme le ferait le vrai serveur tant que le MJ n'a pas
+     rouvert la carte) — le rendu reste stable et se recorrige à chaque
+     fois, sans jamais re-bloquer sur un écran de chargement.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

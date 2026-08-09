@@ -4642,22 +4642,9 @@ function playerDungeonMapView(){
   startDungeonMapsPolling();
   const m = db.dungeonmaps.find(x=>x.active);
   if(!m){ app.innerHTML = emptyState("🗺️","Ton MJ n'a pas encore affiché de carte."); return; }
-  if(!m.imgW || !m.imgH){
-    // Carte créée avant l'introduction d'imgW/imgH (ou jamais ouverte côté MJ pour se corriger
-    // toute seule) : sans ces dimensions, le viewBox retombait sur un défaut carré 1000x1000,
-    // qui ne couvrait pas correctement une image non carrée (l'obscurité "dépassait" ou
-    // laissait des bandes non couvertes). On charge l'image pour lire ses vraies dimensions —
-    // en mémoire seulement ici, un joueur n'a pas les droits d'écriture Supabase ; c'est le MJ
-    // qui persistera la correction la prochaine fois qu'il ouvrira cette carte.
-    loadImageAsync(m.image).then(im=>{
-      m.imgW = im.naturalWidth; m.imgH = im.naturalHeight;
-      if(view.tab==="dungeonmaps") playerDungeonMapView();
-    });
-    app.innerHTML = `<div class="empty"><span class="big">⏳</span>Chargement de la carte…</div>`;
-    return;
-  }
   app.innerHTML = `<div class="detail"><h1>${esc(m.name||"Carte")}</h1>
     <div class="dmap-scroll">${dungeonMapFrame(m, false)}</div></div>`;
+  fixDungeonMapViewBox(m);
 }
 
 function formDungeonMap(){
@@ -4728,18 +4715,6 @@ function deleteDungeonMapStroke(m, strokeId){
 function detailDungeonMap(m){
   dungeonMapCurrentId = m.id;
   dmapDraftStroke = null;
-  if(!m.imgW || !m.imgH){
-    // Carte créée avant l'introduction d'imgW/imgH : on répare une bonne fois pour toutes en
-    // lisant les vraies dimensions de l'image, et on sauvegarde (contrairement au joueur, le MJ
-    // a les droits d'écriture — la correction devient donc permanente ici).
-    loadImageAsync(m.image).then(im=>{
-      m.imgW = im.naturalWidth; m.imgH = im.naturalHeight;
-      saveDB();
-      if(dungeonMapCurrentId===m.id) detailDungeonMap(m);
-    });
-    app.innerHTML = `<div class="empty"><span class="big">⏳</span>Chargement de la carte…</div>`;
-    return;
-  }
   const toolHelp = dmapTool==="add"
     ? "Clique-glisse (ou dessine au doigt) pour tracer une nouvelle zone. Le mode reste actif : dessine autant de zones que nécessaire, puis re-clique le bouton pour arrêter."
     : dmapTool==="delete"
@@ -4765,6 +4740,7 @@ function detailDungeonMap(m){
     <div class="dmap-scroll" id="dmap-scroll">${dungeonMapFrame(m, true)}</div>
   </div>`;
   wireDungeonMapSVG(m);
+  fixDungeonMapViewBox(m);
 }
 
 /* viewBox aux dimensions naturelles de l'image (m.imgW/m.imgH, mises en cache à l'upload) —
@@ -4804,6 +4780,31 @@ function dungeonMapFrame(m, isGM){
     <img class="dmap-img" src="${m.image}" alt="">
     <svg class="dmap-overlay${isGM?` dmap-overlay-gm dmap-tool-${dmapTool}`:''}" id="dmap-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${darkness}${strokes}${draft}</svg>
   </div>`;
+}
+/* Corrige le viewBox depuis les VRAIES dimensions de l'image une fois chargée (immédiat si déjà
+   en cache navigateur, sinon au "load"), plutôt que de bloquer le rendu en attendant de connaître
+   ces dimensions à l'avance. Remplace un précédent essai qui gardait la vue sur "Chargement…"
+   tant que m.imgW/imgH manquaient : ça bouclait à l'infini côté joueur, puisque chaque tick de
+   polling (4,5s) écrase db.dungeonmaps avec les données fraîches du serveur — sans droits
+   d'écriture, la correction en mémoire du joueur ne survivait jamais jusqu'au tick suivant, donc
+   la carte restait bloquée sur "Chargement…" en permanence (rapporté par Tristan comme "le
+   rafraîchissement ne se fait plus"). Cette version-ci ne bloque jamais le rendu : la carte
+   s'affiche tout de suite avec le meilleur viewBox connu, puis se corrige sans re-render bloquant
+   dès que l'image est prête. Seul le MJ persiste la correction (RLS interdit l'écriture aux
+   joueurs) — sans conséquence : à la prochaine ouverture par le MJ, la carte se répare pour de
+   bon et n'a plus jamais besoin de ce correctif. */
+function fixDungeonMapViewBox(m){
+  const svg = document.getElementById("dmap-svg");
+  const img = svg ? svg.previousElementSibling : null;
+  if(!svg || !img || !(img instanceof HTMLImageElement)) return;
+  const apply = ()=>{
+    if(!img.naturalWidth || !img.naturalHeight) return;
+    if(m.imgW===img.naturalWidth && m.imgH===img.naturalHeight) return; // déjà juste, rien à faire
+    svg.setAttribute("viewBox", `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
+    m.imgW = img.naturalWidth; m.imgH = img.naturalHeight;
+    if(myRole==="gm") saveDB();
+  };
+  if(img.complete) apply(); else img.addEventListener("load", apply, { once:true });
 }
 /* Lisse le tracé par des courbes de Bézier quadratiques passant par le milieu de chaque paire
    de points consécutifs (technique standard pour du dessin à main levée) — une simple polyligne
