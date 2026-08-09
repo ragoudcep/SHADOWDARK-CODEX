@@ -568,8 +568,18 @@
   .session-entry{border-left:2px solid var(--border2); padding:.2rem 0 .2rem 1rem; margin:.9rem 0}
   .session-entry .etitle{font-family:var(--ui); font-weight:700; color:var(--gold2); font-size:.9rem}
 
-  /* ---------- Grand écran : onglets en colonne dans une marge à gauche ---------- */
-  @media (min-width:1300px){
+  /* ---------- Bouton pour replier/déplier la marge d'onglets ---------- */
+  .nav-toggle-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:2.15rem; height:2.15rem; padding:0; flex:0 0 auto;
+    background:var(--panel); border:1px solid var(--border2); color:var(--muted);
+    border-radius:8px; font-size:1rem; line-height:1;
+  }
+  .nav-toggle-btn:hover{color:var(--gold2); border-color:var(--gold)}
+  #nav-backdrop{display:none}
+
+  /* ---------- Tablette et plus : onglets en colonne dans une marge à gauche, repliable ---------- */
+  @media (min-width:641px){
     .bar{min-height:56px}
     nav.tabs{
       /* position:fixed est positionné par rapport à <header>, pas au viewport, car header a
@@ -582,14 +592,17 @@
       overflow-y:auto; overflow-x:hidden; gap:.15rem;
       border-right:1px solid var(--border); border-bottom:none;
       background:linear-gradient(180deg, #0c0c0d 0%, #0c0c0df5 100%);
-      z-index:45;
+      z-index:45; transform:translateX(0); transition:transform .18s ease;
     }
     nav.tabs button{
       width:100%; text-align:left; border-right:none; border-bottom:none;
       border-left:2px solid transparent; border-radius:6px; padding:.55rem .65rem .55rem .6rem;
     }
     nav.tabs button.active{ background:var(--panel2); border-left-color:var(--gold); }
-    main{ margin:0 0 0 196px; max-width:1100px; }
+    main{ margin:0 0 0 196px; max-width:1100px; transition:margin-left .18s ease; }
+    /* marge repliée : onglets glissés hors écran, le contenu reprend toute la largeur */
+    body.nav-collapsed nav.tabs{ transform:translateX(-100%); }
+    body.nav-collapsed main{ margin:0 auto; }
   }
   @media (max-width:640px){
     .brand small{display:none}
@@ -598,11 +611,24 @@
     .bar{gap:.5rem; padding:.6rem .7rem}
     /* recherche sur sa propre ligne, pleine largeur */
     .search{flex:1 1 100%; order:3}
-    /* onglets : passage à la ligne, tous visibles, en pastilles (fini le défilement horizontal) */
-    nav.tabs{flex-wrap:wrap; overflow:visible; gap:.4rem; padding:0 .5rem .5rem}
-    nav.tabs button{flex:1 1 auto; font-size:.85rem; font-weight:600; padding:.65rem .8rem; min-height:44px;
+    /* onglets : tiroir replié par défaut, ouvert en tapotant le bouton ☰, par-dessus le contenu */
+    nav.tabs{
+      position:fixed; top:0; left:0; width:78vw; max-width:290px; height:100vh;
+      margin:0; padding:4.4rem 1rem 1.5rem; flex-direction:column; align-items:stretch;
+      overflow-y:auto; overflow-x:hidden; gap:.35rem;
+      border-right:1px solid var(--border);
+      background:linear-gradient(180deg, #0c0c0d 0%, #0c0c0df5 100%);
+      box-shadow:8px 0 26px rgba(0,0,0,.55);
+      transform:translateX(-100%); transition:transform .2s ease; z-index:120;
+    }
+    nav.tabs button{width:100%; text-align:left; font-size:.85rem; font-weight:600; padding:.7rem .85rem; min-height:44px;
       border-bottom:none; border-right:none; border-radius:10px; background:var(--panel); border:1px solid var(--border)}
     nav.tabs button.active{background:var(--panel2); color:var(--gold2); border-color:var(--gold)}
+    body.nav-mobile-open nav.tabs{transform:translateX(0)}
+    body.nav-mobile-open #nav-backdrop{
+      display:block; position:fixed; top:0; left:0; width:100vw; height:100vh;
+      background:rgba(0,0,0,.55); z-index:110;
+    }
     /* cartes en une colonne */
     .grid{grid-template-columns:1fr; gap:.7rem}
     .card p{-webkit-line-clamp:2}
@@ -797,6 +823,7 @@
 <div id="starfield"></div>
 <header id="app-header" class="hidden">
   <div class="bar">
+    <button class="nav-toggle-btn" id="btn-nav-toggle" title="Afficher/masquer les onglets" aria-label="Afficher/masquer les onglets">☰</button>
     <div class="brand">
       <span class="rune">✦</span>
       <span>Codex<small>Campagne Shadowdark</small></span>
@@ -829,6 +856,7 @@
     <button data-tab="initiative">Initiative</button>
     <button data-tab="wheel">Roue</button>
   </nav>
+  <div id="nav-backdrop"></div>
 </header>
 
 <div id="auth-screen" class="hidden">
@@ -5457,6 +5485,7 @@ $("#tabs").addEventListener("click", e=>{
   const b = e.target.closest("button[data-tab]"); if(!b) return;
   editReturnTo = null;
   view = { tab:b.dataset.tab, mode:"list", id:null }; render();
+  document.body.classList.remove("nav-mobile-open");
 });
 
 // Filtre par thème dans l'onglet Événements
@@ -6282,6 +6311,24 @@ $("#auth-submit").addEventListener("click", async ()=>{
 });
 $("#auth-password").addEventListener("keydown", e=>{ if(e.key==="Enter") $("#auth-submit").click(); });
 document.getElementById("btn-logout").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+// Marge d'onglets repliable (tapoter pour ouvrir/fermer)
+// Desktop/tablette (≥641px) : colonne fixe, ouverte par défaut, état mémorisé.
+// Mobile (≤640px) : tiroir par-dessus le contenu, fermé par défaut, jamais mémorisé.
+const NAV_COLLAPSED_KEY = "sdcodex_nav_collapsed";
+const navMobileQuery = window.matchMedia("(max-width:640px)");
+if(!navMobileQuery.matches && localStorage.getItem(NAV_COLLAPSED_KEY)==="1") document.body.classList.add("nav-collapsed");
+document.getElementById("btn-nav-toggle").addEventListener("click", ()=>{
+  if(navMobileQuery.matches){
+    document.body.classList.toggle("nav-mobile-open");
+  } else {
+    const collapsed = document.body.classList.toggle("nav-collapsed");
+    localStorage.setItem(NAV_COLLAPSED_KEY, collapsed ? "1" : "0");
+  }
+});
+document.getElementById("nav-backdrop").addEventListener("click", ()=>{
+  document.body.classList.remove("nav-mobile-open");
+});
 
 (function(){
   const field = document.getElementById("starfield");
