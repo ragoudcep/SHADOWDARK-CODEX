@@ -301,6 +301,58 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   `document.elementFromPoint`, et un écart de ratio `imgW`/`imgH` forcé
   exprès pour vérifier le fix #1) — non testé au doigt sur un vrai
   téléphone, cette confirmation reste à faire par Tristan.
+- **Cartes de donjon — trois nouveaux correctifs après un vrai test sur une
+  carte réelle (même soirée, captures d'écran fournies par Tristan)** :
+  1. **L'obscurité ne couvrait pas tout le plan** (bandes visibles en haut
+     et en bas de l'image sur la vue joueur). Cause : la carte testée avait
+     été créée *avant* l'introduction d'`imgW`/`imgH` (juste au-dessus dans
+     ce même journal) ou n'avait jamais été rouverte côté MJ pour se
+     corriger — le viewBox retombait donc sur le repli `1000×1000` (carré),
+     alors que l'image réelle ne l'est pas. Un viewBox carré dans une boîte
+     non carrée + `preserveAspectRatio="meet"` laisse nécessairement des
+     bandes hors du contenu réel. **Fix — auto-réparation** : si
+     `m.imgW`/`m.imgH` sont absents, `detailDungeonMap()` et
+     `playerDungeonMapView()` chargent l'image pour lire ses vraies
+     dimensions avant de calculer le viewBox (état "Chargement…" affiché
+     le temps du chargement, quasi instantané). Le MJ persiste la
+     correction (`saveDB()`, a les droits d'écriture) ; côté joueur la
+     correction ne reste qu'en mémoire pour cette session (RLS ne permet
+     pas l'écriture aux joueurs) — c'est le MJ qui, en ouvrant la carte une
+     fois, corrige la donnée pour de bon. Vérifié : une carte factice sans
+     `imgW`/`imgH` de ratio non carré (632×789) se répare bien à sa vraie
+     taille, et la boîte du SVG correspond alors exactement à celle de
+     l'image (plus aucun écart).
+  2. **Tracés peu fidèles au geste réel** ("les tracés ne sont pas fidèles
+     précisément au coup de brush"). Cause : le pas d'échantillonnage des
+     points pendant le glissé (`minStep`) était calculé comme
+     `rayonDuPinceau / 4` — avec un pinceau large (comme ceux visibles sur
+     la capture d'écran de Tristan), ce pas devenait grand, donc peu de
+     points étaient réellement enregistrés le long du geste de souris.
+     **Fix** : pas fixe et petit indépendant du rayon
+     (`max(3px, 0.4% de la plus grande dimension de l'image)`) — un
+     pinceau large n'a plus d'excuse pour échantillonner grossièrement.
+     Vérifié : un glissé lent simulé en pas de 4px (image) capture
+     désormais 41 points sur un test où l'ancien seuil n'en aurait capté
+     qu'une quinzaine.
+  3. **Découpage "biseauté"/à facettes au lieu d'un contour rond.** Cause :
+     `pathDFromPoints()` reliait les points échantillonnés par de simples
+     segments droits (`"M x,y L x,y L x,y…"`) — une polyligne, quel que
+     soit le nombre de points, a toujours des angles vifs à chaque sommet,
+     visibles comme des facettes dès que le geste n'est pas parfaitement
+     rectiligne (c'est ce qui donne aussi, en cumulé avec le fix #2 non
+     encore posé, l'aspect "chelou" remarqué par Tristan pendant le tracé
+     lui-même). **Fix** : lissage par courbes de Bézier quadratiques
+     passant par le milieu de chaque paire de points consécutifs (technique
+     standard de dessin à main levée) au lieu de segments droits — la même
+     fonction sert au tracé final ET à l'aperçu en direct pendant le
+     glissé, donc les deux profitent du lissage. Vérifié : le `d` généré
+     pour un tracé à 5 points contient bien des commandes `Q` (courbe) et
+     non plus uniquement des `L` (droite).
+  Les trois fixes testés dans un navigateur avec un vrai viewport. **Non
+  vérifié** : le rendu visuel réel de la douceur du tracé lissé à l'œil
+  (seule la structure du chemin SVG généré a été vérifiée par assertion,
+  pas une capture d'écran) — à confirmer par toi que "biseauté" a bien
+  disparu en pratique, idéalement avec le même donjon que sur tes captures.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

@@ -4641,10 +4641,23 @@ function listDungeonMaps(){
 function playerDungeonMapView(){
   startDungeonMapsPolling();
   const m = db.dungeonmaps.find(x=>x.active);
-  app.innerHTML = m
-    ? `<div class="detail"><h1>${esc(m.name||"Carte")}</h1>
-        <div class="dmap-scroll">${dungeonMapFrame(m, false)}</div></div>`
-    : emptyState("🗺️","Ton MJ n'a pas encore affiché de carte.");
+  if(!m){ app.innerHTML = emptyState("🗺️","Ton MJ n'a pas encore affiché de carte."); return; }
+  if(!m.imgW || !m.imgH){
+    // Carte créée avant l'introduction d'imgW/imgH (ou jamais ouverte côté MJ pour se corriger
+    // toute seule) : sans ces dimensions, le viewBox retombait sur un défaut carré 1000x1000,
+    // qui ne couvrait pas correctement une image non carrée (l'obscurité "dépassait" ou
+    // laissait des bandes non couvertes). On charge l'image pour lire ses vraies dimensions —
+    // en mémoire seulement ici, un joueur n'a pas les droits d'écriture Supabase ; c'est le MJ
+    // qui persistera la correction la prochaine fois qu'il ouvrira cette carte.
+    loadImageAsync(m.image).then(im=>{
+      m.imgW = im.naturalWidth; m.imgH = im.naturalHeight;
+      if(view.tab==="dungeonmaps") playerDungeonMapView();
+    });
+    app.innerHTML = `<div class="empty"><span class="big">⏳</span>Chargement de la carte…</div>`;
+    return;
+  }
+  app.innerHTML = `<div class="detail"><h1>${esc(m.name||"Carte")}</h1>
+    <div class="dmap-scroll">${dungeonMapFrame(m, false)}</div></div>`;
 }
 
 function formDungeonMap(){
@@ -4715,6 +4728,18 @@ function deleteDungeonMapStroke(m, strokeId){
 function detailDungeonMap(m){
   dungeonMapCurrentId = m.id;
   dmapDraftStroke = null;
+  if(!m.imgW || !m.imgH){
+    // Carte créée avant l'introduction d'imgW/imgH : on répare une bonne fois pour toutes en
+    // lisant les vraies dimensions de l'image, et on sauvegarde (contrairement au joueur, le MJ
+    // a les droits d'écriture — la correction devient donc permanente ici).
+    loadImageAsync(m.image).then(im=>{
+      m.imgW = im.naturalWidth; m.imgH = im.naturalHeight;
+      saveDB();
+      if(dungeonMapCurrentId===m.id) detailDungeonMap(m);
+    });
+    app.innerHTML = `<div class="empty"><span class="big">⏳</span>Chargement de la carte…</div>`;
+    return;
+  }
   const toolHelp = dmapTool==="add"
     ? "Clique-glisse (ou dessine au doigt) pour tracer une nouvelle zone. Le mode reste actif : dessine autant de zones que nécessaire, puis re-clique le bouton pour arrêter."
     : dmapTool==="delete"
@@ -4780,13 +4805,26 @@ function dungeonMapFrame(m, isGM){
     <svg class="dmap-overlay${isGM?` dmap-overlay-gm dmap-tool-${dmapTool}`:''}" id="dmap-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${darkness}${strokes}${draft}</svg>
   </div>`;
 }
+/* Lisse le tracé par des courbes de Bézier quadratiques passant par le milieu de chaque paire
+   de points consécutifs (technique standard pour du dessin à main levée) — une simple polyligne
+   "L x,y L x,y…" produit des angles vifs à chaque point échantillonné, visibles comme des
+   facettes/biseaux dès que le tracé n'est pas parfaitement rectiligne (signalé par Tristan après
+   test réel : le pourtour du trou de brouillard avait un aspect "biseauté" au lieu d'être rond). */
 function pathDFromPoints(points){
   if(!points || !points.length) return "";
   // Un seul point (tap sans glisser) : "M x,y" seul ne trace aucun segment, donc rien ne serait
   // rendu (ni visible, ni tapotable) malgré le stroke-linecap:round — on double le point en
   // "M x,y L x,y" pour forcer un segment de longueur nulle, qui lui affiche bien un point rond.
   if(points.length===1){ const p=points[0]; return `M${p.x.toFixed(1)},${p.y.toFixed(1)} L${p.x.toFixed(1)},${p.y.toFixed(1)}`; }
-  return "M" + points.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L");
+  if(points.length===2){ return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`; }
+  let d = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  for(let i=1;i<points.length-1;i++){
+    const midX = (points[i].x+points[i+1].x)/2, midY = (points[i].y+points[i+1].y)/2;
+    d += ` Q${points[i].x.toFixed(1)},${points[i].y.toFixed(1)} ${midX.toFixed(1)},${midY.toFixed(1)}`;
+  }
+  const last = points[points.length-1];
+  d += ` L${last.x.toFixed(1)},${last.y.toFixed(1)}`;
+  return d;
 }
 function dmapBrushRadiusPx(m){ return (dmapBrushSize/100) * Math.max(m.imgW||1000, m.imgH||1000); }
 /* Conversion écran → coordonnées SVG via la matrice de transformation native (getScreenCTM),
@@ -4832,7 +4870,10 @@ function startDrawDungeonStroke(m, svg, e){
   pathEl.setAttribute("stroke-width", dmapBrushRadiusPx(m)*2);
   pathEl.setAttribute("d", pathDFromPoints(dmapDraftStroke.points));
   svg.appendChild(pathEl);
-  const minStep = dmapBrushRadiusPx(m) / 4;
+  // Indépendant du rayon du pinceau : un grand pinceau ne doit pas pour autant échantillonner
+  // grossièrement (c'était le cas avec rayon/4, d'où les tracés peu fidèles/à facettes
+  // remontés par Tristan). Un pas fixe, petit par rapport à l'image, suffit à rester fluide.
+  const minStep = Math.max(3, Math.max(m.imgW||1000, m.imgH||1000) * 0.004);
   const move = ev=>{
     const p = svgPtFromEvent(svg, m, ev);
     const last = dmapDraftStroke.points[dmapDraftStroke.points.length-1];
