@@ -436,13 +436,22 @@
   .reveal-box.gift .reveal-lid{background:linear-gradient(160deg,var(--gold2),var(--gold))}
   .reveal-box.gift .reveal-lid::before{content:""; position:absolute; left:50%; top:-14px; width:22px; height:22px; transform:translateX(-50%);
     border-radius:50% 50% 0 0/60% 60% 0 0; background:var(--gold2); box-shadow:-14px 4px 0 -2px var(--gold), 14px 4px 0 -2px var(--gold)}
-  /* ambiance "chest" — coffre en bois cerclé de métal doré, fermoir au lieu du noeud */
-  .reveal-box.chest .reveal-base{background:linear-gradient(160deg,#7a5636,#3c2a16); border:1px solid #241708}
-  .reveal-box.chest .reveal-base::before{content:""; position:absolute; left:50%; top:0; bottom:0; width:14%; transform:translateX(-50%);
+  /* ambiance "chest" — vraie silhouette de coffre (pas juste un cadeau recoloré) : malle large et
+     trapue, couvercle bombé (au lieu du couvercle plat du cadeau), cerclages métalliques dorés,
+     fermoir central. Ne réutilise que la structure animée (shake/pop) de .reveal-box, pas sa
+     géométrie — c'est cette géométrie qui faisait "toujours un cadeau" malgré la couleur bois. */
+  .reveal-box.chest{width:148px; height:92px}
+  .reveal-box.chest .reveal-base{height:56px; border-radius:4px;
+    background:linear-gradient(160deg,#8a6440,#4a331d); border:1px solid #241708}
+  .reveal-box.chest .reveal-base::before{content:""; position:absolute; left:-2px; right:-2px; top:13px; height:8px;
     background:linear-gradient(180deg,var(--gold2),var(--gold)); box-shadow:0 0 0 1px #241708}
-  .reveal-box.chest .reveal-lid{background:linear-gradient(160deg,#8a6440,#4a331d); border:1px solid #241708}
-  .reveal-box.chest .reveal-lid::before{content:""; position:absolute; left:50%; top:9px; width:18px; height:13px; transform:translateX(-50%);
-    background:linear-gradient(160deg,var(--gold2),var(--gold)); border-radius:2px; box-shadow:0 0 0 1px #241708}
+  .reveal-box.chest .reveal-lid{left:0; right:0; top:0; height:46px;
+    border-radius:74px 74px 6px 6px/44px 44px 6px 6px;
+    background:linear-gradient(160deg,#a17a52,#5c4326); border:1px solid #241708; transform-origin:12% 96%}
+  .reveal-box.chest .reveal-lid::before{content:""; position:absolute; left:50%; top:4px; bottom:0; width:9px; transform:translateX(-50%);
+    background:linear-gradient(180deg,var(--gold2),var(--gold)); box-shadow:0 0 0 1px #241708}
+  .reveal-box.chest .reveal-lid::after{content:""; position:absolute; left:50%; bottom:-9px; width:22px; height:16px; transform:translateX(-50%);
+    background:linear-gradient(160deg,var(--gold2),var(--gold)); border-radius:3px; box-shadow:0 0 0 1px #241708; z-index:1}
   .wheel-reward-banner{position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:.9rem; opacity:0; transform:translateY(8px) scale(.94);
     transition:opacity .5s ease, transform .5s cubic-bezier(.34,1.56,.64,1)}
   /* z-index:2 = garde-fou pour que le bandeau (et le bouton Fermer) restent toujours cliquables
