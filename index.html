@@ -4760,8 +4760,13 @@ function detailDungeonMap(m){
 function dungeonMapFrame(m, isGM){
   if(!m.image) return `<p class="faint" style="font-family:var(--ui);padding:1rem">Pas d'image pour cette carte.</p>`;
   const w = m.imgW||1000, h = m.imgH||1000;
+  // stroke-linecap/linejoin explicites : sans ça ce <path> retombe sur les défauts SVG (bouts
+  // plats, jointures en angle vif) au lieu des bouts/jointures arrondis de .dmap-stroke — le trou
+  // percé dans le brouillard avait alors des allures de rectangle anguleux au lieu de suivre la
+  // forme ronde/organique réelle du tracé (signalé par Tristan, capture à l'appui : le MJ voyait
+  // un tracé bien rond, les joueurs une fenêtre carrée).
   const revealHoles = (m.strokes||[]).filter(s=>!s.hidden)
-    .map(s=>`<path d="${pathDFromPoints(s.points)}" fill="#000" stroke="#000" stroke-width="${s.radius*2}"></path>`).join("");
+    .map(s=>`<path d="${pathDFromPoints(s.points)}" fill="#000" stroke="#000" stroke-width="${s.radius*2}" stroke-linecap="round" stroke-linejoin="round"></path>`).join("");
   const darkness = `<mask id="dmap-mask">
       <rect x="0" y="0" width="${w}" height="${h}" fill="#fff"></rect>
       ${revealHoles}
@@ -4771,7 +4776,7 @@ function dungeonMapFrame(m, isGM){
     const d = pathDFromPoints(s.points);
     const cls = s.hidden ? "dmap-stroke dmap-stroke-hidden" : "dmap-stroke dmap-stroke-revealed";
     return `<g data-dmap-stroke="${s.id}">
-      <path class="dmap-stroke-hit" d="${d}" stroke-width="${Math.max(s.radius*2, 24)}"></path>
+      <path class="dmap-stroke dmap-stroke-hit" d="${d}" stroke-width="${Math.max(s.radius*2, 24)}"></path>
       <path class="${cls}" d="${d}" fill="${s.color}" stroke="${s.color}" stroke-width="${s.radius*2}"></path>
     </g>`;
   }).join("") : "";

@@ -404,6 +404,30 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   (`elementFromPoint` en plein centre résout sur le bon `data-dmap-stroke`)
   et un tap en plein centre bascule effectivement `hidden` sur toute la
   zone, pas seulement sur l'anneau.
+- **Cartes de donjon — fenêtre carrée côté joueur alors que le tracé est
+  rond côté MJ, trouvé par Tristan (captures comparatives à l'appui, même
+  soirée)** : le `<path>` du trou percé dans le masque de brouillard
+  (`revealHoles`, dans `dungeonMapFrame()`) était créé sans aucune classe
+  CSS, contrairement au tracé visible MJ (`class="dmap-stroke ..."`, qui
+  porte `stroke-linecap:round; stroke-linejoin:round`). Sans ces
+  propriétés, un `<path>` SVG retombe sur les valeurs par défaut — bouts
+  plats (`butt`) et jointures en angle vif (`miter`) — au lieu de bouts et
+  jointures arrondis. Un tracé épais avec bouts plats/jointures vives a
+  des allures de rectangle/polygone anguleux, très différent du blob
+  organique que le MJ voit et a dessiné. **Fix** : `stroke-linecap="round"
+  stroke-linejoin="round"` ajoutés explicitement sur le `<path>` du trou de
+  masque (au lieu d'une classe, pour ne pas dépendre d'un futur changement
+  CSS sur `.dmap-stroke` qui ne conviendrait pas forcément à un enfant de
+  `<mask>`). Corrigé au passage le même oubli, moins visible mais réel, sur
+  le `<path>` de zone de tap invisible (`dmap-stroke-hit`) qui n'avait pas
+  non plus la classe `dmap-stroke` — sans conséquence visuelle (invisible)
+  mais avec un impact réel sur la précision du tap près des extrémités
+  d'une zone. Fonction de rendu pure comme les fixes précédents sur ce
+  fichier, aucune migration nécessaire. Vérifié : le `<path>` du trou de
+  masque porte maintenant `stroke-linecap="round"` et
+  `stroke-linejoin="round"`, et son `d`/`stroke-width` sont strictement
+  identiques à ceux du tracé visible MJ correspondant (donc géométriquement
+  la même forme, pas seulement visuellement proche).
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
