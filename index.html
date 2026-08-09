@@ -545,11 +545,14 @@
   .dmap-scroll{overflow:auto; max-height:76vh; border:1px solid var(--border2); border-radius:var(--radius); background:#0c0a08}
   .dmap-frame{position:relative; display:inline-block; max-width:100%; line-height:0}
   .dmap-img{display:block; max-width:100%; height:auto}
-  .dmap-fog-img{position:absolute; inset:0; width:100%; height:100%; pointer-events:none}
-  .dmap-fog-canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:none}
-  .dmap-fog-canvas.dmap-fog-gm{opacity:.5}
-  .dmap-brush-cursor{position:absolute; border:2px solid var(--gold2); border-radius:50%; pointer-events:none;
-    transform:translate(-50%,-50%); display:none; box-shadow:0 0 0 1px rgba(0,0,0,.6); z-index:2}
+  .dmap-overlay{position:absolute; inset:0; width:100%; height:100%; touch-action:none}
+  .dmap-stroke{fill:none; stroke-linecap:round; stroke-linejoin:round}
+  .dmap-overlay-gm .dmap-stroke-hit{stroke:transparent; pointer-events:stroke; cursor:pointer}
+  .dmap-stroke-hidden{pointer-events:stroke; cursor:pointer; opacity:.6}
+  .dmap-stroke-revealed{pointer-events:stroke; cursor:pointer; opacity:.16; stroke-dasharray:8 8}
+  .dmap-stroke-player{stroke:#000; opacity:1; pointer-events:none}
+  .dmap-stroke-draft{stroke:var(--gold2); opacity:.5; pointer-events:none}
+  .dmap-tool-add{cursor:crosshair}
 
   /* toast */
   #toast{position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%) translateY(20px);
@@ -2454,6 +2457,7 @@ function duplicateEntity(type,id){
   (copy.nodes||[]).forEach(x=>x.id=uid());
   (copy.edges||[]).forEach(x=>x.id=uid());
   (copy.images||[]).forEach(x=>x.id=uid());
+  (copy.strokes||[]).forEach(x=>x.id=uid());
   if(type==="dungeonmap") copy.active = false; // une copie ne doit jamais être affichée aux joueurs à leur insu
   if(type==="npc"||type==="pc") delete copy.portrait; // le portrait d'origine reste réservé à la fiche source
   if(type==="creature"||type==="npc"||type==="pc"||type==="treasure"||type==="spell"||type==="dungeonmap") copy.name = (copy.name||"Sans nom")+" (copie)";
@@ -4555,36 +4559,45 @@ function importHexmapJSON(file){
 }
 
 /* =========================================================================
-   CARTES DE DONJON — brouillard de guerre peint au pinceau/gomme
+   CARTES DE DONJON — brouillard de guerre en zones colorées activables
    Le MJ prépare plusieurs cartes (image), une seule à la fois est "active"
    (db.dungeonmaps[].active). Les joueurs ne voient jamais que la carte
    active — la policy RLS Supabase filtre déjà les cartes non actives côté
    serveur (voir outils/supabase_dungeonmaps_setup.sql), donc leur contenu
    ne transite même pas sur le réseau chez un joueur.
-   Le brouillard n'est plus une liste de formes (v1, patchs rectangulaires
-   à poignées — abandonné : Tristan l'a trouvé trop pénible à manipuler
-   finement) mais un calque peint à main levée sur un <canvas>, exporté en
-   PNG (data URL, transparence nécessaire) et stocké dans `m.fog` — même
-   principe de stockage que l'image de la carte (base64 dans le jsonb, pas
-   de bucket Storage séparé). Peindre = cercle plein en noir opaque
-   (mode "hide"), effacer = même cercle mais en
-   globalCompositeOperation:"destination-out" (mode "reveal", découpe un
-   vrai trou transparent — la seule façon correcte d'effacer sur un canvas
-   avec alpha). `m.fog` absent/null = carte entièrement révélée (pas de
-   calque à peindre) ; une carte neuve démarre au contraire entièrement
-   cachée (fog = canvas noir plein à la taille naturelle de l'image), pour
-   coller au vrai flux de jeu : le MJ prépare une carte cachée, puis la
-   révèle au pinceau/à la gomme au fur et à mesure que les joueurs
-   explorent. Rendu MJ : canvas semi-transparent (opacity:.5) pour voir la
-   carte en dessous en peignant. Rendu joueur : simple <img> du PNG de
-   brouillard superposé, opaque, aucune interactivité.
+   Troisième mouture du brouillard (v1 : patchs rectangulaires à poignées,
+   trop pénibles à manipuler finement ; v2 : calque peint au pinceau/gomme
+   sur un <canvas>, correct mais toujours une manipulation fine à la souris).
+   v3 (actuelle, demandée par Tristan) : chaque coup de pinceau devient une
+   **entité indépendante** (`m.strokes[]`, un tracé libre + un rayon,
+   coordonnées dans l'espace pixel NATUREL de l'image — pas en pourcentage,
+   voir plus bas pourquoi), avec une couleur assignée automatiquement
+   (`DMAP_STROKE_COLORS`, cycle par index) pour les distinguer côté MJ. Le
+   flux visé : le MJ dessine ses zones à la souris en préparation (précis),
+   puis en jeu — notamment au téléphone — il lui suffit de **tapoter** une
+   zone pour basculer `hidden` (caché, opaque) / révélé (transparent),
+   sans avoir à repeindre finement sur un petit écran.
+   Rendu SVG, pas canvas : chaque zone est un <path> avec pointer-events
+   natif — le navigateur fait le hit-test du tap tout seul, pas besoin de
+   vérifier des pixels à la main comme il aurait fallu avec un canvas.
+   viewBox = dimensions naturelles de l'image (`m.imgW`/`m.imgH`, mise en
+   cache à l'upload) avec un scale UNIFORME (pas de preserveAspectRatio
+   "none") : un viewBox 0-100 étiré différemment en x/y aurait rendu les
+   ronds du pinceau elliptiques sur une image non carrée — en gardant le
+   viewBox à l'aspect-ratio réel de l'image, un rayon reste un vrai cercle
+   à l'écran quel que soit le format du plan.
+   Rendu MJ : zones colorées semi-transparentes si cachées, très pâles si
+   révélées (repère visuel de l'état courant), curseur "pointer".
+   Rendu joueur : seules les zones encore cachées sont rendues, en noir
+   opaque uni (jamais la couleur MJ), aucune interactivité dans le DOM.
    Synchro joueurs : polling léger (même modèle que l'Initiative, 4,5s).
    ========================================================================= */
 let dungeonMapCurrentId = null;
-let dmapBrushMode = "reveal"; // "reveal" (gomme, destination-out) | "hide" (pinceau, noir opaque)
-let dmapBrushSize = 6; // % du plus grand côté de l'image
-let dmapPainting = false;
-let dmapLastPt = null; // {x,y} en pixels canvas — pour interpoler un trait continu entre deux pointermove
+let dmapTool = "toggle"; // "toggle" (tap = bascule caché/révélé, par défaut) | "add" (dessiner) | "delete" (tap = supprimer)
+let dmapBrushSize = 6; // % du plus grand côté de l'image — sert uniquement à dessiner une NOUVELLE zone
+let dmapDraftStroke = null; // {points:[{x,y}]} en cours de tracé (unités = pixels naturels de l'image), mode "add"
+
+const DMAP_STROKE_COLORS = ["#e05252","#e0a052","#d4c93f","#7fc24e","#3fc29e","#4ea3e0","#8a7ae0","#c76ee0","#e06ea8","#9aa0a6"];
 
 let dungeonMapsPollTimer = null;
 function stopDungeonMapsPolling(){ if(dungeonMapsPollTimer){ clearInterval(dungeonMapsPollTimer); dungeonMapsPollTimer=null; } }
@@ -4604,11 +4617,6 @@ function startDungeonMapsPolling(){
 function loadImageAsync(src){
   return new Promise((resolve,reject)=>{ const im=new Image(); im.onload=()=>resolve(im); im.onerror=reject; im.src=src; });
 }
-function solidFogDataURL(w, h){
-  const c = document.createElement("canvas"); c.width=w; c.height=h;
-  c.getContext("2d").fillRect(0,0,w,h); // noir plein par défaut (fillStyle non défini = #000)
-  return c.toDataURL("image/png");
-}
 
 function viewDungeonMaps(){
   if(myRole!=="gm") return playerDungeonMapView();
@@ -4619,11 +4627,11 @@ function listDungeonMaps(){
   const items = db.dungeonmaps;
   app.innerHTML = pageHead("Cartes de donjon", `${items.length} carte(s)`, "Nouvelle carte") +
     (items.length ? `<div class="grid">${items.map(m=>{
-      const fogLabel = m.fog ? "Brouillard actif" : "Entièrement révélée";
+      const total = (m.strokes||[]).length, hidden = (m.strokes||[]).filter(s=>s.hidden).length;
       return `<div class="card" data-open="dungeonmap:${m.id}">
         ${m.image?`<img class="thumb" src="${m.image}" alt="">`:""}
         <h3>${esc(m.name||"Sans nom")}${m.active?' <span class="tag gold">Active</span>':""}</h3>
-        <div class="meta"><span class="tag">${esc(fogLabel)}</span></div>
+        <div class="meta"><span class="tag">${total} zone${total>1?"s":""}</span>${total?`<span class="tag gold">${hidden} cachée${hidden>1?"s":""}</span>`:""}</div>
       </div>`;
     }).join("")}</div>`
     : emptyState("🗺️","Aucune carte de donjon pour l'instant. Prépares-en une pour tes joueurs."));
@@ -4634,15 +4642,8 @@ function playerDungeonMapView(){
   const m = db.dungeonmaps.find(x=>x.active);
   app.innerHTML = m
     ? `<div class="detail"><h1>${esc(m.name||"Carte")}</h1>
-        <div class="dmap-scroll">${dungeonMapPlayerFrame(m)}</div></div>`
+        <div class="dmap-scroll">${dungeonMapFrame(m, false)}</div></div>`
     : emptyState("🗺️","Ton MJ n'a pas encore affiché de carte.");
-}
-function dungeonMapPlayerFrame(m){
-  if(!m.image) return `<p class="faint" style="font-family:var(--ui);padding:1rem">Pas d'image pour cette carte.</p>`;
-  return `<div class="dmap-frame">
-    <img class="dmap-img" src="${m.image}" alt="">
-    ${m.fog?`<img class="dmap-fog-img" src="${m.fog}" alt="">`:""}
-  </div>`;
 }
 
 function formDungeonMap(){
@@ -4655,7 +4656,7 @@ function formDungeonMap(){
     <div class="field"><label>Image du plan</label>
       <div id="mapimg-wrap">${formMapImage?`<img class="thumb-lg" src="${formMapImage}" alt="">`:`<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0">Aucune image pour l'instant.</p>`}</div>
       <button type="button" class="btn ghost sm" id="mapimg-btn" data-add-mapimg="1">${formMapImage?"Remplacer l'image":"Choisir une image"}</button>
-      ${view.mode==="edit"?`<p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:.4rem 0 0">Remplacer l'image réinitialise le brouillard (entièrement caché).</p>`:""}
+      ${view.mode==="edit"?`<p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:.4rem 0 0">Remplacer l'image efface les zones dessinées (coordonnées liées à l'ancienne image).</p>`:""}
     </div>
     <div class="form-actions"><button class="btn" data-save="dungeonmap">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
   </div>`;
@@ -4671,15 +4672,16 @@ async function saveDungeonMap(){
   if(!nameVal){ toast("Le nom est requis."); return; }
   if(!formMapImage){ toast("Une image est requise."); return; }
   const isNew = view.mode!=="edit";
-  const o = isNew ? {id:uid(), active:false} : getEntity("dungeonmap", view.id);
+  const o = isNew ? {id:uid(), active:false, strokes:[]} : getEntity("dungeonmap", view.id);
   const imageChanged = o.image !== formMapImage;
   o.name = nameVal;
   o.image = formMapImage;
   if(isNew || imageChanged){
-    // Nouvelle carte (ou image remplacée) : brouillard entièrement caché à la taille naturelle
-    // de l'image — le MJ révèle ensuite au fur et à mesure de l'exploration.
+    // Nouvelle carte (ou image remplacée) : on (re)calcule les dimensions naturelles pour le
+    // viewBox SVG, et on vide les zones — leurs coordonnées étaient liées à l'ancienne image.
     const im = await loadImageAsync(formMapImage);
-    o.fog = solidFogDataURL(im.naturalWidth, im.naturalHeight);
+    o.imgW = im.naturalWidth; o.imgH = im.naturalHeight;
+    o.strokes = [];
   }
   if(isNew) db.dungeonmaps.push(o);
   saveDB(); toast("Carte enregistrée."); view={tab:"dungeonmaps",mode:"detail",id:o.id}; render();
@@ -4690,20 +4692,33 @@ function activateDungeonMap(id){
   saveDB(); toast("Carte affichée aux joueurs.");
   const m = getEntity("dungeonmap", id); if(m) detailDungeonMap(m);
 }
-async function setDungeonMapFog(reveal){
+function setDungeonMapTool(tool){
+  dmapTool = (dmapTool===tool) ? "toggle" : tool;
+  const m = getEntity("dungeonmap", dungeonMapCurrentId); if(m) detailDungeonMap(m);
+}
+function setAllDungeonMapStrokes(hidden){
   const m = getEntity("dungeonmap", dungeonMapCurrentId); if(!m) return;
-  if(reveal){ m.fog = null; }
-  else{ const im = await loadImageAsync(m.image); m.fog = solidFogDataURL(im.naturalWidth, im.naturalHeight); }
+  (m.strokes||[]).forEach(s=> s.hidden = hidden);
   saveDB(); detailDungeonMap(m);
 }
-function setDungeonMapBrushMode(mode){
-  dmapBrushMode = mode;
-  const m = getEntity("dungeonmap", dungeonMapCurrentId); if(m) detailDungeonMap(m);
+function toggleDungeonMapStroke(m, strokeId){
+  const s = (m.strokes||[]).find(x=>x.id===strokeId); if(!s) return;
+  s.hidden = !s.hidden;
+  saveDB(); detailDungeonMap(m);
+}
+function deleteDungeonMapStroke(m, strokeId){
+  m.strokes = (m.strokes||[]).filter(s=>s.id!==strokeId);
+  saveDB(); detailDungeonMap(m);
 }
 
 function detailDungeonMap(m){
   dungeonMapCurrentId = m.id;
-  dmapPainting = false; dmapLastPt = null;
+  dmapDraftStroke = null;
+  const toolHelp = dmapTool==="add"
+    ? "Clique-glisse (ou dessine au doigt) pour tracer une nouvelle zone. Le mode reste actif : dessine autant de zones que nécessaire, puis re-clique le bouton pour arrêter."
+    : dmapTool==="delete"
+      ? "Tapote une zone pour la supprimer définitivement. Re-clique le bouton pour arrêter."
+      : "Tapote une zone pour la cacher ou la révéler. C'est le mode par défaut, pensé pour être utilisable en jeu au téléphone.";
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Cartes de donjon</button>
     <h1>${esc(m.name||"Sans nom")}</h1>
@@ -4712,99 +4727,103 @@ function detailDungeonMap(m){
       ${m.active
         ? `<span class="tag gold">Carte actuellement affichée aux joueurs</span>`
         : `<button class="btn ghost sm" data-dmap-activate="${m.id}">👁 Définir comme carte active</button>`}
-      <button class="btn ghost sm${dmapBrushMode==="reveal"?' active-mode':''}" data-dmap-mode="reveal">🧽 Révéler</button>
-      <button class="btn ghost sm${dmapBrushMode==="hide"?' active-mode':''}" data-dmap-mode="hide">🖌 Cacher</button>
+      <button class="btn ghost sm${dmapTool==="add"?' active-mode':''}" data-dmap-tool="add">➕ Ajouter une zone</button>
+      <button class="btn ghost sm${dmapTool==="delete"?' active-mode':''}" data-dmap-tool="delete">🗑 Supprimer une zone</button>
       <label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.8rem;color:var(--muted)">
         Taille du pinceau <input type="range" id="dmap-brush-size" min="2" max="25" value="${dmapBrushSize}" style="width:110px">
       </label>
       <button class="btn ghost sm" data-dmap-reveal-all="1">👁 Tout révéler</button>
       <button class="btn ghost sm" data-dmap-hide-all="1">🌫 Tout masquer</button>
     </div>
-    <div class="crawl-help">Glisse la souris (ou le doigt) sur la carte pour peindre en mode « ${dmapBrushMode==="reveal"?"Révéler":"Cacher"} ». Le brouillard semi-transparent que tu vois ici est réservé à ta vue MJ — les joueurs le voient entièrement opaque.</div>
-    <div class="dmap-scroll" id="dmap-scroll">${dungeonMapFrame(m)}</div>
+    <div class="crawl-help">${toolHelp}</div>
+    <div class="dmap-scroll" id="dmap-scroll">${dungeonMapFrame(m, true)}</div>
   </div>`;
-  wireDungeonMapCanvas(m);
+  wireDungeonMapSVG(m);
 }
-function dungeonMapFrame(m){
+
+/* viewBox aux dimensions naturelles de l'image (m.imgW/m.imgH, mises en cache à l'upload) —
+   scale uniforme garanti puisque .dmap-frame est déjà à ce même ratio (dicté par <img>), donc
+   pas de distorsion des ronds de pinceau. isGM=false (vue joueur) : uniquement les zones encore
+   cachées, en noir opaque, sans aucune interactivité (ni pointer-events, ni gestionnaire posé). */
+function dungeonMapFrame(m, isGM){
   if(!m.image) return `<p class="faint" style="font-family:var(--ui);padding:1rem">Pas d'image pour cette carte.</p>`;
+  const w = m.imgW||1000, h = m.imgH||1000;
+  const strokes = (m.strokes||[]).filter(s=> isGM || s.hidden).map(s=>{
+    const d = pathDFromPoints(s.points);
+    if(isGM){
+      const cls = s.hidden ? "dmap-stroke dmap-stroke-hidden" : "dmap-stroke dmap-stroke-revealed";
+      return `<g data-dmap-stroke="${s.id}">
+        <path class="dmap-stroke-hit" d="${d}" stroke-width="${Math.max(s.radius*2, 24)}"></path>
+        <path class="${cls}" d="${d}" stroke="${s.color}" stroke-width="${s.radius*2}"></path>
+      </g>`;
+    }
+    return `<path class="dmap-stroke dmap-stroke-player" d="${d}" stroke-width="${s.radius*2}"></path>`;
+  }).join("");
+  const draft = (isGM && dmapDraftStroke) ? `<path class="dmap-stroke dmap-stroke-draft" d="${pathDFromPoints(dmapDraftStroke.points)}" stroke-width="${dmapBrushRadiusPx(m)*2}"></path>` : "";
   return `<div class="dmap-frame">
     <img class="dmap-img" src="${m.image}" alt="">
-    <canvas class="dmap-fog-canvas dmap-fog-gm" id="dmap-fog-canvas"></canvas>
-    <div class="dmap-brush-cursor" id="dmap-brush-cursor"></div>
+    <svg class="dmap-overlay${isGM?` dmap-overlay-gm dmap-tool-${dmapTool}`:''}" id="dmap-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${strokes}${draft}</svg>
   </div>`;
 }
+function pathDFromPoints(points){
+  if(!points || !points.length) return "";
+  return "M" + points.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L");
+}
+function dmapBrushRadiusPx(m){ return (dmapBrushSize/100) * Math.max(m.imgW||1000, m.imgH||1000); }
+function svgPtFromEvent(svg, m, ev){
+  const r = svg.getBoundingClientRect();
+  return { x:(ev.clientX-r.left)/r.width*(m.imgW||1000), y:(ev.clientY-r.top)/r.height*(m.imgH||1000) };
+}
 
-async function wireDungeonMapCanvas(m){
-  const canvas = document.getElementById("dmap-fog-canvas"); if(!canvas) return;
-  const brushCursor = document.getElementById("dmap-brush-cursor");
+function wireDungeonMapSVG(m){
+  const svg = document.getElementById("dmap-svg"); if(!svg) return;
   const sizeInput = document.getElementById("dmap-brush-size");
-  if(sizeInput) sizeInput.addEventListener("input", e=>{ dmapBrushSize = +e.target.value; sizeBrushCursor(canvas, brushCursor); });
+  if(sizeInput) sizeInput.addEventListener("input", e=>{ dmapBrushSize = +e.target.value; });
 
-  const mapImg = await loadImageAsync(m.image);
-  if(dungeonMapCurrentId !== m.id) return; // le MJ a changé de carte pendant le chargement de l'image
-  canvas.width = mapImg.naturalWidth; canvas.height = mapImg.naturalHeight;
-  const ctx = canvas.getContext("2d");
-  if(m.fog){
-    const fogImg = await loadImageAsync(m.fog);
-    if(dungeonMapCurrentId !== m.id) return;
-    ctx.drawImage(fogImg, 0, 0, canvas.width, canvas.height);
-  } // sinon : canvas laissé transparent (carte entièrement révélée)
+  svg.addEventListener("click", e=>{
+    if(dmapTool==="add") return; // en mode "ajouter", géré par le drag pointerdown/up ci-dessous
+    const g = e.target.closest("[data-dmap-stroke]"); if(!g) return;
+    const id = g.dataset.dmapStroke;
+    if(dmapTool==="delete") deleteDungeonMapStroke(m, id);
+    else toggleDungeonMapStroke(m, id);
+  });
 
-  const brushRadiusPx = ()=> (dmapBrushSize/100) * Math.max(canvas.width, canvas.height);
-  const paintAt = (x,y)=>{
-    ctx.globalCompositeOperation = dmapBrushMode==="reveal" ? "destination-out" : "source-over";
-    ctx.fillStyle = "#000";
-    ctx.beginPath(); ctx.arc(x,y, brushRadiusPx(), 0, Math.PI*2); ctx.fill();
-  };
-  const canvasPtFromEvent = ev=>{
-    const r = canvas.getBoundingClientRect();
-    return { x:(ev.clientX-r.left)/r.width*canvas.width, y:(ev.clientY-r.top)/r.height*canvas.height };
-  };
-  const strokeTo = pt=>{
-    if(dmapLastPt){
-      const dist = Math.hypot(pt.x-dmapLastPt.x, pt.y-dmapLastPt.y);
-      const step = Math.max(2, brushRadiusPx()/3);
-      const n = Math.max(1, Math.floor(dist/step));
-      for(let i=1;i<=n;i++){ const t=i/n; paintAt(dmapLastPt.x+(pt.x-dmapLastPt.x)*t, dmapLastPt.y+(pt.y-dmapLastPt.y)*t); }
-    } else paintAt(pt.x, pt.y);
-    dmapLastPt = pt;
-  };
-  canvas.addEventListener("pointerdown", e=>{
+  svg.addEventListener("pointerdown", e=>{
+    if(dmapTool!=="add") return;
     e.preventDefault();
-    dmapPainting = true; dmapLastPt = null;
-    strokeTo(canvasPtFromEvent(e)); // peint le premier point avant tout, setPointerCapture peut échouer sans bloquer le trait
-    try{ canvas.setPointerCapture(e.pointerId); }catch(err){ /* pointeur non capturable selon le navigateur — le trait continue sans capture */ }
+    startDrawDungeonStroke(m, svg, e);
   });
-  canvas.addEventListener("pointermove", e=>{
-    positionBrushCursor(canvas, brushCursor, e);
-    if(dmapPainting) strokeTo(canvasPtFromEvent(e));
-  });
-  const endStroke = ()=>{
-    if(!dmapPainting) return;
-    dmapPainting = false; dmapLastPt = null;
-    m.fog = canvas.toDataURL("image/png");
-    saveDB();
+}
+
+function startDrawDungeonStroke(m, svg, e){
+  const pt = svgPtFromEvent(svg, m, e);
+  dmapDraftStroke = { points:[pt] };
+  const pathEl = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  pathEl.setAttribute("class", "dmap-stroke dmap-stroke-draft");
+  pathEl.setAttribute("stroke-width", dmapBrushRadiusPx(m)*2);
+  pathEl.setAttribute("d", pathDFromPoints(dmapDraftStroke.points));
+  svg.appendChild(pathEl);
+  const minStep = dmapBrushRadiusPx(m) / 4;
+  const move = ev=>{
+    const p = svgPtFromEvent(svg, m, ev);
+    const last = dmapDraftStroke.points[dmapDraftStroke.points.length-1];
+    if(Math.hypot(p.x-last.x, p.y-last.y) < minStep) return;
+    dmapDraftStroke.points.push(p);
+    pathEl.setAttribute("d", pathDFromPoints(dmapDraftStroke.points));
   };
-  canvas.addEventListener("pointerup", endStroke);
-  canvas.addEventListener("pointercancel", endStroke);
-  canvas.addEventListener("pointerenter", ()=>{ if(brushCursor) brushCursor.style.display="block"; });
-  canvas.addEventListener("pointerleave", ()=>{ endStroke(); if(brushCursor) brushCursor.style.display="none"; });
-  sizeBrushCursor(canvas, brushCursor);
-}
-/* Cercle CSS qui suit le pointeur pour prévisualiser la taille du pinceau avant de peindre —
-   la principale plainte sur la v1 (patchs rectangulaires) était le manque de repère visuel. */
-function positionBrushCursor(canvas, brushCursor, ev){
-  if(!brushCursor) return;
-  const r = canvas.getBoundingClientRect();
-  brushCursor.style.left = (ev.clientX - r.left) + "px";
-  brushCursor.style.top = (ev.clientY - r.top) + "px";
-}
-function sizeBrushCursor(canvas, brushCursor){
-  if(!brushCursor) return;
-  const r = canvas.getBoundingClientRect();
-  const diameterPx = (dmapBrushSize/100) * Math.max(r.width, r.height) * 2;
-  brushCursor.style.width = diameterPx + "px";
-  brushCursor.style.height = diameterPx + "px";
+  const up = ()=>{
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    pathEl.remove();
+    const points = dmapDraftStroke.points; dmapDraftStroke = null;
+    const color = DMAP_STROKE_COLORS[(m.strokes||[]).length % DMAP_STROKE_COLORS.length];
+    m.strokes = m.strokes || [];
+    m.strokes.push({ id:uid(), color, hidden:true, radius:dmapBrushRadiusPx(m), points });
+    saveDB();
+    detailDungeonMap(m);
+  };
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
 }
 
 /* =========================================================================
@@ -5327,9 +5346,9 @@ app.addEventListener("click", e=>{
   // Cartes de donjon
   if(closest("data-add-mapimg")){ $("#file-mapimg").click(); return; }
   if((el=closest("data-dmap-activate"))){ activateDungeonMap(el.dataset.dmapActivate); return; }
-  if((el=closest("data-dmap-mode"))){ setDungeonMapBrushMode(el.dataset.dmapMode); return; }
-  if(closest("data-dmap-reveal-all")){ setDungeonMapFog(true); return; }
-  if(closest("data-dmap-hide-all")){ setDungeonMapFog(false); return; }
+  if((el=closest("data-dmap-tool"))){ setDungeonMapTool(el.dataset.dmapTool); return; }
+  if(closest("data-dmap-reveal-all")){ setAllDungeonMapStrokes(false); return; }
+  if(closest("data-dmap-hide-all")){ setAllDungeonMapStrokes(true); return; }
   // Images (formulaire créature) + agrandissement
   if(closest("data-add-img")){ $("#file-img").click(); return; }
   if((el=closest("data-remove-img"))){ formImages.splice(+el.dataset.removeImg,1); renderImageThumbs(); return; }

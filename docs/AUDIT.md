@@ -143,87 +143,115 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   direct dans un navigateur pendant l'implémentation (pas de panneau
   navigateur composé de frames disponible dans cette session) — à confirmer
   par toi après déploiement.
-- **Onglet « Cartes de donjon » (implémenté le 6/08/2026, refondu le
-  06/08/2026 le soir même)** : brouillard de guerre sur une image de plan,
-  présent dans les 6 emplacements du ledger de collections (`TABS`,
-  `DB_COLS`, `TAB_OF`, `TYPE_OF_TAB`, `collectionOf`, `emptyDB`) sous la clé
-  `dungeonmaps`. Le MJ prépare plusieurs cartes à l'avance (nom + image,
-  `formDungeonMap()`/`saveDungeonMap()`), une seule est **active** à la fois
-  (`m.active`, basculée par `activateDungeonMap()` qui désactive les autres)
-  — c'est elle, et elle seule, qui est montrée aux joueurs.
-  **v1 abandonnée** : patchs rectangulaires à poignées (déplacer/redimensionner/
-  supprimer un par un) — Tristan les a trouvés trop pénibles à manipuler
-  finement dès le premier essai réel. **v2 (actuelle)** : brouillard peint à
-  main levée au pinceau/gomme sur un `<canvas>`, exporté en PNG (`m.fog`,
-  data URL — transparence nécessaire, donc PNG et pas JPEG) et stocké dans le
-  jsonb au même titre que l'image de la carte (toujours pas de bucket Storage
-  séparé). Peindre = cercle plein noir opaque (mode « Cacher »,
-  `globalCompositeOperation:"source-over"`) ; effacer = même cercle mais en
-  `"destination-out"` (mode « Révéler », seule façon correcte de découper un
-  vrai trou transparent sur un canvas avec alpha — pas de repeindre en blanc,
-  qui laisserait une couleur au lieu de vraiment révéler l'image en dessous).
-  `m.fog` absent/`null` = carte entièrement révélée ; une **carte neuve
-  démarre à l'inverse entièrement cachée** (fog = canvas noir plein généré à
-  la taille naturelle de l'image dès `saveDungeonMap()`, pas seulement à la
-  première ouverture) — décision volontaire pour coller au vrai flux de jeu
-  (le MJ prépare une carte cachée, puis révèle au fur et à mesure de
-  l'exploration, plutôt que l'inverse). Trait continu même lors d'un
-  mouvement rapide de la souris : `strokeTo()` interpole entre l'ancien et le
-  nouveau point (`dmapLastPt`) en pas de `rayon/3`, sinon un `pointermove`
-  espacé laisserait des trous dans le trait. Boutons rapides « Tout
-  révéler »/« Tout masquer » (mêmes intitulés que le Hexcrawl) pour un reset
-  en un clic, en plus du pinceau fin. Un cercle CSS suit le curseur pour
-  prévisualiser la taille du pinceau avant de peindre (`#dmap-brush-cursor`)
-  — l'absence de repère visuel faisait partie de ce qui rendait la v1
-  pénible. Rendu MJ : canvas semi-transparent (`opacity:.5`, classe
-  `.dmap-fog-gm`) pour voir la carte en dessous en peignant. Rendu joueur :
-  simple `<img>` du PNG de brouillard superposé à l'image de la carte,
-  opaque, aucune interactivité, aucun `<canvas>` dans le DOM. **Bug trouvé et
-  corrigé pendant le test de la v2** : `canvas.setPointerCapture()` était
-  appelé avant le premier `strokeTo()` dans le handler `pointerdown` ; si
-  `setPointerCapture` échoue (observé avec des événements pointeur non
-  authentifiés par l'OS, ce qui peut aussi arriver sur certains navigateurs
-  tactiles), l'exception empêchait le tout premier point du trait d'être
-  peint et cassait le chaînage (`dmapLastPt` jamais initialisé), au point
-  qu'un trait rapide ne peignait plus que son tout dernier point. Fix :
-  peindre d'abord, capturer le pointeur ensuite dans un `try/catch` qui ne
-  bloque jamais le tracé. **Image stockée en base64 dans le jsonb** comme le
-  reste de l'appli, plafond de résolution à **1800px** de côté long
-  (`processMapImage()`, copie de `processImage()` avec un plafond différent
-  des 1000px habituels, sinon un plan de donjon devient illisible).
+- **Onglet « Cartes de donjon » (implémenté le 6/08/2026, deux refontes le
+  soir même à la demande de Tristan après essais réels)** : brouillard de
+  guerre sur une image de plan, présent dans les 6 emplacements du ledger de
+  collections (`TABS`, `DB_COLS`, `TAB_OF`, `TYPE_OF_TAB`, `collectionOf`,
+  `emptyDB`) sous la clé `dungeonmaps`. Le MJ prépare plusieurs cartes à
+  l'avance (nom + image, `formDungeonMap()`/`saveDungeonMap()`), une seule
+  est **active** à la fois (`m.active`, basculée par `activateDungeonMap()`
+  qui désactive les autres) — c'est elle, et elle seule, qui est montrée aux
+  joueurs.
+  **Historique des trois moutures** : v1, patchs rectangulaires à poignées
+  (déplacer/redimensionner/supprimer un par un) — trop pénible à manipuler
+  finement. v2, calque peint à main levée au pinceau/gomme sur un
+  `<canvas>` (peindre en noir opaque / effacer en `destination-out`) — geste
+  correct à la souris mais toujours une manipulation fine, pas adaptée à
+  jouer au téléphone. **v3 (actuelle)** : chaque coup de pinceau devient une
+  **entité indépendante et colorée** qu'on **tapote pour basculer**
+  caché/révélé — le vrai besoin exprimé par Tristan était de dessiner les
+  zones en amont (souris, précis) puis de juste les activer/désactiver en
+  jeu (au doigt, sur petit écran, imprécision tolérée).
+  **Modèle de données v3** : `m.strokes[]`, chaque zone = `{id, color,
+  hidden, radius, points:[{x,y},...]}` — coordonnées et rayon en **pixels
+  naturels de l'image** (pas en pourcentage comme les moutures précédentes :
+  voir plus bas pourquoi), `hidden:true` par défaut à la création (une zone
+  qu'on vient de dessiner commence cachée, cohérent avec le fait qu'on
+  dessine par-dessus ce qu'on veut masquer). `m.imgW`/`m.imgH` (dimensions
+  naturelles de l'image, mises en cache dans `saveDungeonMap()` à l'upload)
+  pilotent le `viewBox` du SVG de rendu. **Une carte neuve démarre avec
+  `strokes:[]` (entièrement révélée)** — modèle additif contrairement à la
+  v2 qui démarrait entièrement cachée : ici on ajoute des zones à cacher,
+  on ne retire pas d'un calque plein.
+  **Rendu SVG, pas canvas** : chaque zone est un `<path>` (tracé
+  `M x,y L x,y…`, `stroke-linecap:round`) — le navigateur fait le hit-test
+  du tap tout seul via `pointer-events:stroke`, pas de vérification de
+  pixels à la main comme il aurait fallu avec un canvas. **Point technique
+  important** : le `viewBox` est calé sur les dimensions **naturelles** de
+  l'image (`0 0 imgW imgH`) avec un scale **uniforme**
+  (`preserveAspectRatio="xMidYMid meet"`, pas `"none"` comme dans les
+  moutures précédentes) — un viewBox carré 0-100 étiré différemment en x/y
+  aurait rendu les ronds de pinceau elliptiques sur une image non carrée
+  (la plupart des plans de donjon ne sont pas carrés). Vérifié : une image
+  1200×1800 (portrait) donne un rendu SVG exactement à la même échelle et au
+  même ratio que l'`<img>`, donc un rayon de pinceau reste un vrai cercle à
+  l'écran quel que soit le format du plan.
+  **Zone de tap élargie** : chaque zone porte en fait deux `<path>`
+  superposés — le tracé visible coloré, et un tracé invisible
+  (`stroke:transparent`) de largeur `max(rayon×2, 24)` par-dessus, pour
+  qu'une zone dessinée fine reste facile à toucher au doigt (le but même de
+  cette refonte). Vérifié en testant un tap à 8px de l'axe d'un trait de
+  rayon 3 (donc hors du tracé visuel de 3px) : résolu correctement sur le
+  `<path>` de zone de tap élargie.
+  **Trois outils, un seul actif à la fois** (`dmapTool`, boutons toggle
+  comme les modes du Hexcrawl) : **« Basculer »** (implicite, mode par
+  défaut) — tap sur une zone = inverse `hidden`, pensé pour être utilisable
+  en jeu au téléphone. **« ➕ Ajouter une zone »** — glisser dessine un
+  nouveau tracé (couleur assignée automatiquement par cycle sur
+  `DMAP_STROKE_COLORS`, 10 teintes), le mode **reste actif** après chaque
+  tracé pour enchaîner la préparation de plusieurs zones sans re-cliquer à
+  chaque fois. **« 🗑 Supprimer une zone »** — tap sur une zone = suppression
+  définitive, mode également persistant. Boutons rapides « Tout
+  révéler »/« Tout masquer » pour basculer `hidden` sur toutes les zones
+  d'un coup (ne supprime rien, juste un reset d'état).
+  **Rendu MJ** : zones colorées, semi-transparentes si cachées
+  (`.dmap-stroke-hidden`, `opacity:.6`) ou très pâles en pointillé si
+  révélées (`.dmap-stroke-revealed`, `opacity:.16`) — repère visuel de
+  l'état courant en un coup d'œil, curseur `pointer` sur les zones.
+  **Rendu joueur** : seules les zones encore `hidden` sont même présentes
+  dans le DOM, en noir opaque uni sans aucun attribut `stroke` de couleur
+  (`.dmap-stroke-player`, la couleur ne sert qu'au repérage MJ et ne doit
+  jamais leur être montrée), `pointer-events:none`, aucun `<canvas>` ni
+  contrôle. Vérifié que le SVG joueur ne porte pas la classe
+  `dmap-overlay-gm` et qu'aucun path ne porte l'attribut `stroke` (la
+  couleur ne peut donc pas fuiter, même en cas de bug CSS).
+  **Image stockée en base64 dans le jsonb** comme le reste de l'appli,
+  plafond de résolution à **1800px** de côté long (`processMapImage()`,
+  copie de `processImage()` avec un plafond différent des 1000px habituels).
+  Remplacer l'image d'une carte existante réinitialise ses zones (leurs
+  coordonnées étaient liées à l'ancienne image).
   **Synchronisation MJ→joueurs par polling léger**, copie conforme du modèle
   Initiative (`startDungeonMapsPolling()`/`stopDungeonMapsPolling()`, 4,5s,
-  actif seulement tant que l'onglet est ouvert). **Point d'architecture
-  important, différent du copier-coller habituel des policies Supabase** :
-  une policy de lecture joueur classique (« select si connecté ») aurait
-  donné accès à *toutes* les lignes de la table, donc à toutes les cartes
-  préparées d'avance et pas seulement celle affichée — un joueur ouvrant les
-  devtools aurait alors vu dans la réponse réseau des plans de donjon que le
-  MJ n'a pas encore révélés. La policy `dungeonmaps_player_read_active`
-  filtre donc directement sur le contenu du jsonb
-  (`(data->>'active')::boolean is true`) : une carte non active n'est
-  **jamais transmise sur le réseau** à un compte joueur — garantie serveur,
-  pas seulement une précaution côté client (inchangé par la refonte v1→v2,
-  le filtrage ne dépend pas de la représentation du brouillard).
-  **Testé fonctionnellement dans un navigateur** (fichier ouvert en local,
-  auth court-circuitée en console faute d'identifiants Supabase de test,
-  `getBoundingClientRect` moqué pour contourner le panneau navigateur qui
-  rend les pages `file://` en instantané statique sans vrai viewport) :
-  peinture/gomme sur un trait complet avec interpolation, mode Cacher et
-  Révéler, Tout révéler/Tout masquer, création d'une carte avec fog
-  auto-généré à la bonne taille naturelle, vue joueur (image + fog superposé,
-  aucun canvas ni contrôle MJ dans le DOM), état vide joueur. **Non testé** :
-  le geste de peinture réel à la souris/au doigt (feel du pinceau, absence de
-  lag) et le rendu visuel (CSS, position du curseur de pinceau) n'ont pas pu
-  être confirmés à l'œil (pas de rendu compositing disponible dans cette
-  session) ; le vrai flux de connexion (rôle `player` réel via un compte
-  Supabase) non plus — à confirmer par toi après déploiement.
+  actif seulement tant que l'onglet est ouvert).
+  **Point d'architecture important, inchangé depuis la v1, indépendant de la
+  représentation du brouillard** : la policy Supabase de lecture joueur
+  n'est pas un simple « select si connecté » — elle filtre directement sur
+  le contenu du jsonb (`dungeonmaps_player_read_active`,
+  `(data->>'active')::boolean is true`), donc une carte non active n'est
+  **jamais transmise sur le réseau** à un compte joueur, garantie serveur et
+  pas seulement une précaution côté client.
+  **Testé fonctionnellement dans un navigateur** : cette fois avec un vrai
+  viewport (le panneau a fini par correctement composer la page en cours de
+  session, après avoir dû contourner un viewport 0×0 en début de test) —
+  tracé d'une zone au pointeur réel avec plusieurs points intermédiaires,
+  cycle de couleurs sur deux zones consécutives, mode « Ajouter » qui reste
+  actif après un tracé, bascule caché/révélé via un vrai hit-test
+  géométrique du navigateur (`document.elementFromPoint` pour trouver le
+  vrai élément sous le pointeur avant de simuler le clic dessus — un clic
+  simulé directement sur le conteneur SVG ne passe pas par la résolution
+  géométrique du navigateur et aurait donné un faux négatif), zone de tap
+  élargie sur un trait fin, mode suppression, Tout révéler/Tout masquer,
+  rendu joueur (une seule zone visible sur deux, aucune couleur, aucun
+  contrôle), création d'une carte au format portrait (1200×1800) avec
+  `imgW`/`imgH` corrects et rendu sans distorsion. **Non testé** : le geste
+  réel au doigt sur un vrai téléphone (c'est pourtant l'objectif premier de
+  cette refonte) — à confirmer par toi, idéalement en conditions réelles de
+  jeu.
   **Table Supabase à créer** : script fourni dans
   `outils/supabase_dungeonmaps_setup.sql` (policy MJ CRUD standard + policy
-  de lecture joueur filtrée sur `active`, différente du modèle habituel — lire
-  les commentaires du script), inchangé par la refonte v1→v2 — à exécuter par
-  Tristan dans l'éditeur SQL Supabase, à confirmer et à reporter dans le
-  ledger ci-dessous une fois fait.
+  de lecture joueur filtrée sur `active`), inchangé depuis la v1 — à
+  exécuter par Tristan dans l'éditeur SQL Supabase, à confirmer et à
+  reporter dans le ledger ci-dessous une fois fait.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
