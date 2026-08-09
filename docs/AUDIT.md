@@ -428,6 +428,66 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   `stroke-linejoin="round"`, et son `d`/`stroke-width` sont strictement
   identiques à ceux du tracé visible MJ correspondant (donc géométriquement
   la même forme, pas seulement visuellement proche).
+- **Cartes de donjon — quatre ajouts demandés par Tristan après usage réel
+  (même soirée)** :
+  1. **Pinceau toujours au minimum, jamais utilisé en grand** : la plage du
+     curseur `dmap-brush-size` passe de `2-25` à `0.3-15` (% du plus grand
+     côté de l'image), pas fixe à `0.1`, défaut `2` au lieu de `6` — de la
+     place pour des tracés bien plus fins, sans perdre la possibilité de
+     couvrir vite une grande zone.
+  2. **Adoucissement des bords réglable** ("les bords sont trop bruts") :
+     nouveau champ `m.softness` par carte (0 par défaut, valeur inchangée
+     pour toute carte existante — pas de migration), curseur dédié à côté de
+     la taille du pinceau. Implémenté par un flou gaussien SVG
+     (`<feGaussianBlur>`) appliqué au *contenu* du masque de brouillard
+     (fond blanc + trous), pas aux zones colorées MJ ni au tracé — celles-ci
+     doivent rester nettes pour bien voir où tapoter. Comme la même
+     `<mask>` sert au calque MJ (semi-transparent) et joueur (opaque), les
+     deux profitent automatiquement du même adoucissement. Curseur en deux
+     temps : `input` (pendant le glissé) retouche juste l'attribut
+     `stdDeviation` du filtre pour un aperçu fluide sans re-rendu, `change`
+     (relâché) persiste une seule fois — évite de spammer Supabase à
+     chaque micro-mouvement du curseur.
+  3. **Effet "polygone" involontaire sur un arc/une ligne ouverte** — la
+     fermeture automatique posée pour combler l'intérieur d'une boucle
+     (point précédent de ce journal) fermait aussi les tracés qui
+     n'étaient PAS censés boucler (un arc, une ligne), remplissant la zone
+     entre le tracé et la "corde" reliant son début à sa fin — exactement
+     ce que Tristan a décrit ("mon point de départ va rejoindre mon point
+     d'arrivée avec un segment qui va tout remplir"). **Fix** :
+     `isLoopStroke()` ne ferme/remplit désormais que si le tracé revient
+     effectivement près de son point de départ (≤ 1,5 rayon de pinceau) ;
+     sinon le tracé reste un trait ouvert (`fill:none`, pas de `Z`), sans
+     la "corde" surprenante. L'aperçu en direct pendant le glissé applique
+     déjà la même règle, donc le MJ voit le résultat final avant même de
+     relâcher. Vérifié : un arc large (points de départ/arrivée séparés de
+     600px) reste ouvert (`fill:none`, pas de `Z`) ; une boucle (rayon de
+     boucle 60px, pinceau 60px) reste fermée/remplie comme avant.
+  4. **Nouvel outil "Polygone"**, suggéré par Tristan en cours de session
+     comme alternative plus précise au pinceau libre pour des murs droits.
+     Clic = pose un sommet ; les sommets sont reliés par des **lignes
+     droites** (pas de lissage en courbes — un polygone doit rester précis,
+     contrairement au pinceau où le lissage sert justement à éviter les
+     angles vifs indésirables) ; « ✓ Terminer » (ou un clic à proximité du
+     premier sommet, snap à 2% de la plus grande dimension de l'image)
+     ferme la forme ; « ↩ Annuler le dernier sommet » pour corriger un
+     mis-clic sans tout recommencer. Comme au pinceau, le mode reste actif
+     après chaque polygone terminé pour en enchaîner plusieurs. Stocké
+     comme les zones au pinceau (`m.strokes[]`) mais avec `shape:"polygon"`
+     et `radius:0` (une zone polygonale n'a pas de marge de pinceau autour
+     de son contour — ses sommets sont la forme exacte voulue) ; le rendu
+     (`strokeGeometry()`) dispatche sur `s.shape` et reste toujours
+     fermé/rempli pour un polygone (pas d'ambiguïté boucle/pas-boucle
+     contrairement au pinceau). Le brouillon de polygone
+     (`dmapDraftPolygon`) doit survivre à un re-rendu complet — contrairement
+     au brouillon de pinceau qui se met à jour en place pendant un glissé
+     continu, chaque sommet posé au clic redessine toute la vue pour
+     afficher les boutons Terminer/Annuler ; seul un changement de carte ou
+     d'outil vide le brouillon, pas un re-rendu de la carte en cours.
+     Vérifié : pose de 4 sommets (rectangle), annulation du dernier sommet,
+     nouvelle pose, fermeture — le tracé final est un chemin `M…L…L…L…Z`
+     sans aucune courbe, rempli de la couleur assignée, avec la même
+     mécanique de trou de masque/bulk-actions que les zones au pinceau.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
