@@ -1776,8 +1776,13 @@ function viewWheel(){
     return;
   }
 
-  wheelDisplayedSegs = segments; // toujours tout le monde — voir plus haut
-  const svgHTML = blank ? buildWheelSVG(segments.map(()=>""), true) : buildWheelSVG(wheelDisplayTexts(segments, mystery));
+  wheelDisplayedSegs = segments; // toujours tout le monde pour le TIRAGE — voir plus haut
+  // En mode "à l'aveugle", aucun texte n'est lisible de toute façon : le nombre de quartiers
+  // dessinés n'a donc plus besoin de correspondre au nombre réel de bonus. On se limite à
+  // WHEEL_MAX_VISIBLE quartiers décoratifs (sinon des dizaines de micro-parts fines à l'écran)
+  // — le tirage réel reste équitable sur toute la liste, juste totalement découplé de l'affichage
+  // (voir spinWheel()).
+  const svgHTML = blank ? buildWheelSVG(Array(WHEEL_MAX_VISIBLE).fill(""), true) : buildWheelSVG(wheelDisplayTexts(segments, mystery));
   app.innerHTML = `${head}
     <div class="wheel-stage">
       <div class="wheel-frame">
@@ -1805,12 +1810,20 @@ function spinWheel(){
   // touché avant d'être une seule fois animé via son transform ci-dessous.
   const idx = Math.floor(Math.random()*displayed.length);
   const winnerSeg = displayed[idx];
-  const n = displayed.length;
 
-  const anglePer = 360/n;
-  const segMidAngle = -90 + idx*anglePer + anglePer/2;
-  let delta = (-90 - segMidAngle) % 360;
-  if(delta < 0) delta += 360;
+  let delta;
+  if(blank){
+    // Les quartiers dessinés sont purement décoratifs en mode "à l'aveugle" (voir viewWheel()) et
+    // ne correspondent plus au gagnant réel tiré ci-dessus — la position d'arrêt est donc un angle
+    // au hasard, indépendant de idx/displayed.length.
+    delta = Math.random()*360;
+  } else {
+    const n = displayed.length;
+    const anglePer = 360/n;
+    const segMidAngle = -90 + idx*anglePer + anglePer/2;
+    delta = (-90 - segMidAngle) % 360;
+    if(delta < 0) delta += 360;
+  }
   // Beaucoup plus de tours en mode "à l'aveugle" (flou) pour renforcer l'effet "trop rapide pour
   // lire" — toujours dans la même durée totale (WHEEL_SPIN_MS), donc toujours au moins 5s.
   const turns = blank ? (14 + Math.floor(Math.random()*5)) : (7 + Math.floor(Math.random()*4));
