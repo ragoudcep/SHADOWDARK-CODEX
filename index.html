@@ -209,6 +209,9 @@
   .tag.loyal{color:#6fe06a; border-color:#3a7a37; background:rgba(111,224,106,.13)}
   .tag.neutre{color:var(--muted)}
   .tag.gold{color:#ffcf6e; border-color:#8a6a2a; background:rgba(255,207,110,.13)}
+  .tag.status-creation{color:#ffb454; border-color:#8a6a2a; background:rgba(255,180,84,.13)}
+  .tag.status-encours{color:#7fe06a; border-color:#3a7a37; background:rgba(127,224,106,.13)}
+  .tag.status-visite{color:#8aa0c9; border-color:#3e5c78; background:rgba(138,160,201,.13)}
 
   .group-head{font-family:var(--display); font-size:1.25rem; color:var(--gold2); font-weight:400; letter-spacing:.3px;
     margin:.2rem 0 .8rem; padding-bottom:.4rem; border-bottom:1px solid var(--border); cursor:pointer;
@@ -1046,6 +1049,16 @@ let creatureSort = "name";      // tri des créatures : name | lvlAsc | lvlDesc
 let creatureCatFilter = "";     // filtre de catégorie ("" = toutes/regroupées, "__none__" = sans catégorie)
 let tableCatFilter = "";        // filtre de catégorie des tables aléatoires (même principe que creatureCatFilter)
 let readingMode = false; // "mode table de jeu" : masque les contrôles GM, agrandit le texte des fiches
+let crawlStatusFilter = ""; // filtre de statut des point crawls ("" = tous)
+/* Statut d'avancement d'un point crawl (c.status), demandé par Tristan pour s'y retrouver entre
+   plusieurs chantiers en parallèle — champ facultatif, "" ou absent = non catégorisé (aucune
+   migration : un point crawl existant sans statut reste juste non filtré/sans badge). */
+const CRAWL_STATUSES = [
+  { value:"creation", label:"En création", cls:"status-creation" },
+  { value:"encours",  label:"En cours",     cls:"status-encours" },
+  { value:"visite",   label:"Déjà visité",  cls:"status-visite" }
+];
+function crawlStatusMeta(v){ return CRAWL_STATUSES.find(s=>s.value===v) || null; }
 
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", hexmap:"Hexcrawl", spell:"Sort" };
 const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel"];
@@ -2548,6 +2561,7 @@ function duplicateEntity(type,id){
   (copy.images||[]).forEach(x=>x.id=uid());
   (copy.strokes||[]).forEach(x=>x.id=uid());
   if(type==="dungeonmap") copy.active = false; // une copie ne doit jamais être affichée aux joueurs à leur insu
+  if(type==="pointcrawl") copy.status = ""; // une copie repart à zéro : pas "déjà visité" comme l'original
   if(type==="npc"||type==="pc") delete copy.portrait; // le portrait d'origine reste réservé à la fiche source
   if(type==="creature"||type==="npc"||type==="pc"||type==="treasure"||type==="spell"||type==="dungeonmap") copy.name = (copy.name||"Sans nom")+" (copie)";
   if(type==="creature"){ copy.manual = true; delete copy.imported; }   // un doublon créé à la main est protégé du vidage
@@ -3155,27 +3169,49 @@ function saveNPC(){
    POINT CRAWL — carte de points (= événements) reliés par des segments
    ========================================================================= */
 function listCrawls(){
-  const items = db.pointcrawls;
-  app.innerHTML = pageHead("Point Crawl", `${items.length} plan(s) de points d'intérêt`, "Nouveau point crawl", xmlToolbarHTML("pointcrawl")) +
-    (items.length ? `<div class="grid">${items.map(c=>{
+  const all = db.pointcrawls;
+  const bar = pageHead("Point Crawl", `${all.length} plan(s) de points d'intérêt`, "Nouveau point crawl", xmlToolbarHTML("pointcrawl"));
+  if(!all.length){ app.innerHTML = bar + emptyState("🗺","Aucun point crawl. Créez une carte de lieux/événements reliés (donjon, zone…)."); return; }
+  const statusSel = `<label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.4rem">Statut :</label>
+    <select data-crawl-status-filter style="width:auto;display:inline-block;min-width:150px">
+      <option value="">Tous</option>
+      ${CRAWL_STATUSES.map(s=>`<option value="${s.value}" ${crawlStatusFilter===s.value?"selected":""}>${esc(s.label)}</option>`).join("")}
+      <option value="__none__" ${crawlStatusFilter==="__none__"?"selected":""}>(Sans statut)</option>
+    </select>`;
+  const toolbar = `<div style="margin-bottom:1.1rem;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${statusSel}</div>`;
+  const items = !crawlStatusFilter ? all
+    : crawlStatusFilter==="__none__" ? all.filter(c=>!c.status)
+    : all.filter(c=>c.status===crawlStatusFilter);
+  const body = items.length ? `<div class="grid">${items.map(c=>{
       const nodes = c.nodes||[];
       const noDesc = nodes.filter(n=>{ const ev=getEntity("event",n.eventId); return !ev || !(ev.description&&ev.description.trim()); }).length;
+      const statusMeta = crawlStatusMeta(c.status);
       return `<div class="card" data-open="pointcrawl:${c.id}">
         <h3>${esc(c.title||"Sans titre")}</h3>
         <p>${esc(c.description||"Pas de description")}</p>
-        ${noDesc?`<div class="meta"><span class="tag">${noDesc} nœud(s) sans description</span></div>`:""}
+        <div class="meta">
+          ${statusMeta?`<span class="tag ${statusMeta.cls}">${esc(statusMeta.label)}</span>`:""}
+          ${noDesc?`<span class="tag">${noDesc} nœud(s) sans description</span>`:""}
+        </div>
       </div>`;
     }).join("")}</div>`
-    : emptyState("🗺","Aucun point crawl. Créez une carte de lieux/événements reliés (donjon, zone…)."));
+    : emptyState("🗺","Aucun point crawl avec ce statut.");
+  app.innerHTML = bar + toolbar + body;
 }
 
 function formCrawl(){
-  const c = view.mode==="edit" ? getEntity("pointcrawl",view.id) : {title:"",description:""};
+  const c = view.mode==="edit" ? getEntity("pointcrawl",view.id) : {title:"",description:"",status:""};
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
     <h1>${view.mode==="edit"?"Modifier le":"Nouveau"} point crawl</h1>
     <div class="field"><label>Titre</label><input type="text" id="f-title" value="${esc(c.title)}" placeholder="Les Catacombes de Vol"></div>
     <div class="field"><label>Description / contexte</label><textarea id="f-description" placeholder="Un réseau de galeries sous la cité…">${esc(c.description)}</textarea></div>
+    <div class="field"><label>Statut</label>
+      <select id="f-status">
+        <option value="" ${!c.status?"selected":""}>(Aucun statut)</option>
+        ${CRAWL_STATUSES.map(s=>`<option value="${s.value}" ${c.status===s.value?"selected":""}>${esc(s.label)}</option>`).join("")}
+      </select>
+    </div>
     ${LINK_HELP}
     <div class="form-actions"><button class="btn" data-save="pointcrawl">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
   </div>`;
@@ -3192,6 +3228,7 @@ function saveCrawl(){
   }
   o.title = newTitle;
   o.description = $("#f-description").value;
+  o.status = $("#f-status").value;
   if(!isEdit) db.pointcrawls.push(o);
   const _n = isEdit ? maybePropagate(oldTitle, newTitle) : 0;
   saveDB(); toast("Point crawl enregistré."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"pointcrawls",mode:"detail",id:o.id}; render();
@@ -3199,9 +3236,10 @@ function saveCrawl(){
 
 function detailCrawl(c){
   crawlState = { id:c.id, linkMode:false, linkFrom:null };
+  const statusMeta = crawlStatusMeta(c.status);
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Point Crawl</button>
-    <span class="tag pointcrawl">Point Crawl</span>
+    <span class="tag pointcrawl">Point Crawl</span>${statusMeta?` <span class="tag ${statusMeta.cls}">${esc(statusMeta.label)}</span>`:""}
     <h1>${esc(c.title||"Sans titre")}</h1>
     ${c.description?`<p class="muted" style="font-family:var(--ui)">${renderText(c.description)}</p>`:""}
     ${detailActions("pointcrawl",c.id)}
@@ -5610,6 +5648,7 @@ app.addEventListener("change", e=>{
   else if(e.target.matches("[data-crea-sort]")){ creatureSort = e.target.value; renderList(); }
   else if(e.target.matches("[data-crea-filter]")){ creatureCatFilter = e.target.value; renderList(); }
   else if(e.target.matches("[data-table-filter]")){ tableCatFilter = e.target.value; renderList(); }
+  else if(e.target.matches("[data-crawl-status-filter]")){ crawlStatusFilter = e.target.value; renderList(); }
   else if(e.target.matches("[data-init-manual-input]")){ setInitiativeManual(e.target.dataset.initManualInput, e.target.value); renderList(); }
   else if(e.target.matches("#f-kind")){
     const dyn = e.target.value==="dynamic";

@@ -11,15 +11,6 @@ Pas d'implémentation en cours sur ces points — c'est de la prise de notes.
 À mettre à jour (cocher, préciser, retirer) au fur et à mesure que ces
 chantiers avancent.
 
-## Carnet de route + Sessions
-
-**À fusionner.** Tristan ne voit pas de raison d'avoir des notes de
-session et un carnet de route séparés — ce sont globalement la même
-chose. À terme, une seule fonctionnalité unifiée à la place des deux
-onglets actuels. Réflexion à avoir sur laquelle des deux structures de
-données garder (ou une troisième, fusionnée) avant de coder quoi que ce
-soit.
-
 ## Tables aléatoires
 
 **À réorganiser, contenu à revoir.** Certaines tables ont été conçues à
@@ -45,11 +36,14 @@ redemande explicitement.
 
 ## Point Crawl
 
-**Jugé parfait tel quel.** Seul ajout souhaité : pouvoir catégoriser/
-donner un statut à chaque point crawl (ex : *en cours* / *en création* /
-*déjà créé*) pour s'y retrouver dans l'avancement de plusieurs point
-crawls en parallèle. Probablement un simple champ `status` (ou équivalent)
-sur l'entité point crawl, avec un badge/filtre dans la liste.
+**Statut par point crawl ajouté (2026-08-10).** Champ `status` (facultatif,
+`""`/absent = non catégorisé, aucune migration nécessaire) avec 3 valeurs :
+*En création*, *En cours*, *Déjà visité* — badge coloré sur chaque carte de
+la liste et dans l'en-tête de la fiche détail, plus un filtre déroulant
+dans la liste (« Statut : » avec une option « Sans statut »). Réglable via
+un menu déroulant dans le formulaire d'édition. Une copie (« Dupliquer »)
+repart toujours à statut vide, jamais héritée de l'original. Reste
+**jugé parfait sinon** — pas d'autre chantier ouvert ici sauf signalement.
 
 ## Créatures
 
@@ -73,25 +67,6 @@ temps voulu.
 
 **Contenu à compléter par Tristan lui-même** — pas une tâche de
 développement. Rien à faire côté code.
-
-## Hexcrawl
-
-**Rotation des images de biome/overlay corrigée (2026-08-10), reste à confirmer à l'écran.**
-Les images de fond (biome + overlay `foundation_*.png`) posées sur les hexagones étaient tournées de
-90° pour passer de leur orientation naturelle « flat-top » à la cellule « pointy-top » de la grille,
-ce qui faisait paraître leur contenu (arbres, chemins…) complètement sur le côté. Changé pour une
-rotation de 30° à la place (`hexBiomeImageSVG()`) — un hexagone a une symétrie à 60°, donc 30° comme
-90° alignent tous les deux le contour de l'image sur la cellule sans débordement, mais 30° tourne le
-contenu bien moins loin de son orientation d'origine. Pas de solution parfaitement horizontale
-possible (contrainte géométrique de la forme hexagonale, reconnue par Tristan), mais nettement moins
-vertical qu'avant. La grille elle-même (`hexCorners`, `hexCenter`, orientation flat-top vs
-pointy-top) n'a pas été touchée — seul l'angle de rotation des images l'a été, un changement bien plus
-contenu que la piste de réorientation complète de la grille envisagée initialement ci-dessus.
-**Non vérifié en jeu réel** : comparé visuellement dans un navigateur avec une image de test
-(volcano/greenlands) pendant le développement, mais à confirmer par toi sur de vraies cartes.
-Les icônes de point d'intérêt (`buildHexPoints()`, marqueurs `!`/icônes SVG posés par-dessus la
-grille) ne sont, elles, pas concernées : elles ne portent aucune rotation, seules les images de fond
-de cellule l'étaient.
 
 ## Cartes de donjon
 

@@ -711,6 +711,21 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   identique dans les deux cas (aucun débordement introduit), seul le contenu tourne visiblement (~60°
   d'écart entre les deux rendus, repères — bouche du volcan, sommet, marque du bas — clairement
   déplacés). **Non vérifié en jeu réel sur de vraies cartes de campagne** — à confirmer par toi.
+- **Point Crawl — statut d'avancement ajouté (2026-08-10)**, demande de Tristan pour s'y retrouver
+  entre plusieurs point crawls préparés en parallèle. Nouveau champ `c.status` (jsonb, aucune
+  migration — absent/`""` = non catégorisé), 3 valeurs `CRAWL_STATUSES` (`creation`→« En création »,
+  `encours`→« En cours », `visite`→« Déjà visité »), chacune avec sa propre classe `.tag.status-*`
+  (nouvelles couleurs CSS, même style que les tags existants). Badge affiché sur chaque carte de
+  `listCrawls()` et dans l'en-tête de `detailCrawl()` ; filtre déroulant dans la liste (même schéma
+  que `creatureCatFilter`/`tableCatFilter` : variable globale `crawlStatusFilter`, option
+  `__none__` pour "sans statut", câblé dans le handler `change` partagé). Réglable via un
+  `<select>` dans `formCrawl()`/`saveCrawl()`. `duplicateEntity()` remet systématiquement le statut
+  à vide sur une copie (même logique que `dungeonmap.active=false` sur copie — une copie ne doit
+  jamais hériter d'un statut qui ne la concerne pas encore). Vérifié en direct dans le navigateur :
+  badge correct par statut (y compris l'absence de badge pour un point crawl sans statut), filtre
+  fonctionnel sur les 4 valeurs (3 statuts + « sans statut »), formulaire pré-rempli au bon statut à
+  l'édition et sauvegarde correcte, duplication d'un point crawl "en cours" produisant bien une
+  copie sans statut.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
