@@ -9,7 +9,11 @@ trap 'rm -rf "$TMP"' EXIT
 tr -d '\r' < "$F" > "$TMP/full.html"
 
 echo "== 1. Syntaxe JS (chaque bloc <script>) =="
-awk '/<script>/{print NR} /<\/script>/{print NR}' "$TMP/full.html" | paste - - | while read -r start end; do
+# Les <script src="..."></script> externes (Phase 0 de la modularisation, docs/MODULARISATION.md)
+# tiennent sur une seule ligne et n'ont rien à vérifier ici (pas de JS inline) — on les ignore
+# explicitement, sinon leur </script> se retrouve compté sans open correspondant et décale
+# l'appariement open/close de tous les blocs réels qui suivent.
+awk '/<script[^>]*>.*<\/script>/{next} /<script>/{print NR} /<\/script>/{print NR}' "$TMP/full.html" | paste - - | while read -r start end; do
   sed -n "$((start+1)),$((end-1))p" "$TMP/full.html" > "$TMP/block_$start.js"
   if node --check "$TMP/block_$start.js" 2>"$TMP/err_$start.txt"; then
     echo "  bloc ligne $start-$end : OK"
@@ -43,6 +47,6 @@ echo "  (vérifier à l'oeil que les 3 listes contiennent exactement les mêmes 
 
 echo "== 5. Restes de debug =="
 n=$(grep -c "console\.\(log\|debug\)\|debugger;" "$TMP/full.html" || true)
-echo "  occurrences console.log/debugger dans tout le fichier (inclut la lib Supabase vendée, ignorer les lignes 673-691) : $n"
+echo "  occurrences console.log/debugger dans tout le fichier : $n"
 
 echo "== Fait. =="
