@@ -9,7 +9,10 @@ Tristan ait à tout redicter.
 
 Pas d'implémentation en cours sur ces points — c'est de la prise de notes.
 À mettre à jour (cocher, préciser, retirer) au fur et à mesure que ces
-chantiers avancent.
+chantiers avancent. Seuls les onglets avec un chantier réellement ouvert
+figurent ici — les onglets « terminés »/« ne pas toucher » ont été retirés
+à la demande de Tristan (2026-08-10) ; leur historique reste dans
+`docs/AUDIT.md`.
 
 ## Tables aléatoires
 
@@ -27,24 +30,6 @@ Implique probablement une notion de « groupe de tables liées » ou de
 « recette de génération » qui n'existe pas encore dans le modèle de
 données actuel — à concevoir.
 
-## Événements
-
-**Ne pas toucher pour l'instant.** Note perso de Tristan : il n'utilise
-quasiment jamais cet onglet. Fusion ou suppression possible dans le futur,
-mais pas une priorité actuelle — ne rien entreprendre dessus sans qu'il le
-redemande explicitement.
-
-## Point Crawl
-
-**Statut par point crawl ajouté (2026-08-10).** Champ `status` (facultatif,
-`""`/absent = non catégorisé, aucune migration nécessaire) avec 3 valeurs :
-*En création*, *En cours*, *Déjà visité* — badge coloré sur chaque carte de
-la liste et dans l'en-tête de la fiche détail, plus un filtre déroulant
-dans la liste (« Statut : » avec une option « Sans statut »). Réglable via
-un menu déroulant dans le formulaire d'édition. Une copie (« Dupliquer »)
-repart toujours à statut vide, jamais héritée de l'original. Reste
-**jugé parfait sinon** — pas d'autre chantier ouvert ici sauf signalement.
-
 ## Créatures
 
 **Ne pas toucher le fonctionnement actuel.** Ajout souhaité : sélectionner
@@ -55,28 +40,6 @@ textuelles (stats, capacités, etc.). Probablement réutilisable/à
 rapprocher du système d'export PDF des PJ déjà existant (une page A4 par
 personnage) — voir comment il gère la mise en page recto/verso avant de
 partir de zéro.
-
-## Sorts, PJ, PNJ
-
-**Rien à changer pour l'instant.** Des chantiers PDF/impression côté PNJ
-existent déjà ailleurs dans le backlog personnel de Tristan (hors de ce
-fichier) — pas la peine de dupliquer/anticiper ici, ils seront dictés en
-temps voulu.
-
-## Trésor
-
-**Contenu à compléter par Tristan lui-même** — pas une tâche de
-développement. Rien à faire côté code.
-
-## Cartes de donjon
-
-**Terminé.** Tristan est très satisfait du résultat actuel (pinceau,
-polygone, aperçu joueur, brouillard inversé, remplacement d'image). Rien
-à faire tant qu'il ne signale rien de nouveau.
-
-## Initiative
-
-**Ne pas toucher.**
 
 ## Roue
 
