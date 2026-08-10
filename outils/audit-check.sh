@@ -9,11 +9,14 @@ trap 'rm -rf "$TMP"' EXIT
 tr -d '\r' < "$F" > "$TMP/full.html"
 
 echo "== 1. Syntaxe JS (chaque bloc <script>) =="
-# Les <script src="..."></script> externes (Phase 0 de la modularisation, docs/MODULARISATION.md)
-# tiennent sur une seule ligne et n'ont rien à vérifier ici (pas de JS inline) — on les ignore
-# explicitement, sinon leur </script> se retrouve compté sans open correspondant et décale
-# l'appariement open/close de tous les blocs réels qui suivent.
-awk '/<script[^>]*>.*<\/script>/{next} /<script>/{print NR} /<\/script>/{print NR}' "$TMP/full.html" | paste - - | while read -r start end; do
+# Les <script src="..."></script> externes (modularisation, docs/MODULARISATION.md) tiennent sur
+# une seule ligne et n'ont rien à vérifier ici (pas de JS inline) — on les VIDE (ligne blanche, pas
+# supprimée, pour ne pas décaler la numérotation des lignes réelles) avant de chercher les blocs
+# <script>...</script> à vérifier, sinon leur </script> se retrouve compté sans open correspondant
+# (décale l'appariement de tous les blocs suivants), ou pire, une ligne comme ça tombant PILE entre
+# un vrai open et un vrai close se retrouve incluse dans le bloc extrait (faux positif d'erreur).
+sed -E 's#<script[^>]*>.*</script>##' "$TMP/full.html" > "$TMP/noext.html"
+awk '/<script>/{print NR} /<\/script>/{print NR}' "$TMP/noext.html" | paste - - | while read -r start end; do
   sed -n "$((start+1)),$((end-1))p" "$TMP/full.html" > "$TMP/block_$start.js"
   if node --check "$TMP/block_$start.js" 2>"$TMP/err_$start.txt"; then
     echo "  bloc ligne $start-$end : OK"
