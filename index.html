@@ -5577,9 +5577,21 @@ function xmlSampleGeneric(typeKey){
 /* =========================================================================
    NAVIGATION & ÉVÉNEMENTS
    ========================================================================= */
+/* Un lien [[Nom]]/résultat de recherche/puce "mentionné dans" peut techniquement pointer vers un
+   type d'entité dont l'onglet n'est pas accessible au rôle courant (ex. un lien vers un Point Crawl
+   MJ écrit dans une note de session, par ailleurs visible aux joueurs) — findByName()/renderText()
+   ne filtrent pas par rôle à la résolution du lien, seulement au clic, ici. Signalé par Tristan
+   (2026-08-10) en testant le mode aperçu : cliquer dessus ne doit PROVOQUER AUCUNE navigation (pas
+   de page "ce n'est pas accessible" — juste rester exactement où on était), avec seulement un petit
+   signal (toast) pour que le clic ne semble pas simplement ignoré. */
 function goto(type,id){
+  const tab = TAB_OF[type];
+  if(effectiveRole()!=="gm" && !PLAYER_VISIBLE_TABS.includes(tab)){
+    toast("Ce contenu n'est pas accessible.");
+    return;
+  }
   editReturnTo = null;
-  view = { tab: TAB_OF[type], mode:"detail", id };
+  view = { tab, mode:"detail", id };
   $("#search").value=""; $("#search-results").classList.remove("open");
   render();
 }
@@ -5719,7 +5731,11 @@ app.addEventListener("click", e=>{
   if((el=closest("data-roll"))){ rollTable(el.dataset.roll); return; }
   if(t.id==="roll-add-session" && lastTableRoll){ addRollToCurrentSession(lastTableRoll); return; }
   // Table dynamique vide : lien direct vers l'onglet source (liste, pas une fiche précise)
-  if((el=closest("data-goto-tab"))){ editReturnTo=null; view={tab:el.dataset.gotoTab, mode:"list", id:null}; render(); return; }
+  if((el=closest("data-goto-tab"))){
+    const tab = el.dataset.gotoTab;
+    if(effectiveRole()!=="gm" && !PLAYER_VISIBLE_TABS.includes(tab)){ toast("Ce contenu n'est pas accessible."); return; }
+    editReturnTo=null; view={tab, mode:"list", id:null}; render(); return;
+  }
   // Initiative
   if(closest("data-init-add-pc")){ openInitiativeAddPCModal(); return; }
   if(closest("data-init-add-creature")){ openInitiativeAddCreatureModal(); return; }
