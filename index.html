@@ -1243,6 +1243,15 @@ function render(){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active", b.dataset.tab===view.tab));
   window.scrollTo({top:0});
 
+  // Aperçu joueur sur un onglet réservé au MJ (hors PLAYER_VISIBLE_TABS, ex. Créatures, Trésor) :
+  // ces onglets n'ont aucune branche de rendu "joueur" (rien à filtrer, ils n'existent tout
+  // simplement pas pour un vrai compte joueur) — on affiche donc un état dédié SANS changer
+  // d'onglet ni de mode, plutôt que de rediriger ailleurs. Voir togglePlayerPreview().
+  if(effectiveRole()!=="gm" && !PLAYER_VISIBLE_TABS.includes(view.tab)){
+    app.innerHTML = emptyState("🚫", "Cet onglet n'est pas visible aux joueurs.");
+    return;
+  }
+
   if(view.mode==="detail") return renderDetail();
   if(view.mode==="edit" || view.mode==="new") return renderForm();
   return renderList();
@@ -2511,7 +2520,11 @@ function renderDetail(){
   if(type==="pc")       return detailPC(o);
   if(type==="treasure") return detailTreasure(o);
   if(type==="hexmap") return detailHexmap(o);
-  if(type==="dungeonmap") return detailDungeonMap(o);
+  // detailDungeonMap() est TOUJOURS la vue d'édition MJ (peu importe qui l'appelle) — un vrai
+  // compte joueur ne l'atteint jamais (aucune carte n'est cliquable côté joueur), mais un MJ en
+  // aperçu qui était déjà sur le détail d'une carte au moment de basculer le mode doit retomber sur
+  // le même rendu qu'un vrai joueur : la carte ACTIVE en lecture seule, pas forcément celle ouverte.
+  if(type==="dungeonmap") return effectiveRole()==="gm" ? detailDungeonMap(o) : playerDungeonMapView();
 }
 
 function detailActions(type,id){
@@ -6341,7 +6354,6 @@ async function fetchMyRole(){
    sur myRole directement, ce même mode aperçu couvre automatiquement TOUS ces endroits d'un coup,
    sans avoir à dupliquer la logique de filtrage à la main pour chaque onglet. Voir togglePlayerPreview(). */
 let previewAsPlayer = false;
-let previewSavedView = null; // vue MJ (onglet/mode/id) à restaurer exactement en sortant de l'aperçu
 function effectiveRole(){ return previewAsPlayer ? "player" : myRole; }
 
 /* Cache les onglets et actions réservés au MJ pour un compte joueur */
@@ -6362,18 +6374,20 @@ function applyRoleUI(){
 }
 
 /* Bascule le mode aperçu joueur global : simulation d'affichage uniquement, ne touche jamais à
-   myRole ni à la session Supabase. Réutilise l'onglet courant s'il reste visible aux joueurs
-   (sinon retombe sur "Carnet de route"), et restaure la vue MJ exacte en sortant. */
+   myRole ni à la session Supabase. Ne change JAMAIS d'onglet — que ce soit à l'activation ou à la
+   désactivation — pour un aller-retour instantané (Tristan a signalé qu'un saut automatique vers
+   "Carnet de route" à chaque activation était pénible : il fallait ensuite renaviguer manuellement
+   vers l'onglet sur lequel il travaillait). Deux garde-fous seulement, gérés ailleurs :
+   - un onglet réservé au MJ (hors PLAYER_VISIBLE_TABS) affiche un état "non visible aux joueurs" à
+     la place de son contenu réel pendant l'aperçu, sans jamais rediriger vers un autre onglet
+     (voir la garde dans render()) ;
+   - un formulaire de création/édition en cours ne doit jamais être exposé tel quel en aperçu (les
+     données non enregistrées seraient de toute façon perdues au premier re-rendu) : on retombe sur
+     la liste du MÊME onglet, dans un sens comme dans l'autre. */
 function togglePlayerPreview(){
   if(myRole!=="gm") return; // jamais utilisable par un vrai compte joueur, même en théorie
   previewAsPlayer = !previewAsPlayer;
-  if(previewAsPlayer){
-    previewSavedView = view;
-    view = PLAYER_VISIBLE_TABS.includes(view.tab) ? { tab:view.tab, mode:"list", id:null } : { tab:"sessions", mode:"list", id:null };
-  } else {
-    view = previewSavedView || { tab:"sessions", mode:"list", id:null };
-    previewSavedView = null;
-  }
+  if(view.mode==="edit" || view.mode==="new") view = { tab:view.tab, mode:"list", id:null };
   applyRoleUI();
   const banner = document.getElementById("preview-banner");
   if(banner) banner.classList.toggle("hidden", !previewAsPlayer);

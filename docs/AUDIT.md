@@ -616,11 +616,38 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   dupliquée ou réécrite à la main : le mode aperçu en hérite automatiquement partout où le rôle
   était déjà correctement testé.
   **Bouton d'activation** : seul élément qui teste explicitement le vrai `myRole` (jamais
-  `effectiveRole()`) — sinon il disparaîtrait dès l'activation et devirendrait le mode impossible à
-  quitter. `togglePlayerPreview()` sauvegarde la vue MJ exacte (`previewSavedView`) avant de
-  basculer sur l'onglet courant s'il reste visible aux joueurs (sinon retombe sur « Carnet de
-  route », en mode liste — jamais un formulaire ou une vue détail MJ), et restaure cette vue MJ à
-  l'identique en sortant.
+  `effectiveRole()`) — sinon il disparaîtrait dès l'activation et rendrait le mode impossible à
+  quitter.
+  **Correctif (même jour, retour de Tristan après premier essai)** : la toute première version de
+  `togglePlayerPreview()` changeait d'onglet à l'activation dès que l'onglet courant n'était pas
+  dans `PLAYER_VISIBLE_TABS` (retombait sur « Carnet de route »), ce que Tristan a signalé comme
+  pénible — un aller-retour manuel était nécessaire pour revenir à l'onglet de travail après un
+  simple coup d'œil. **`togglePlayerPreview()` ne change désormais plus jamais d'onglet, dans
+  aucun des deux sens** (seule exception : un formulaire de création/édition en cours retombe sur
+  la liste du MÊME onglet, dans les deux sens — des données non enregistrées seraient de toute
+  façon perdues au premier re-rendu, donc rien à préserver ni à restaurer). Pour un onglet réservé
+  au MJ (hors `PLAYER_VISIBLE_TABS`, ex. Créatures, Trésor — sans aucune branche de rendu « joueur »
+  puisqu'un vrai compte joueur n'y accède jamais), `render()` affiche désormais un état dédié « Cet
+  onglet n'est pas visible aux joueurs » **à la place** du contenu réel, toujours sur le même
+  onglet, plutôt que de rediriger vers un autre onglet. Bascule ON/OFF donc strictement
+  symétrique et sans navigation implicite : l'onglet/mode/id affiché avant l'activation est
+  exactement celui qui reste affiché après la désactivation, puisqu'il n'a jamais changé entre
+  les deux.
+  **Effet de bord découvert et corrigé au passage** : `renderDetail()` routait le type
+  `dungeonmap` directement vers `detailDungeonMap()` (la vue d'édition MJ complète), sans aucun
+  test de rôle — sans conséquence tant que l'onglet changeait forcément à l'activation (un vrai
+  joueur n'atteint jamais cette route), mais devenu un vrai risque de fuite une fois l'onglet
+  préservé : un MJ resté sur le détail d'une carte au moment de basculer l'aperçu aurait vu
+  l'interface d'édition complète (zones colorées, outils) au lieu du rendu joueur. **Fix** :
+  `renderDetail()` route maintenant ce cas vers `effectiveRole()==="gm" ? detailDungeonMap(o) :
+  playerDungeonMapView()` — qui affiche la carte **active** en lecture seule (pas nécessairement
+  celle que le MJ avait ouverte), exactement comme un vrai joueur. Les deux corrections vérifiées
+  en direct dans le navigateur (données de test injectées en console) : onglet réservé au MJ en
+  mode liste ET en mode détail restent sur le même onglet pendant l'aperçu (état « non visible »
+  affiché) et reviennent inchangés à la sortie ; formulaire d'édition en cours retombe sur la
+  liste du même onglet dans les deux sens ; détail d'une carte de donjon inactive ouverte côté MJ
+  bascule sur le rendu joueur de la carte **active** (pas de fuite de l'UI d'édition), et revient
+  exactement au détail MJ d'origine à la sortie.
   **Bandeau d'indication** : `#preview-banner`, fixe en haut d'écran, avec un bouton « ↩ Revenir en
   mode MJ » redondant avec le bouton du header (toujours accessible même après avoir scrollé). Le
   header (sticky) est décalé de la hauteur réelle du bandeau via une variable CSS
