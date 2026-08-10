@@ -2530,7 +2530,8 @@ function generateRandomNPC(){
 }
 function listNPCs(){
   const items = db.npcs;
-  const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-npc="1">🎲 Générer un PNJ aléatoire</button>` : "";
+  const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-npc="1">🎲 Générer un PNJ aléatoire</button>
+    <button class="btn ghost sm" data-print-npc-cards="1">🖨 Exporter en cartes</button>` : "";
   app.innerHTML = pageHead("PNJ", `${items.length} personnage(s) non-joueur(s)`, "Nouveau PNJ", xmlToolbarHTML("npc")+genBtn) +
     (items.length ? `<div class="grid">${items.map(n=>`
       <div class="card" data-open="npc:${n.id}">
@@ -3717,12 +3718,14 @@ function creatureCardBackHTML(c){
     ${c.abilities?`<div class="pp-card-back-sec"><b>Capacités</b>${renderTextPrint(c.abilities)}</div>`:""}
   </div>`;
 }
-function creatureCardGridPages(cards, htmlFn, labelFn){
-  const totalPages = Math.max(1, Math.ceil(cards.length/9));
+/* Pagination générique en grille 3×3 (9/page) — partagée entre l'export cartes des Créatures et
+   celui des PNJ ci-dessous, seul le rendu recto/verso de chaque case change (htmlFn). */
+function cardGridPages(items, htmlFn, labelFn){
+  const totalPages = Math.max(1, Math.ceil(items.length/9));
   const pages = [];
-  for(let i=0;i<cards.length;i+=9){
+  for(let i=0;i<items.length;i+=9){
     const pageNum = i/9+1;
-    const slice = cards.slice(i, i+9);
+    const slice = items.slice(i, i+9);
     const cells = slice.map(htmlFn).join("")
       + Array(9-slice.length).fill('<div class="pp-card pp-card-empty"></div>').join("");
     pages.push(`<div class="pp-cards-page"><div class="pp-cards-pagelabel">${labelFn(pageNum,totalPages)}</div><div class="pp-cards-grid">${cells}</div></div>`);
@@ -3733,8 +3736,8 @@ function printCreatureCards(ids){
   const list = ids.map(id=>getEntity("creature",id)).filter(Boolean);
   if(!list.length){ toast("Sélectionnez au moins une créature."); return; }
   $("#print-area").innerHTML =
-    creatureCardGridPages(list, creatureCardFrontHTML, (n,t)=>`Recto — page ${n}/${t}`)
-    + creatureCardGridPages(list, creatureCardBackHTML, (n,t)=>`Verso — page ${n}/${t} (même position que le recto ${n}/${t})`);
+    cardGridPages(list, creatureCardFrontHTML, (n,t)=>`Recto — page ${n}/${t}`)
+    + cardGridPages(list, creatureCardBackHTML, (n,t)=>`Verso — page ${n}/${t} (même position que le recto ${n}/${t})`);
   document.fonts.load('30pt "JSL Blackletter"').catch(()=>{}).then(()=> window.print());
 }
 function openPrintCreatureCardsModal(){
@@ -3760,6 +3763,73 @@ function openPrintCreatureCardsModal(){
     const ids = [...document.querySelectorAll(".crp-check:checked")].map(c=>c.value);
     closeModal();
     printCreatureCards(ids);
+  });
+}
+
+/* ---- Export "cartes à jouer" des PNJ — même format que les Créatures ci-dessus (63×88mm, 9/page,
+   recto illustration + verso résumé, cartes collées sans espace pour les lignes de découpe). Un PNJ
+   a soit un portrait choisi dans la bibliothèque (n.portrait, fichier dans portraits/), soit des
+   images uploadées (n.images[]) comme une créature, jamais les deux à la fois en pratique — même
+   ordre de priorité que detailNPC()/la carte de liste : portrait d'abord, sinon la 1ère image.
+   Verso : ligne de combat (CA/PV/Arme + caractéristiques) seulement si le PNJ en a une (beaucoup de
+   PNJ sont purement sociaux, sans bloc de combat — hasCombat, même logique que detailNPC()), puis
+   Objectif et Comportement (les deux accroches de jeu de rôle les plus utiles à avoir sous les yeux
+   en cours de partie) — pas de place sur une carte aussi petite pour aussi Apparence/Possessions/
+   Moyens/Sortilèges, laissés à la fiche complète dans l'appli. */
+function npcCardFrontHTML(n){
+  const img = n.portrait ? `portraits/${esc(n.portrait)}` : ((n.images && n.images[0]) ? n.images[0].data : "");
+  return `<div class="pp-card pp-card-front">
+    ${img
+      ? `<img class="pp-card-art${n.portrait?' portrait-gray':''}" src="${img}" alt="">`
+      : `<div class="pp-card-noart"><span>${esc((n.name||"?").trim().slice(0,1).toUpperCase())}</span></div>`}
+    <div class="pp-card-frontfoot">
+      <div class="pp-card-name">${esc(n.name||"Sans nom")}</div>
+    </div>
+  </div>`;
+}
+function npcCardBackHTML(n){
+  const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+  const hasCombat = n.ac || n.hp || n.weapon || ab.some(([,k])=>n[k]);
+  const stats = ab.filter(([,k])=>n[k]).map(([l,k])=>`${l} ${esc(fmtMod(n[k]))}`).join(" · ");
+  return `<div class="pp-card pp-card-back">
+    <div class="pp-card-back-name">${esc(n.name||"Sans nom")}</div>
+    ${hasCombat ? `<div class="pp-card-back-line">CA ${esc(n.ac||"—")} · PV ${esc(n.hp||"—")}${n.weapon?" · "+esc(n.weapon):""}</div>` : ""}
+    ${stats?`<div class="pp-card-back-line">${stats}</div>`:""}
+    ${n.objectif?`<div class="pp-card-back-sec"><b>🎯 Objectif</b>${renderTextPrint(n.objectif)}</div>`:""}
+    ${n.comportement?`<div class="pp-card-back-sec"><b>🎭 Comportement</b>${renderTextPrint(n.comportement)}</div>`:""}
+  </div>`;
+}
+function printNPCCards(ids){
+  const list = ids.map(id=>getEntity("npc",id)).filter(Boolean);
+  if(!list.length){ toast("Sélectionnez au moins un PNJ."); return; }
+  $("#print-area").innerHTML =
+    cardGridPages(list, npcCardFrontHTML, (n,t)=>`Recto — page ${n}/${t}`)
+    + cardGridPages(list, npcCardBackHTML, (n,t)=>`Verso — page ${n}/${t} (même position que le recto ${n}/${t})`);
+  document.fonts.load('30pt "JSL Blackletter"').catch(()=>{}).then(()=> window.print());
+}
+function openPrintNPCCardsModal(){
+  const items = db.npcs;
+  if(!items.length){ toast("Aucun PNJ à exporter."); return; }
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+      <h2 style="margin:0;color:var(--gold2)">Exporter des PNJ en cartes</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <p class="faint" style="font-family:var(--ui);margin:.3rem 0 .8rem">Cartes 63×88mm, 9 par page, recto (nom + portrait) et verso (objectif, comportement, combat si renseigné) sur des feuilles séparées à associer par position.</p>
+    <div style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem;margin-bottom:.8rem">
+      ${items.map(n=>`<label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.9rem;cursor:pointer">
+        <input type="checkbox" class="nrp-check" value="${n.id}" style="width:auto"> ${esc(n.name||"Sans nom")}
+      </label>`).join("")}
+    </div>
+    <div class="form-actions">
+      <button class="btn ghost sm" id="nrp-all">Tout cocher</button>
+      <button class="btn ghost sm" id="nrp-none">Tout décocher</button>
+      <button class="btn" id="nrp-go">🖨 Exporter la sélection</button>
+    </div>`);
+  document.getElementById("nrp-all").addEventListener("click", ()=> document.querySelectorAll(".nrp-check").forEach(c=>c.checked=true));
+  document.getElementById("nrp-none").addEventListener("click", ()=> document.querySelectorAll(".nrp-check").forEach(c=>c.checked=false));
+  document.getElementById("nrp-go").addEventListener("click", ()=>{
+    const ids = [...document.querySelectorAll(".nrp-check:checked")].map(c=>c.value);
+    closeModal();
+    printNPCCards(ids);
   });
 }
 
@@ -5838,6 +5908,7 @@ app.addEventListener("click", e=>{
   if(closest("data-crawl-print")){ printCrawl(crawlState.id); return; }
   if(closest("data-print-pcs")){ openPrintPCsModal(); return; }
   if(closest("data-print-creature-cards")){ openPrintCreatureCardsModal(); return; }
+  if(closest("data-print-npc-cards")){ openPrintNPCCardsModal(); return; }
   if((el=closest("data-print-pc"))){ printPCs([el.dataset.printPc]); return; }
   // Hexcrawl
   if((el=t.closest("[data-hexq]"))){

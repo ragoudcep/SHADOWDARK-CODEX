@@ -777,6 +777,26 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   de statistiques et de la section capacités. **Non vérifié** : rendu physique réel via une vraie
   impression/un vrai massicot (aucune imprimante disponible dans cette session) — à confirmer par
   Tristan, notamment que les 8mm de marge de page suffisent bien sur son imprimante réelle.
+- **PNJ — même export en cartes 63×88mm (même jour, demande immédiate de Tristan : "exactement
+  pareil")**. Réutilise entièrement le mécanisme des Créatures ci-dessus — la fonction de pagination
+  en grille 3×3 (`creatureCardGridPages`, sans logique propre aux créatures) a été renommée
+  `cardGridPages()` et partagée entre les deux, et les classes CSS `.pp-card*` (déjà génériques,
+  aucun nom lié aux créatures) sont réutilisées telles quelles sans nouvelle règle. Nouveau bouton
+  `🖨 Exporter en cartes` dans la liste PNJ (à côté de « Générer un PNJ aléatoire »).
+  **Recto** (`npcCardFrontHTML`) : image en plein cadre — priorité au portrait choisi dans la
+  bibliothèque (`n.portrait`, chemin `portraits/...`, avec le même filtre `.portrait-gray` que
+  partout ailleurs dans l'appli) sinon la 1ère image uploadée (`n.images[0]`), même ordre de priorité
+  que `detailNPC()`/la carte de liste — sinon repli sur l'initiale du nom comme pour les créatures.
+  **Verso** (`npcCardBackHTML`) : contrairement aux créatures, un PNJ n'a pas systématiquement de
+  bloc de combat (beaucoup sont purement sociaux) — la ligne CA/PV/Arme et la ligne de
+  caractéristiques ne s'affichent que si `hasCombat` (même test que `detailNPC()`). Le reste de la
+  carte est dédié à Objectif (🎯) et Comportement (🎭) — les deux accroches de jeu de rôle les plus
+  utiles à avoir sous les yeux en cours de partie ; Apparence physique/Possessions/Moyens/Sortilèges
+  volontairement exclus faute de place sur un format aussi petit (consultables dans la fiche complète
+  au besoin). Vérifié en direct : un PNJ avec bloc de combat affiche bien les deux lignes de stats
+  avant Objectif/Comportement, un PNJ purement social (sans CA/PV/arme/caractéristiques) les omet
+  proprement sans laisser de lignes vides visibles. Mêmes limites/réserves que les Créatures (recto/
+  verso non dupliqués en miroir pour un duplex automatique, non vérifié en impression physique réelle).
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
