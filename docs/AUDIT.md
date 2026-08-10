@@ -682,6 +682,35 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   le rendu joueur réel. Non testé non plus : le rendu visuel du bandeau à l'œil (seules les
   dimensions DOM ont été vérifiées par assertion, pas de capture d'écran disponible dans cette
   session) — à confirmer par toi après déploiement.
+- **Hexcrawl — rotation des images de biome/overlay corrigée (2026-08-10)**, suite au point ouvert
+  dans `docs/TODO.md` (« icônes à 90°, débordent de la cellule »). La cible réelle du problème
+  n'était pas les icônes de point d'intérêt (`buildHexPoints()`, non concernées, aucune rotation)
+  mais les images de fond de cellule (`hexBiomeImageSVG()`, biome + overlay `foundation_*.png`),
+  tournées de 90° pour passer de leur orientation naturelle « flat-top » (plus large que haute) à la
+  cellule « pointy-top » de la grille — ce qui faisait paraître leur contenu (arbres, chemins…)
+  complètement sur le côté, plutôt qu'un débordement au sens propre. **Fix** : un hexagone régulier a
+  une symétrie de rotation à 60° (6 côtés) ; flat-top et pointy-top ne diffèrent que d'un quart de
+  cette symétrie, soit 30° — n'importe quel angle ≡ 30° (mod 60°) réaligne donc exactement le
+  *contour* de l'image sur la cellule, sans débordement ni décalage. 30° et 90° (=30+60) sont tous
+  les deux valides à ce titre, mais 90° tourne le *contenu* de l'image bien plus loin de son
+  orientation d'origine que 30°. Changé `hexBiomeImageSVG()` pour tourner de 30° au lieu de 90° —
+  demande explicite de Tristan (« un cran vers la gauche, sens antihoraire »), qui correspond
+  exactement à un cran de la symétrie naturelle de l'hexagone (60°, donc 90-60=30), pas au « cran de
+  30° » évoqué dans `docs/TODO.md` pour une réorientation complète de la grille (`hexCorners`/
+  `hexCenter`) — chantier plus lourd, explicitement pas engagé ici. Aucune solution parfaitement
+  horizontale n'est possible (contrainte géométrique reconnue par Tristan), mais le rendu est
+  nettement moins vertical qu'avant. Nouvelle géométrie de `hexBiomeImageSVG()` : l'image est
+  dessinée à sa taille naturelle flat-top (largeur `2×size`, hauteur `size×√3`), centrée sur le
+  centre de la cellule, puis tournée de 30° autour de ce même centre — remplace l'ancien calcul qui
+  dessinait un rectangle aux dimensions pré-échangées (largeur/hauteur inversées) puis le tournait de
+  90°, un raccourci qui ne fonctionne géométriquement que pour une rotation de 90° exactement.
+  **Vérifié** : calcul analytique (les 6 sommets de l'hexagone flat-top, tournés de 30°, tombent
+  exactement sur les 6 sommets `hexCorners()` de la cellule cible, aux arrondis près) puis
+  confirmation visuelle dans un navigateur avec une vraie image (`1-foundation_vulcano.png` sur fond
+  `greenlands`) — comparaison directe 30° vs 90° sur la même cellule : le contour hexagonal reste
+  identique dans les deux cas (aucun débordement introduit), seul le contenu tourne visiblement (~60°
+  d'écart entre les deux rendus, repères — bouche du volcan, sommet, marque du bas — clairement
+  déplacés). **Non vérifié en jeu réel sur de vraies cartes de campagne** — à confirmer par toi.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

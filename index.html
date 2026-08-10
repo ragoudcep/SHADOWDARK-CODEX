@@ -4366,16 +4366,23 @@ function buildHexPoints(m, isGM){
   }).join("");
 }
 /* Fond biome (5 tuiles pleines) + overlay foundation_*.png (contour dessiné, transparent autour) empilés sur
-   la boîte englobante de l'hexagone. Les deux images sont en orientation "flat-top" (plus larges que hautes)
-   alors que la grille de l'app est "pointy-top" (sommet en haut/bas) : la rotation de 90° corrige ça sans
-   toucher aux maths de la grille. */
+   la boîte englobante de l'hexagone. Les deux images sont en orientation "flat-top" (plus larges que hautes,
+   boîte naturelle size*2 × size*racine(3)) alors que la grille de l'app est "pointy-top" (sommet en haut/bas).
+   Un hexagone a une symétrie à 60° (6 côtés) : flat-top et pointy-top ne diffèrent que d'un quart de tour de
+   cette symétrie, soit 30° — n'importe quel angle ≡ 30° (mod 60°) réaligne donc le CONTOUR de l'image sur la
+   cellule pointy-top, exactement. 30° et 90°(=30+60) sont tous les deux valides à ce titre, mais 90° fait
+   paraître le contenu de l'image (arbres, chemins…) complètement sur le côté, alors que 30° ne le tourne que
+   d'un tiers de moins — demande de Tristan (2026-08-10) après un premier essai en jeu : tourner d'un cran
+   hexagonal (60°, l'unité de symétrie naturelle de la forme — à ne pas confondre avec le "cran" de 30° évoqué
+   dans docs/TODO.md, qui parlait lui de réorienter toute la grille, un chantier différent et plus lourd, pas
+   fait ici) vers la gauche par rapport à l'ancien 90°. Le contour reste donc parfaitement calé sur la cellule
+   (aucun débordement/décalage introduit), seul le rendu de la scène à l'intérieur devient moins vertical. */
 function hexBiomeImageSVG(href, c, size){
-  const boxW = size*Math.sqrt(3), boxH = size*2;
-  const x = (c.x - boxH/2).toFixed(1), y = (c.y - boxW/2).toFixed(1);
-  const w = boxH.toFixed(1), h = boxW.toFixed(1);
-  const rot = `rotate(90 ${c.x.toFixed(1)} ${c.y.toFixed(1)})`;
-  return { x, y, w, h, rot,
-    tag:(cls)=>`<image href="${esc(href)}" x="${x}" y="${y}" width="${w}" height="${h}" transform="${rot}" class="${cls}"></image>` };
+  const w = size*2, h = size*Math.sqrt(3);
+  const x = (c.x - w/2).toFixed(1), y = (c.y - h/2).toFixed(1);
+  const rot = `rotate(30 ${c.x.toFixed(1)} ${c.y.toFixed(1)})`;
+  return { x, y, w:w.toFixed(1), h:h.toFixed(1), rot,
+    tag:(cls)=>`<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" transform="${rot}" class="${cls}"></image>` };
 }
 function hexTerrainLayerSVG(h, c, size){
   const pts = hexCorners(c.x, c.y, size-1);

@@ -76,18 +76,22 @@ développement. Rien à faire côté code.
 
 ## Hexcrawl
 
-**Problème identifié, pas de solution actée.** Les icônes posées sur les
-hexagones sont actuellement à 90°, et comme la cellule est un hexagone,
-une icône à 90° ne « rentre » pas bien dans la forme (débordement/
-déformation visuelle).
-
-Piste à explorer plus tard (prototype, pas encore décidé) : tourner toute
-la grille hexagonale d'un cran (30°) pour voir si le rendu des icônes
-s'améliore une fois réaligné sur la forme des cellules. À tester
-visuellement avant de s'engager — impact potentiel sur toute la
-génération de la grille (`hexCorners`, `hexCenter`, orientation flat-top
-vs pointy-top) donc à traiter comme un vrai chantier, pas un simple
-réglage cosmétique.
+**Rotation des images de biome/overlay corrigée (2026-08-10), reste à confirmer à l'écran.**
+Les images de fond (biome + overlay `foundation_*.png`) posées sur les hexagones étaient tournées de
+90° pour passer de leur orientation naturelle « flat-top » à la cellule « pointy-top » de la grille,
+ce qui faisait paraître leur contenu (arbres, chemins…) complètement sur le côté. Changé pour une
+rotation de 30° à la place (`hexBiomeImageSVG()`) — un hexagone a une symétrie à 60°, donc 30° comme
+90° alignent tous les deux le contour de l'image sur la cellule sans débordement, mais 30° tourne le
+contenu bien moins loin de son orientation d'origine. Pas de solution parfaitement horizontale
+possible (contrainte géométrique de la forme hexagonale, reconnue par Tristan), mais nettement moins
+vertical qu'avant. La grille elle-même (`hexCorners`, `hexCenter`, orientation flat-top vs
+pointy-top) n'a pas été touchée — seul l'angle de rotation des images l'a été, un changement bien plus
+contenu que la piste de réorientation complète de la grille envisagée initialement ci-dessus.
+**Non vérifié en jeu réel** : comparé visuellement dans un navigateur avec une image de test
+(volcano/greenlands) pendant le développement, mais à confirmer par toi sur de vraies cartes.
+Les icônes de point d'intérêt (`buildHexPoints()`, marqueurs `!`/icônes SVG posés par-dessus la
+grille) ne sont, elles, pas concernées : elles ne portent aucune rotation, seules les images de fond
+de cellule l'étaient.
 
 ## Cartes de donjon
 
