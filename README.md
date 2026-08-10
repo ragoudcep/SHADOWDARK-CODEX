@@ -51,6 +51,7 @@ sandlands/, Neutre/     # variantes de biomes du Hexcrawl (idem, chemins en dur)
 
 docs/                   # documentation interne
   AUDIT.md                — méthode d'audit du code + journal des passages
+  TODO.md                 — backlog de chantiers futurs, par onglet
   REGLES-CREATION-PERSONNAGE.md — référence des règles utilisées par les générateurs PJ/PNJ
 
 outils/                 # scripts utilitaires
