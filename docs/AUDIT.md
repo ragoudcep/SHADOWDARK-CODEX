@@ -595,6 +595,66 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   (1600×1000→1800×1200, plafond de résolution appliqué) — mise à l'échelle
   non uniforme cohérente sur x et y, aucune valeur aberrante. `id`/`color`/
   `hidden`/`shape` de chaque zone inchangés dans les deux cas.
+- **Mode « Aperçu Joueur » global, demandé par Tristan (2026-08-10)** : remplace/généralise
+  l'ancien mode aperçu spécifique aux Cartes de donjon par un bouton `👁 Aperçu joueur` dans le
+  header (visible uniquement pour le vrai MJ, à côté de Crédits/Export/Import/Déconnexion), qui
+  bascule TOUTE l'appli en simulation d'affichage joueur, sans changer de compte ni de session
+  Supabase. But explicite de Tristan : vérifier ce que voient réellement les PJ sans avoir à ouvrir
+  une deuxième session avec un compte joueur.
+  **Implémentation** : `myRole` (le vrai rôle authentifié) reste inchangé — un nouveau flag
+  client-side `previewAsPlayer` (jamais persisté) et une fonction `effectiveRole()` (`previewAsPlayer
+  ? "player" : myRole`) s'intercalent. Tous les endroits du code qui décidaient déjà quoi afficher
+  via une comparaison `myRole==="gm"`/`myRole!=="gm"` (déclarations/affectations de `myRole`
+  exceptées) ont été basculés sur `effectiveRole()` — une seule bascule mécanique
+  (`sed`/replace_all sur les deux formes de comparaison) a suffi à couvrir d'un coup : le masquage
+  des onglets (`PLAYER_VISIBLE_TABS` dans `applyRoleUI()`), les boutons créer/éditer/dupliquer/
+  supprimer (`pageHead()`/`detailActions()`), ET les filtres de contenu déjà existants par onglet
+  (carte de donjon **active** uniquement dans `viewDungeonMaps()`/`playerDungeonMapView()`, entrées
+  de carnet de route marquées `visible` dans `listSessions()`/`detailSession()`, fog state des
+  hexagones, etc.) — puisque ces filtres étaient déjà écrits comme des branches `isGM = myRole===
+  "gm"` locales à chaque fonction de rendu, aucune logique de filtrage n'a eu besoin d'être
+  dupliquée ou réécrite à la main : le mode aperçu en hérite automatiquement partout où le rôle
+  était déjà correctement testé.
+  **Bouton d'activation** : seul élément qui teste explicitement le vrai `myRole` (jamais
+  `effectiveRole()`) — sinon il disparaîtrait dès l'activation et devirendrait le mode impossible à
+  quitter. `togglePlayerPreview()` sauvegarde la vue MJ exacte (`previewSavedView`) avant de
+  basculer sur l'onglet courant s'il reste visible aux joueurs (sinon retombe sur « Carnet de
+  route », en mode liste — jamais un formulaire ou une vue détail MJ), et restaure cette vue MJ à
+  l'identique en sortant.
+  **Bandeau d'indication** : `#preview-banner`, fixe en haut d'écran, avec un bouton « ↩ Revenir en
+  mode MJ » redondant avec le bouton du header (toujours accessible même après avoir scrollé). Le
+  header (sticky) est décalé de la hauteur réelle du bandeau via une variable CSS
+  (`--preview-banner-h`, posée en JS par `syncPreviewBannerHeight()`, recalculée au
+  redimensionnement/rotation) plutôt qu'une constante en dur — un texte qui passe sur deux lignes
+  sur mobile ne laisse donc jamais un chevauchement de quelques pixels entre bandeau et header (bug
+  constaté puis corrigé pendant le développement avec une constante fixe `2.5rem`, qui ne
+  correspondait pas exactement à la hauteur réelle rendue).
+  **Ancien mode aperçu spécifique aux Cartes de donjon (`dmapShowPlayerPreview`, bouton `👁 Aperçu
+  joueur` dans la vue détail MJ d'une carte)** : **conservé tel quel**, pas absorbé/supprimé. Décision
+  prise en connaissance du fait que Tristan a explicitement demandé l'absorption « à ma discrétion »
+  — choix motivé par deux points : (1) il couvre un cas que le mode global ne peut pas reproduire
+  (prévisualiser une carte **avant** de l'activer, ou comparer côte à côte le rendu MJ et joueur
+  **en même temps** en dessinant des zones — le mode global, lui, quitte entièrement l'UI d'édition
+  puisqu'il simule un vrai joueur qui n'a jamais accès à cette UI) ; (2) `docs/TODO.md` marque
+  « Cartes de donjon : Terminé […] Rien à faire tant qu'il ne signale rien de nouveau », donc
+  toucher à ce mécanisme spécifique (au-delà du strict nécessaire) semblait aller à l'encontre de
+  cette instruction. Les deux mécanismes ne se recouvrent pas en pratique : ils ne partagent aucun
+  état (`previewAsPlayer` vs `dmapShowPlayerPreview`), et le mode global, une fois actif, empêche de
+  toute façon d'atteindre la vue détail MJ d'une carte (routé vers `playerDungeonMapView()` comme un
+  vrai joueur) — donc aucun conflit visuel ou fonctionnel possible entre les deux.
+  **Testé** : voir `duringPreview`/comparaison ci-dessous — le rendu HTML produit par le mode aperçu
+  (compte MJ réel + `previewAsPlayer=true`) a été comparé **caractère pour caractère** à celui
+  produit par un vrai compte joueur (`myRole="player"`) sur les mêmes données de test (une session
+  avec une entrée visible et une masquée, une carte de donjon active et une inactive) : identique
+  sur les deux onglets testés (Carnet de route, Cartes de donjon), ainsi que sur l'ensemble des
+  onglets visibles dans la nav. Bouton créer masqué, sortie du mode restaure exactement l'onglet/
+  mode MJ d'origine. **Non testé en conditions réelles** : contre un vrai compte joueur connecté en
+  parallèle (aucun accès à un second compte dans cette session) — la comparaison ci-dessus contre un
+  rendu simulé `myRole="player"` sur les mêmes fonctions de rendu est cependant une preuve plus
+  forte qu'une simple relecture de code, puisque c'est exactement le même chemin de code qui produit
+  le rendu joueur réel. Non testé non plus : le rendu visuel du bandeau à l'œil (seules les
+  dimensions DOM ont été vérifiées par assertion, pas de capture d'écran disponible dans cette
+  session) — à confirmer par toi après déploiement.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

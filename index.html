@@ -70,6 +70,29 @@
   a:hover{color:var(--violet2); text-decoration:underline}
   button{font-family:var(--ui); cursor:pointer}
 
+  /* ---------- Bandeau "Mode Aperçu Joueur" ---------- */
+  /* position:fixed en tout haut de l'écran, au-dessus du header (lui-même sticky top:0) — le
+     header est donc décalé vers le bas (padding-top sur body + top sticky) exactement de la
+     hauteur du bandeau tant que le mode est actif, pour ne jamais le recouvrir, ni au chargement
+     ni en cours de scroll. Voir togglePlayerPreview() côté JS. */
+  #preview-banner{
+    position:fixed; top:0; left:0; right:0; z-index:200;
+    display:flex; align-items:center; justify-content:center; gap:.9rem; flex-wrap:wrap;
+    min-height:2.5rem; padding:.4rem 1rem;
+    background:linear-gradient(180deg,#3a2408,#241505); border-bottom:2px solid var(--gold);
+    color:var(--gold2); font-family:var(--ui); font-size:.82rem; text-align:center;
+    box-shadow:0 2px 14px rgba(0,0,0,.5);
+  }
+  /* Décalage calé sur la hauteur RÉELLE du bandeau (--preview-banner-h, posée en JS via
+     syncPreviewBannerHeight()) plutôt qu'une constante en dur : le texte peut passer sur deux
+     lignes sur un écran étroit, et un décalage figé aurait alors laissé le header chevaucher le
+     bas du bandeau de quelques pixels. 2.5rem reste une valeur de repli avant le premier calcul JS. */
+  body.preview-active{ padding-top:var(--preview-banner-h, 2.5rem); }
+  body.preview-active header{ top:var(--preview-banner-h, 2.5rem); }
+  @media (max-width:640px){
+    #preview-banner{ font-size:.76rem; padding:.4rem .7rem; }
+  }
+
   /* ---------- Header ---------- */
   header{
     position:sticky; top:0; z-index:50;
@@ -77,6 +100,10 @@
     border-bottom:1px solid var(--border);
     box-shadow:0 1px 0 rgba(193,145,63,.18);
     backdrop-filter:blur(6px);
+  }
+  body.preview-active header{
+    background:linear-gradient(180deg, #241505 0%, #1a0f04f5 100%);
+    border-bottom-color:var(--gold);
   }
   .bar{
     max-width:1100px; margin:0 auto; padding:.7rem 1rem;
@@ -114,6 +141,7 @@
     border-radius:8px; padding:.45rem .6rem; font-size:.8rem;
   }
   .icon-btn:hover{color:var(--gold2); border-color:var(--gold)}
+  .icon-btn.active-mode{background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#2a1e08; border-color:var(--gold)}
 
   /* ---------- Tabs ---------- */
   nav.tabs{max-width:1100px; margin:0 auto; padding:0 1rem; display:flex; gap:.15rem; overflow-x:auto;
@@ -824,6 +852,10 @@
     <symbol id="icon-evil-book" viewBox="0 0 512 512"><path fill="currentColor" d="M93.998 27.8c-24.004-.13-42.94 15.268-54.732 32.778C27.094 78.653 20.66 98.816 24.684 115.1l.01.04 81.476 318.186c.11-9.534 2.292-19.376 6.22-28.596 4.24-9.948 10.73-19.412 19.245-27.21 7.477-7.44 17.398-13.343 29.234-16.575.002 0 .004 0 .007-.002 4.364-1.292 8.962-2.224 13.787-2.74l.658-.07 323.2 11.25-126.975-328.56-275.21-12.96c-.786-.037-1.565-.058-2.34-.062zm-.107 18.69c.52.003 1.043.017 1.567.04L358.504 58.92l112.408 290.867-299.46-9.77-.653.07c-26.13 2.814-47.677 15.802-60.554 33.823l-67.42-263.29v-.003c-1.57-6.362 2.12-25.013 11.942-39.6 9.516-14.132 23.03-24.603 39.123-24.525zm17.426 17.403L93.35 69.037l73.06 255.193 17.967-5.142-73.06-255.195zm52.48 19.2c3.22 62.57 46.11 84.672 81.54 87.507l9.07-16.85-43.873-19.943 15.91-8.95c-24.727-2.388-42.9-24.437-62.648-41.765zm180.157 2.948c-10.863 18.29-18.594 40.613-39.375 46.132l10.31 13.844-24.808 16.07 14.943 13.84c29.995-7.382 59.367-33.122 38.93-89.885zm44.406 88.26l-33.432 59.067-18.184-40.082-25.455 50.627-50.07-37.266-8.277 35.157-76.937-59.768 46.058 99.145 13.426-21.8 45.862 59.07 19.857-46.41 41.196 47.108 17.785-52.03 20.13 28.827 8.04-121.644zM176.214 376.866c-23.563 2.688-39.208 17.766-46.63 35.19-6.863 16.106-5.658 33.007 1.804 42.7l315.006 10.862c-2.514-13.553-1.82-27.43 2.32-41.203l-21.546-6.818 34.252-20.055c2.305-3.522 4.85-7.02 7.658-10.48l-292.865-10.195z"/></symbol>
   </defs></svg>
 <div id="starfield"></div>
+<div id="preview-banner" class="hidden">
+  <span>👁 <b>Mode Aperçu Joueur</b> — vous voyez ce que voient les joueurs</span>
+  <button class="btn sm" id="btn-exit-preview">↩ Revenir en mode MJ</button>
+</div>
 <header id="app-header" class="hidden">
   <div class="bar">
     <button class="nav-toggle-btn" id="btn-nav-toggle" title="Afficher/masquer les onglets" aria-label="Afficher/masquer les onglets">☰</button>
@@ -836,6 +868,7 @@
       <div id="search-results" class="search-results"></div>
     </div>
     <div class="hbtns">
+      <button class="icon-btn hidden" id="btn-player-preview" title="Voir l'appli comme un joueur, sans changer de compte">👁 Aperçu joueur</button>
       <button class="icon-btn" id="btn-credits" title="Crédits des icônes">ⓘ Crédits</button>
       <button class="icon-btn" id="btn-broken-links" title="Voir les liens [[...]] qui ne pointent vers rien">⚠ Liens</button>
       <button class="icon-btn" id="btn-export" title="Exporter toutes les données (JSON)">⭳ Export</button>
@@ -1281,7 +1314,7 @@ function initiativeEntryInfo(entry){
   const live = entry.kind==="pc" ? db.pcs.find(p=>p.id===entry.refId) : db.creatures.find(c=>c.id===entry.refId);
   // Migration silencieuse des entrées créées avant l'introduction du snapshot (le MJ a toujours
   // la lecture complète, donc c'est le rôle le plus sûr pour combler rétroactivement le snapshot manquant).
-  if(myRole==="gm" && !entry.name && live){ Object.assign(entry, initiativeSnapshot(entry.kind, live)); saveInitiative(); }
+  if(effectiveRole()==="gm" && !entry.name && live){ Object.assign(entry, initiativeSnapshot(entry.kind, live)); saveInitiative(); }
   const name = entry.name || (live && live.name) || (entry.kind==="pc" ? "PJ supprimé" : "Créature supprimée");
   const image = entry.image || "";
   const grayscale = !!entry.grayscale;
@@ -1382,7 +1415,7 @@ function listInitiative(){
   const pending = items.filter(e=>e.initiative==null);
   const ranked = items.filter(e=>e.initiative!=null).sort((a,b)=>b.initiative-a.initiative);
 
-  const addBtns = myRole==="gm" ? `<button class="btn ghost sm" data-init-add-pc="1">+ PJ</button>
+  const addBtns = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-init-add-pc="1">+ PJ</button>
     <button class="btn ghost sm" data-init-add-creature="1">+ Créature</button>
     <button class="btn ghost sm" data-init-add-custom="1">+ Libre</button>
     <button class="btn ghost sm" data-init-roll-all="1">🎲 Lancer l'initiative</button>
@@ -1394,7 +1427,7 @@ function listInitiative(){
   </div>`;
 
   if(!items.length){
-    app.innerHTML = head + emptyState("⚔", myRole==="gm" ? "Aucun combat en cours. Ajoutez des participants pour démarrer." : "Aucun combat en cours pour l'instant.");
+    app.innerHTML = head + emptyState("⚔", effectiveRole()==="gm" ? "Aucun combat en cours. Ajoutez des participants pour démarrer." : "Aucun combat en cours pour l'instant.");
     return;
   }
 
@@ -1416,7 +1449,7 @@ function listInitiative(){
       ? `<img class="init-portrait${info.grayscale?' portrait-gray':''}" src="${esc(info.image)}" alt="">`
       : `<div class="init-portrait init-portrait-fallback">${info.icon}</div>`;
     const stats = [info.ac?`CA ${esc(info.ac)}`:"", info.hp?`PV ${esc(info.hp)}`:""].filter(Boolean).join(" · ");
-    const gmControls = myRole==="gm" ? `<button class="btn ghost sm" data-init-roll="${e.id}" title="Lancer 1d20${e.kind==='pc'?' + mod. DEX':''}">🎲</button>
+    const gmControls = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-init-roll="${e.id}" title="Lancer 1d20${e.kind==='pc'?' + mod. DEX':''}">🎲</button>
       <input type="number" class="init-manual-input" data-init-manual-input="${e.id}" value="${e.initiative==null?'':e.initiative}" placeholder="—" title="Valeur manuelle">
       <button class="btn danger sm" data-init-remove="${e.id}" title="Retirer du combat">✕</button>` : "";
     return `<div class="init-card">
@@ -1474,7 +1507,7 @@ function wheelSegments(){
 function wheelRefViewable(ref){
   if(!ref || !ref.type || !ref.id) return false;
   if(!getEntity(ref.type, ref.id)) return false;
-  if(myRole==="gm") return true;
+  if(effectiveRole()==="gm") return true;
   const tab = TAB_OF[ref.type];
   return !!tab && PLAYER_VISIBLE_TABS.includes(tab);
 }
@@ -1810,7 +1843,7 @@ function viewWheel(){
   wheelRotation = 0; wheelSpinning = false; // le SVG est reconstruit à chaque appel, sa rotation visuelle repart de 0
   const segments = wheelSegments();
   const mystery = wheelMysteryMode();
-  const editBtn = myRole==="gm" ? `<button class="btn ghost sm" data-wheel-edit="1">✎ Modifier les bonus</button>` : "";
+  const editBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-wheel-edit="1">✎ Modifier les bonus</button>` : "";
   const blank = segments.length > WHEEL_MAX_VISIBLE;
   const capNote = blank ? " — trop nombreux pour être affichés lisiblement, la roue tourne « à l'aveugle » (flou, plus rapide)" : "";
   const mysteryNote = mystery ? " · 🎭 mode mystère" : "";
@@ -1820,7 +1853,7 @@ function viewWheel(){
   </div>`;
 
   if(segments.length < 2){
-    app.innerHTML = head + emptyState("🎡", myRole==="gm"
+    app.innerHTML = head + emptyState("🎡", effectiveRole()==="gm"
       ? "Ajoute au moins deux bonus pour activer la roue."
       : "Ton MJ n'a pas encore configuré la roue.");
     return;
@@ -2103,7 +2136,7 @@ function wheelDeleteCustomPreset(id){
 function pageHead(title, sub, newLabel, extra){
   return `<div class="page-head">
     <div><h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div>
-    ${myRole==="gm" ? `<div class="hbtns">${extra||""}<button class="btn" data-new="1">✦ ${esc(newLabel)}</button></div>` : ""}
+    ${effectiveRole()==="gm" ? `<div class="hbtns">${extra||""}<button class="btn" data-new="1">✦ ${esc(newLabel)}</button></div>` : ""}
   </div>`;
 }
 function emptyState(icon, msg){ return `<div class="empty"><span class="big">${icon}</span>${esc(msg)}</div>`; }
@@ -2348,7 +2381,7 @@ function listCreatures(){
 }
 
 function listSessions(){
-  const isGM = myRole==="gm";
+  const isGM = effectiveRole()==="gm";
   let items = [...db.sessions].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   if(!isGM) items = items.filter(s=>(s.entries||[]).some(e=>e.visible));
   app.innerHTML = pageHead("Carnet de route", `${items.length} session(s) de jeu`, "Nouvelle session") +
@@ -2447,7 +2480,7 @@ function generateRandomNPC(){
 }
 function listNPCs(){
   const items = db.npcs;
-  const genBtn = myRole==="gm" ? `<button class="btn ghost sm" data-gen-npc="1">🎲 Générer un PNJ aléatoire</button>` : "";
+  const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-npc="1">🎲 Générer un PNJ aléatoire</button>` : "";
   app.innerHTML = pageHead("PNJ", `${items.length} personnage(s) non-joueur(s)`, "Nouveau PNJ", xmlToolbarHTML("npc")+genBtn) +
     (items.length ? `<div class="grid">${items.map(n=>`
       <div class="card" data-open="npc:${n.id}">
@@ -2484,7 +2517,7 @@ function renderDetail(){
 function detailActions(type,id){
   const reading = document.body.classList.contains("reading-mode");
   const toggleBtn = `<button class="btn ghost sm reading-toggle" data-toggle-reading="1">${reading?"👁 Quitter le mode table":"👁 Mode table de jeu"}</button>`;
-  if(myRole!=="gm") return `<div class="actions-row">${toggleBtn}</div>`;
+  if(effectiveRole()!=="gm") return `<div class="actions-row">${toggleBtn}</div>`;
   return `<div class="actions-row">${toggleBtn}<div class="actions">
     <button class="btn ghost sm" data-edit="${type}:${id}">✎ Modifier</button>
     <button class="btn ghost sm" data-dup="${type}:${id}">⧉ Dupliquer</button>
@@ -2637,7 +2670,7 @@ function detailNPC(n){
 }
 
 function detailSession(s){
-  const isGM = myRole==="gm";
+  const isGM = effectiveRole()==="gm";
   const entries = isGM ? (s.entries||[]) : (s.entries||[]).filter(e=>e.visible);
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Carnet de route</button>
@@ -3814,7 +3847,7 @@ function generateRandomPC(){
 
 function listPCs(){
   const items = db.pcs;
-  const genBtn = myRole==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
+  const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
     <button class="btn ghost sm" data-print-pcs="1">🖨 Imprimer des fiches</button>` : "";
   app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ", genBtn) +
     (items.length ? `<div class="grid">${items.map(p=>`
@@ -4265,14 +4298,14 @@ let hexPaintOverlayValue = "";
 
 function listHexmaps(){
   const items = db.hexmaps;
-  const extra = myRole==="gm" ? `<button class="btn ghost sm" data-hex-import-new="1">⭱ Importer JSON</button>` : "";
+  const extra = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-hex-import-new="1">⭱ Importer JSON</button>` : "";
   app.innerHTML = pageHead("Hexcrawl", `${items.length} carte(s)`, "Nouvelle carte", extra) +
     (items.length ? `<div class="grid">${items.map(m=>{
       const total=(m.hexes||[]).length, revealed=(m.hexes||[]).filter(h=>h.fogState!=="hidden").length;
       return `<div class="card" data-open="hexmap:${m.id}">
         <h3>${esc(m.title||"Sans titre")}</h3>
         <p>${esc(m.description||"Pas de description")}</p>
-        <div class="meta"><span class="tag">${total} hexagone(s)</span>${myRole==="gm"&&total?`<span class="tag gold">${revealed} révélé(s)</span>`:""}</div>
+        <div class="meta"><span class="tag">${total} hexagone(s)</span>${effectiveRole()==="gm"&&total?`<span class="tag gold">${revealed} révélé(s)</span>`:""}</div>
       </div>`;
     }).join("")}</div>`
     : emptyState("🗺","Aucune carte. Importe un fichier JSON exporté depuis ton outil hexcrawl."));
@@ -4345,7 +4378,7 @@ function hexTerrainLayerSVG(h, c, size){
 function buildHexSVG(m){
   const size = (m.settings&&m.settings.hexSize)||30;
   const hexes = (m.hexes||[]);
-  const isGM = myRole==="gm";
+  const isGM = effectiveRole()==="gm";
   const centers = hexes.map(h=>({h, c:hexCenter(h.q,h.r,size)}));
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   centers.forEach(({c})=>{ minX=Math.min(minX,c.x-size); maxX=Math.max(maxX,c.x+size); minY=Math.min(minY,c.y-size); maxY=Math.max(maxY,c.y+size); });
@@ -4379,7 +4412,7 @@ function detailHexmap(m){
     <h1>${esc(m.title||"Sans titre")}</h1>
     ${m.description?`<p class="muted" style="font-family:var(--ui)">${renderText(m.description)}</p>`:""}
     ${detailActions("hexmap",m.id)}
-    ${myRole==="gm" ? `<div class="crawl-toolbar">
+    ${effectiveRole()==="gm" ? `<div class="crawl-toolbar">
       <button class="btn ghost sm" data-hex-reveal-all="1">👁 Tout révéler</button>
       <button class="btn ghost sm" data-hex-hide-all="1">🌫 Tout masquer</button>
       <button class="btn ghost sm${hexPlacingPoint?' active-mode':''}" data-hex-add-point="1">📍 ${hexPlacingPoint?"Clique un hexagone…":"Ajouter un point"}</button>
@@ -4393,7 +4426,7 @@ function detailHexmap(m){
     ${total && (m.points||[]).length ? `<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:.5rem 0 0;cursor:pointer">
       <input type="checkbox" id="hex-points-toggle" ${hexPointsVisible?"checked":""} style="width:auto"> Afficher les points d'intérêt
     </label>` : ""}
-    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingBiome?' hex-painting-biome':''}${hexPaintingOverlay?' hex-painting-overlay':''}">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${myRole==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
+    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingBiome?' hex-painting-biome':''}${hexPaintingOverlay?' hex-painting-overlay':''}">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${effectiveRole()==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
   </div>`;
   const hpt = document.getElementById("hex-points-toggle");
   if(hpt) hpt.addEventListener("change", e=>{
@@ -4430,7 +4463,7 @@ function revealAllHexes(reveal){
 function openHexPointModal(pointId){
   const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
   const p = (m.points||[]).find(x=>x.id===pointId); if(!p) return;
-  if(myRole!=="gm"){
+  if(effectiveRole()!=="gm"){
     openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
         <h2 style="margin:0;color:var(--gold2)">${esc(p.name||"Point d'intérêt")}</h2>
         <button class="icon-btn" data-modal-close="1">✕</button></div>
@@ -4638,7 +4671,7 @@ function loadImageAsync(src){
 }
 
 function viewDungeonMaps(){
-  if(myRole!=="gm") return playerDungeonMapView();
+  if(effectiveRole()!=="gm") return playerDungeonMapView();
   return listDungeonMaps();
 }
 
@@ -4953,7 +4986,7 @@ function fixDungeonMapViewBox(m, svgId){
     if(m.imgW===img.naturalWidth && m.imgH===img.naturalHeight) return; // déjà juste, rien à faire
     svg.setAttribute("viewBox", `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
     m.imgW = img.naturalWidth; m.imgH = img.naturalHeight;
-    if(myRole==="gm") saveDB();
+    if(effectiveRole()==="gm") saveDB();
   };
   if(img.complete) apply(); else img.addEventListener("load", apply, { once:true });
 }
@@ -5608,7 +5641,7 @@ app.addEventListener("click", e=>{
   if((el=closest("data-print-pc"))){ printPCs([el.dataset.printPc]); return; }
   // Hexcrawl
   if((el=t.closest("[data-hexq]"))){
-    if(myRole==="gm"){
+    if(effectiveRole()==="gm"){
       if(hexPlacingPoint) createHexPointAt(+el.dataset.hexq, +el.dataset.hexr);
       else if(hexPaintingBiome) setHexBiome(+el.dataset.hexq, +el.dataset.hexr, hexPaintBiomeValue);
       else if(hexPaintingOverlay) setHexOverlay(+el.dataset.hexq, +el.dataset.hexr, hexPaintOverlayValue);
@@ -6300,18 +6333,65 @@ async function fetchMyRole(){
   }catch(e){ console.error(e); return "player"; }
 }
 
+/* Mode aperçu joueur global (bouton dans le header) : simulation d'affichage pour le MJ, ne change
+   jamais le vrai rôle de session/Supabase — myRole reste "gm", seul l'AFFICHAGE bascule. Tout le
+   reste du code (rendu de listes/détails, boutons créer/éditer, filtres de contenu comme la carte
+   de donjon active ou les entrées de carnet de route visibles) teste déjà le rôle exclusivement via
+   des comparaisons "gm"/"player" — en centralisant ces comparaisons sur effectiveRole() plutôt que
+   sur myRole directement, ce même mode aperçu couvre automatiquement TOUS ces endroits d'un coup,
+   sans avoir à dupliquer la logique de filtrage à la main pour chaque onglet. Voir togglePlayerPreview(). */
+let previewAsPlayer = false;
+let previewSavedView = null; // vue MJ (onglet/mode/id) à restaurer exactement en sortant de l'aperçu
+function effectiveRole(){ return previewAsPlayer ? "player" : myRole; }
+
 /* Cache les onglets et actions réservés au MJ pour un compte joueur */
 function applyRoleUI(){
   document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{
-    b.classList.toggle("hidden", myRole!=="gm" && !PLAYER_VISIBLE_TABS.includes(b.dataset.tab));
+    b.classList.toggle("hidden", effectiveRole()!=="gm" && !PLAYER_VISIBLE_TABS.includes(b.dataset.tab));
   });
   const exp = document.getElementById("btn-export"), imp = document.getElementById("btn-import"), bl = document.getElementById("btn-broken-links");
-  if(exp) exp.classList.toggle("hidden", myRole!=="gm");
-  if(imp) imp.classList.toggle("hidden", myRole!=="gm");
-  if(bl) bl.classList.toggle("hidden", myRole!=="gm");
+  if(exp) exp.classList.toggle("hidden", effectiveRole()!=="gm");
+  if(imp) imp.classList.toggle("hidden", effectiveRole()!=="gm");
+  if(bl) bl.classList.toggle("hidden", effectiveRole()!=="gm");
   const searchWrap = document.getElementById("search-wrap");
-  if(searchWrap) searchWrap.classList.toggle("hidden", myRole!=="gm");
+  if(searchWrap) searchWrap.classList.toggle("hidden", effectiveRole()!=="gm");
+  // Le bouton d'aperçu lui-même doit rester visible pour le vrai MJ même PENDANT l'aperçu (pour
+  // pouvoir en sortir) — il teste donc le vrai myRole, jamais effectiveRole().
+  const pbtn = document.getElementById("btn-player-preview");
+  if(pbtn){ pbtn.classList.toggle("hidden", myRole!=="gm"); pbtn.classList.toggle("active-mode", previewAsPlayer); }
 }
+
+/* Bascule le mode aperçu joueur global : simulation d'affichage uniquement, ne touche jamais à
+   myRole ni à la session Supabase. Réutilise l'onglet courant s'il reste visible aux joueurs
+   (sinon retombe sur "Carnet de route"), et restaure la vue MJ exacte en sortant. */
+function togglePlayerPreview(){
+  if(myRole!=="gm") return; // jamais utilisable par un vrai compte joueur, même en théorie
+  previewAsPlayer = !previewAsPlayer;
+  if(previewAsPlayer){
+    previewSavedView = view;
+    view = PLAYER_VISIBLE_TABS.includes(view.tab) ? { tab:view.tab, mode:"list", id:null } : { tab:"sessions", mode:"list", id:null };
+  } else {
+    view = previewSavedView || { tab:"sessions", mode:"list", id:null };
+    previewSavedView = null;
+  }
+  applyRoleUI();
+  const banner = document.getElementById("preview-banner");
+  if(banner) banner.classList.toggle("hidden", !previewAsPlayer);
+  document.body.classList.toggle("preview-active", previewAsPlayer);
+  syncPreviewBannerHeight();
+  render();
+}
+/* Cale --preview-banner-h sur la hauteur réellement rendue du bandeau (le texte peut passer sur
+   deux lignes sur un écran étroit) — sert au décalage du header en CSS (voir ci-dessus). Appelé au
+   basculement du mode et au redimensionnement de la fenêtre tant qu'il reste actif (rotation d'un
+   téléphone, par ex.). */
+function syncPreviewBannerHeight(){
+  const banner = document.getElementById("preview-banner");
+  if(!banner || banner.classList.contains("hidden")) return;
+  document.documentElement.style.setProperty("--preview-banner-h", banner.getBoundingClientRect().height+"px");
+}
+window.addEventListener("resize", ()=>{ if(previewAsPlayer) syncPreviewBannerHeight(); });
+window.addEventListener("orientationchange", ()=>{ if(previewAsPlayer) setTimeout(syncPreviewBannerHeight, 50); });
 
 async function startApp(){
   hideAuthScreen();
@@ -6320,7 +6400,7 @@ async function startApp(){
     myRole = await fetchMyRole();
     db = await fetchRemoteDB();
     loadPortraitsManifest(); // en parallèle, pas bloquant
-    if(myRole==="gm" && countItems(db)===0){
+    if(effectiveRole()==="gm" && countItems(db)===0){
       const legacy = loadLegacyLocalDB();
       if(legacy && countItems(legacy)>0){
         db = legacy;
@@ -6330,7 +6410,7 @@ async function startApp(){
         seedIfEmpty();
       }
     }
-    if(myRole==="gm"){
+    if(effectiveRole()==="gm"){
       const { added, categorized } = seedShadowdarkDefaultTables();
       if(added>0 || categorized>0){
         await saveDB();
@@ -6346,7 +6426,7 @@ async function startApp(){
     return;
   }
   applyRoleUI();
-  if(myRole!=="gm") view = { tab:"sessions", mode:"list", id:null };
+  if(effectiveRole()!=="gm") view = { tab:"sessions", mode:"list", id:null };
   render();
 }
 
@@ -6369,6 +6449,8 @@ $("#auth-submit").addEventListener("click", async ()=>{
 });
 $("#auth-password").addEventListener("keydown", e=>{ if(e.key==="Enter") $("#auth-submit").click(); });
 document.getElementById("btn-logout").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
+document.getElementById("btn-player-preview").addEventListener("click", togglePlayerPreview);
+document.getElementById("btn-exit-preview").addEventListener("click", togglePlayerPreview);
 
 // Marge d'onglets repliable (tapoter pour ouvrir/fermer)
 // Desktop/tablette (≥641px) : colonne fixe, ouverte par défaut, état mémorisé.
