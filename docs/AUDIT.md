@@ -556,6 +556,45 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   rafraîchissement joueur sans message d'erreur visible (pire que la
   lenteur actuelle) — à faire dans une session où ce point peut être
   vérifié en direct contre la vraie base, ou par Tristan lui-même.
+- **Cartes de donjon — remplacement de l'image d'une carte existante en
+  conservant les zones déjà dessinées, demandé par Tristan (même soirée)** :
+  bouton dédié « 🖼 Remplacer l'image du plan » sur la vue détail MJ (sous
+  le titre, à côté des actions génériques), distinct du remplacement
+  d'image existant via « ✎ Modifier » (`formDungeonMap`/`saveDungeonMap`)
+  qui, lui, vide volontairement `m.strokes` — pensé pour réutiliser un
+  emplacement de carte pour un donjon totalement différent, comportement
+  inchangé et toujours d'actualité pour ce cas-là.
+  **Prémisse initiale de la demande à corriger** : Tristan pensait que les
+  patchs étaient stockés en pourcentage (x/y/w/h relatifs à l'image), ce
+  qui aurait rendu un simple remplacement de `m.image` sans risque — c'était
+  vrai pour la v1 (patchs rectangulaires, abandonnée), mais plus depuis la
+  v3 (`m.strokes[].points`/`.radius` stockés en **pixels absolus** de
+  l'image, justement pour que le viewBox SVG reste calé sans distorsion des
+  ronds de pinceau — voir les points précédents de ce journal). Un simple
+  remplacement de `m.image` en gardant `m.strokes` intact aurait donc
+  décalé toutes les zones dès que la nouvelle image n'a pas exactement les
+  mêmes dimensions en pixels que l'ancienne.
+  **Fix implémenté** (`replaceDungeonMapImage()`) : retrouve l'effet
+  attendu par Tristan en **rééchelonnant** chaque point et chaque rayon de
+  `m.strokes` proportionnellement au ratio nouvelle/ancienne dimension
+  (`scaleX = newW/oldW`, `scaleY = newH/oldH`, rayon mis à l'échelle par la
+  moyenne des deux) — équivalent à un stockage en pourcentage, mais calculé
+  une seule fois au moment du remplacement plutôt que maintenu en continu.
+  Pour un remplacement "même cadrage, résolution différente" (le cas visé :
+  réexport du fichier source retouché), l'alignement reste parfait. Si le
+  cadrage a vraiment changé (recadrage, contenu différent), aucun calcul ne
+  peut deviner la bonne position — d'où l'avertissement affiché sous le
+  bouton, texte explicite plutôt que silence. Même plafond de résolution
+  (`processMapImage()`, 1800px) que pour l'upload initial.
+  Fichier d'upload séparé (`#file-mapimg-replace`) de celui du formulaire
+  de création/renommage (`#file-mapimg`) — flux indépendants, pas de
+  réutilisation d'état partagé entre les deux.
+  Vérifié : doublement exact de résolution (800×500→1600×1000, même ratio)
+  — chaque point et chaque rayon exactement doublés, positions relatives
+  identiques ; puis un second remplacement avec un ratio différent
+  (1600×1000→1800×1200, plafond de résolution appliqué) — mise à l'échelle
+  non uniforme cohérente sur x et y, aucune valeur aberrante. `id`/`color`/
+  `hidden`/`shape` de chaque zone inchangés dans les deux cas.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

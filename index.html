@@ -879,6 +879,7 @@
 <input type="file" id="file-img" accept="image/*" multiple="" class="hidden">
 <input type="file" id="file-hexjson" accept="application/json,.json" class="hidden">
 <input type="file" id="file-mapimg" accept="image/*" class="hidden">
+<input type="file" id="file-mapimg-replace" accept="image/*" class="hidden">
 <div id="lightbox" class="hidden"><img alt=""></div>
 <div id="modal" class="hidden"><div class="modal-box"></div></div>
 <div id="wheel-reward" class="hidden"><div class="wheel-reward-inner"></div></div>
@@ -4791,6 +4792,40 @@ function deleteDungeonMapStroke(m, strokeId){
   saveDB(); detailDungeonMap(m);
 }
 
+/* Remplace l'image d'une carte existante (le MJ a retouché son fichier source) SANS repartir de
+   zéro sur le travail de brouillard déjà fait — contrairement au remplacement via "✎ Modifier"
+   (formDungeonMap/saveDungeonMap) qui vide volontairement m.strokes, pensé pour le cas où on
+   réutilise un emplacement de carte pour un donjon totalement différent.
+   Les zones sont stockées en pixels ABSOLUS de l'image (m.strokes[].points, .radius — pas en
+   pourcentage : voir dungeonMapFrame(), le viewBox SVG est calé sur imgW/imgH pour éviter toute
+   distorsion des ronds de pinceau sur une image non carrée). Un simple remplacement de m.image en
+   gardant m.strokes intact casserait donc l'alignement dès que la nouvelle image n'a pas EXACTEMENT
+   les mêmes dimensions en pixels que l'ancienne. Pour un remplacement "même cadrage, résolution
+   différente" (le cas courant : réexport du fichier source retouché), on retrouve l'effet
+   attendu en RÉÉCHELONNANT chaque point/rayon proportionnellement au ratio nouvelle/ancienne
+   dimension — équivalent à un stockage en pourcentage, calculé au moment du remplacement plutôt
+   que maintenu en continu. Si le cadrage a vraiment changé (recadrage, contenu différent), aucun
+   calcul ne peut deviner la bonne position — d'où l'avertissement affiché à l'utilisateur. */
+async function replaceDungeonMapImage(m, file){
+  processMapImage(file, async dataUrl=>{
+    const oldW = m.imgW, oldH = m.imgH;
+    const im = await loadImageAsync(dataUrl);
+    const newW = im.naturalWidth, newH = im.naturalHeight;
+    if(oldW && oldH && (oldW!==newW || oldH!==newH)){
+      const scaleX = newW/oldW, scaleY = newH/oldH;
+      const scaleR = (scaleX+scaleY)/2;
+      (m.strokes||[]).forEach(s=>{
+        s.points = (s.points||[]).map(p=>({ x:p.x*scaleX, y:p.y*scaleY }));
+        s.radius = (s.radius||0)*scaleR;
+      });
+    }
+    m.image = dataUrl; m.imgW = newW; m.imgH = newH;
+    saveDB();
+    toast("Image remplacée — les zones ont été repositionnées proportionnellement.");
+    detailDungeonMap(m);
+  });
+}
+
 function detailDungeonMap(m){
   // Le brouillon de polygone doit survivre à un re-rendu complet (chaque sommet cliqué redessine
   // toute la vue pour afficher les boutons "Terminer"/"Annuler") — seul un vrai changement de
@@ -4812,6 +4847,10 @@ function detailDungeonMap(m){
     <button class="back" data-back="1">← Cartes de donjon</button>
     <h1>${esc(m.name||"Sans nom")}</h1>
     ${detailActions("dungeonmap", m.id)}
+    <div style="margin:.2rem 0 .8rem">
+      <button class="btn ghost sm" data-dmap-replace-image="1">🖼 Remplacer l'image du plan</button>
+      <p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:.35rem 0 0">Les zones déjà dessinées sont conservées et repositionnées proportionnellement à la nouvelle image. Si le cadrage ou le format de l'image a changé (recadrage, contenu différent), elles risquent de ne plus tomber pile au bon endroit — il faudra alors les réajuster à la main.</p>
+    </div>
     <div class="crawl-toolbar">
       ${m.active
         ? `<span class="tag gold">Carte actuellement affichée aux joueurs</span>`
@@ -5618,6 +5657,7 @@ app.addEventListener("click", e=>{
   if(closest("data-hex-import-new")){ _hexImportTarget = null; $("#file-hexjson").click(); return; }
   // Cartes de donjon
   if(closest("data-add-mapimg")){ $("#file-mapimg").click(); return; }
+  if(closest("data-dmap-replace-image")){ $("#file-mapimg-replace").click(); return; }
   if((el=closest("data-dmap-activate"))){ activateDungeonMap(el.dataset.dmapActivate); return; }
   if((el=closest("data-dmap-tool"))){ setDungeonMapTool(el.dataset.dmapTool); return; }
   if(closest("data-dmap-reveal-all")){ setAllDungeonMapStrokes(false); return; }
@@ -5740,6 +5780,12 @@ $("#file-img").addEventListener("change", e=>{
 $("#file-mapimg").addEventListener("change", e=>{
   const f = e.target.files[0];
   if(f) processMapImage(f, dataUrl=>{ formMapImage = dataUrl; renderMapImagePreview(); });
+  e.target.value="";
+});
+$("#file-mapimg-replace").addEventListener("change", e=>{
+  const f = e.target.files[0];
+  const m = getEntity("dungeonmap", dungeonMapCurrentId);
+  if(f && m) replaceDungeonMapImage(m, f);
   e.target.value="";
 });
 
