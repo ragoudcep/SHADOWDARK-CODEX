@@ -488,6 +488,46 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
      nouvelle pose, fermeture — le tracé final est un chemin `M…L…L…L…Z`
      sans aucune courbe, rempli de la couleur assignée, avec la même
      mécanique de trou de masque/bulk-actions que les zones au pinceau.
+- **Cartes de donjon — mode "Aperçu joueur" côté MJ, demandé par Tristan
+  après retour positif sur l'ensemble de la fonctionnalité (même soirée)** :
+  bouton toggle `👁 Aperçu joueur` dans la barre d'outils MJ, affiche/masque
+  un second rendu de la carte, sous la vue d'édition normale — exactement
+  `dungeonMapFrame(m, false, ...)`, le même rendu que la vraie vue joueur
+  (patchs 100% opaques, zéro élément interactif dans le DOM), pas une
+  approximation. La vue d'édition MJ au-dessus reste inchangée
+  (semi-transparente, interactive). Sous-titre adapté selon l'état de la
+  carte : « exactement ce que voient les joueurs en ce moment » si `m.active`
+  est vrai, sinon « à quoi ressemblerait cette carte si elle était activée »
+  (une carte non active n'est par définition montrée à personne — le
+  toggle reste utilisable pour prévisualiser avant d'activer, mais le texte
+  ne doit pas prétendre à tort refléter l'instant présent). État
+  `dmapShowPlayerPreview`, local au client (pas persisté), réinitialisé au
+  changement de carte comme les autres brouillons transitoires de cet
+  onglet.
+  **Point technique découvert en implémentant** : `dungeonMapFrame()`
+  fixait en dur `id="dmap-svg"` sur le `<svg>` qu'elle génère, ainsi que
+  `id="dmap-mask"`/`id="dmap-soften"` sur le masque et le filtre de flou à
+  l'intérieur — sans conséquence tant qu'une seule instance existait sur la
+  page à la fois, mais l'aperçu en ajoute une seconde simultanément, ce qui
+  aurait produit des `id` HTML dupliqués (invalides, résolution de
+  `url(#id)` non garantie d'un navigateur à l'autre). Fix : `svgId` passé en
+  paramètre (`"dmap-svg"` par défaut pour ne rien casser côté vue joueur
+  réelle et détail MJ existant, `"dmap-svg-preview"` pour le second rendu),
+  `id` du mask/filter dérivés (`${svgId}-mask`, `${svgId}-soften`) —
+  `fixDungeonMapViewBox()` prend aussi `svgId` en paramètre et est appelée
+  une fois par instance affichée. Le curseur d'adoucissement des bords met
+  à jour en direct (`input`) les DEUX filtres par leur id namespacé quand
+  l'aperçu est affiché, pour que le calque MJ et l'aperçu réagissent
+  ensemble pendant le glissé, pas seulement après relâchement.
+  Testé (sans viewport réel disponible cette fois, mais sans besoin de
+  coordonnées de pointeur pour cette fonctionnalité — vérifié par
+  inspection directe du DOM) : les deux `<svg>` coexistent avec des `id`
+  distincts et des `<mask>`/`<filter>` distincts, l'aperçu ne contient
+  aucun `[data-dmap-stroke]` (zéro interactivité), le nombre de trous du
+  masque de l'aperçu suit bien les bascules caché/révélé faites côté vue
+  MJ (0 puis 1 puis 2 trous testés), le toggle masque/affiche bien le bloc,
+  l'état se réinitialise au changement de carte, et le sous-titre change
+  bien selon `m.active`.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

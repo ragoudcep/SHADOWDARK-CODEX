@@ -557,6 +557,9 @@
   .dmap-tool-add, .dmap-tool-polygon{cursor:crosshair}
   .dmap-darkness{pointer-events:none}
   .dmap-darkness-gm{opacity:.55}
+  .dmap-preview-wrap{margin-top:1.1rem; padding-top:1rem; border-top:2px dashed var(--border2)}
+  .dmap-preview-title{margin:0 0 .3rem; color:var(--gold2); font-size:1.05rem}
+  .dmap-preview-scroll{max-height:60vh}
 
   /* toast */
   #toast{position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%) translateY(20px);
@@ -4629,6 +4632,7 @@ let dmapTool = "toggle"; // "toggle" (bascule, défaut) | "add" (pinceau libre) 
 let dmapBrushSize = 2; // % du plus grand côté de l'image — sert uniquement à dessiner une NOUVELLE zone au pinceau
 let dmapDraftStroke = null; // {points:[{x,y}]} en cours de tracé au pinceau (mode "add")
 let dmapDraftPolygon = null; // {points:[{x,y}]} sommets déjà posés au clic (mode "polygon")
+let dmapShowPlayerPreview = false; // affiche un second rendu en lecture seule (vue joueur) sous la vue MJ
 
 const DMAP_STROKE_COLORS = ["#e05252","#e0a052","#d4c93f","#7fc24e","#3fc29e","#4ea3e0","#8a7ae0","#c76ee0","#e06ea8","#9aa0a6"];
 
@@ -4730,6 +4734,10 @@ function setDungeonMapTool(tool){
   dmapDraftPolygon = null; // change d'outil = abandonne un polygone en cours de pose
   const m = getEntity("dungeonmap", dungeonMapCurrentId); if(m) detailDungeonMap(m);
 }
+function toggleDungeonMapPlayerPreview(){
+  dmapShowPlayerPreview = !dmapShowPlayerPreview;
+  const m = getEntity("dungeonmap", dungeonMapCurrentId); if(m) detailDungeonMap(m);
+}
 function addDungeonMapPolygonVertex(m, pt){
   if(!dmapDraftPolygon) dmapDraftPolygon = { points:[] };
   // Clique près du premier sommet (à ≥3 sommets déjà posés) : ferme la forme au lieu d'ajouter
@@ -4776,7 +4784,7 @@ function detailDungeonMap(m){
   // Le brouillon de polygone doit survivre à un re-rendu complet (chaque sommet cliqué redessine
   // toute la vue pour afficher les boutons "Terminer"/"Annuler") — seul un vrai changement de
   // carte doit le vider, pas un re-rendu de la carte en cours.
-  if(dungeonMapCurrentId !== m.id){ dmapDraftStroke = null; dmapDraftPolygon = null; }
+  if(dungeonMapCurrentId !== m.id){ dmapDraftStroke = null; dmapDraftPolygon = null; dmapShowPlayerPreview = false; }
   dungeonMapCurrentId = m.id;
   const toolHelp = dmapTool==="add"
     ? "Clique-glisse (ou dessine au doigt) pour tracer une nouvelle zone au pinceau. Le mode reste actif : dessine autant de zones que nécessaire, puis re-clique le bouton pour arrêter."
@@ -4808,13 +4816,23 @@ function detailDungeonMap(m){
       </label>
       <button class="btn ghost sm" data-dmap-reveal-all="1">👁 Tout révéler</button>
       <button class="btn ghost sm" data-dmap-hide-all="1">🌫 Tout masquer</button>
+      <button class="btn ghost sm${dmapShowPlayerPreview?' active-mode':''}" data-dmap-preview-toggle="1">👁 Aperçu joueur</button>
       ${polygonActions}
     </div>
     <div class="crawl-help">${toolHelp}</div>
-    <div class="dmap-scroll" id="dmap-scroll">${dungeonMapFrame(m, true)}</div>
+    <div class="dmap-scroll" id="dmap-scroll">${dungeonMapFrame(m, true, "dmap-svg")}</div>
+    ${dmapShowPlayerPreview ? `
+    <div class="dmap-preview-wrap">
+      <h2 class="dmap-preview-title">👁 Aperçu joueur <span class="faint" style="font-weight:400">— lecture seule, aucune interaction possible</span></h2>
+      <p class="crawl-help">${m.active
+        ? "Exactement ce que voient les joueurs en ce moment sur cette carte."
+        : "Cette carte n'est pas actuellement affichée aux joueurs — voici à quoi elle ressemblerait si tu l'activais."}</p>
+      <div class="dmap-scroll dmap-preview-scroll" id="dmap-scroll-preview">${dungeonMapFrame(m, false, "dmap-svg-preview")}</div>
+    </div>` : ""}
   </div>`;
   wireDungeonMapSVG(m);
-  fixDungeonMapViewBox(m);
+  fixDungeonMapViewBox(m, "dmap-svg");
+  if(dmapShowPlayerPreview) fixDungeonMapViewBox(m, "dmap-svg-preview");
 }
 
 /* viewBox aux dimensions naturelles de l'image (m.imgW/m.imgH, mises en cache à l'upload) —
@@ -4831,8 +4849,14 @@ function detailDungeonMap(m){
    Vue joueur : calque noir 100% opaque, aucun autre repère. Vue MJ : même calque mais
    semi-transparent (pour voir la carte en dessous en travaillant) + les zones colorées
    par-dessus (toutes, cachées ou révélées) pour rester tapotables quel que soit leur état. */
-function dungeonMapFrame(m, isGM){
+function dungeonMapFrame(m, isGM, svgId){
   if(!m.image) return `<p class="faint" style="font-family:var(--ui);padding:1rem">Pas d'image pour cette carte.</p>`;
+  svgId = svgId || "dmap-svg";
+  // id du mask/filter dérivés de svgId (pas juste "dmap-mask"/"dmap-soften" fixes) : l'aperçu
+  // joueur affiche un second <svg> sur la même page à côté de la vue MJ — des id dupliqués
+  // seraient invalides (HTML) et la résolution de `url(#id)` deviendrait imprévisible d'un
+  // navigateur à l'autre entre les deux instances.
+  const maskId = svgId+"-mask", filterId = svgId+"-soften";
   const w = m.imgW||1000, h = m.imgH||1000;
   // stroke-linecap/linejoin explicites : sans ça ce <path> retombe sur les défauts SVG (bouts
   // plats, jointures en angle vif) au lieu des bouts/jointures arrondis de .dmap-stroke — le trou
@@ -4845,20 +4869,21 @@ function dungeonMapFrame(m, isGM){
   }).join("");
   // Adoucissement des bords (réglable par carte, m.softness — % du plus grand côté de l'image) :
   // flou gaussien appliqué au CONTENU du masque (fond blanc + trous), pas aux zones colorées MJ
-  // ni au trait — celles-ci doivent rester nettes pour bien voir où tapoter. Comme la même
-  // <mask> sert au calque MJ (semi-transparent) et joueur (opaque), les deux profitent du même
-  // adoucissement automatiquement. stdDeviation à 0 équivaut à aucun flou (pas de branche à part).
+  // ni au trait — celles-ci doivent rester nettes pour bien voir où tapoter. Le même m.softness
+  // pilote systématiquement le rendu MJ (semi-transparent) ET joueur/aperçu (opaque), même s'il
+  // s'agit de deux instances <mask>/<filter> distinctes (id namespacés par svgId) sur la page —
+  // toutes deux dérivées du même réglage stocké sur la carte. stdDeviation à 0 = aucun flou.
   const softnessPx = ((m.softness||0)/100) * Math.max(w, h);
-  const darkness = `<filter id="dmap-soften" x="-30%" y="-30%" width="160%" height="160%">
+  const darkness = `<filter id="${filterId}" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="${softnessPx.toFixed(2)}"></feGaussianBlur>
     </filter>
-    <mask id="dmap-mask">
-      <g filter="url(#dmap-soften)">
+    <mask id="${maskId}">
+      <g filter="url(#${filterId})">
         <rect x="0" y="0" width="${w}" height="${h}" fill="#fff"></rect>
         ${revealHoles}
       </g>
     </mask>
-    <rect x="0" y="0" width="${w}" height="${h}" fill="#000" mask="url(#dmap-mask)" class="dmap-darkness${isGM?' dmap-darkness-gm':''}"></rect>`;
+    <rect x="0" y="0" width="${w}" height="${h}" fill="#000" mask="url(#${maskId})" class="dmap-darkness${isGM?' dmap-darkness-gm':''}"></rect>`;
   const strokes = isGM ? (m.strokes||[]).map(s=>{
     const { d, filled } = strokeGeometry(s);
     const cls = s.hidden ? "dmap-stroke dmap-stroke-hidden" : "dmap-stroke dmap-stroke-revealed";
@@ -4875,7 +4900,7 @@ function dungeonMapFrame(m, isGM){
   const polygonDraft = (isGM && dmapDraftPolygon && dmapDraftPolygon.points.length) ? dungeonMapPolygonDraftSVG(dmapDraftPolygon.points, Math.max(w,h)) : "";
   return `<div class="dmap-frame">
     <img class="dmap-img" src="${m.image}" alt="">
-    <svg class="dmap-overlay${isGM?` dmap-overlay-gm dmap-tool-${dmapTool}`:''}" id="dmap-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${darkness}${strokes}${brushDraft}${polygonDraft}</svg>
+    <svg class="dmap-overlay${isGM?` dmap-overlay-gm dmap-tool-${dmapTool}`:''}" id="${svgId}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${darkness}${strokes}${brushDraft}${polygonDraft}</svg>
   </div>`;
 }
 /* Aperçu du polygone en cours de pose : segments droits entre sommets déjà cliqués (pas encore
@@ -4899,8 +4924,8 @@ function dungeonMapPolygonDraftSVG(points, maxDim){
    dès que l'image est prête. Seul le MJ persiste la correction (RLS interdit l'écriture aux
    joueurs) — sans conséquence : à la prochaine ouverture par le MJ, la carte se répare pour de
    bon et n'a plus jamais besoin de ce correctif. */
-function fixDungeonMapViewBox(m){
-  const svg = document.getElementById("dmap-svg");
+function fixDungeonMapViewBox(m, svgId){
+  const svg = document.getElementById(svgId || "dmap-svg");
   const img = svg ? svg.previousElementSibling : null;
   if(!svg || !img || !(img instanceof HTMLImageElement)) return;
   const apply = ()=>{
@@ -4990,11 +5015,17 @@ function wireDungeonMapSVG(m){
   if(sizeInput) sizeInput.addEventListener("input", e=>{ dmapBrushSize = +e.target.value; });
   const softInput = document.getElementById("dmap-softness");
   if(softInput){
-    const filterBlur = svg.querySelector("#dmap-soften feGaussianBlur");
     // "input" (pendant le glissé du curseur) : retouche juste l'attribut du flou pour un aperçu
-    // fluide, sans re-rendu complet. "change" (relâché) : persiste, une seule fois.
+    // fluide, sans re-rendu complet — sur les DEUX <filter> si l'aperçu joueur est affiché à côté
+    // (id namespacés par carte : dmap-svg-soften pour la vue MJ, dmap-svg-preview-soften pour
+    // l'aperçu), pour que les deux calques réagissent ensemble au glissé. "change" (relâché) :
+    // persiste, une seule fois.
     softInput.addEventListener("input", e=>{
-      if(filterBlur) filterBlur.setAttribute("stdDeviation", (+e.target.value/100)*Math.max(m.imgW||1000, m.imgH||1000));
+      const std = (+e.target.value/100)*Math.max(m.imgW||1000, m.imgH||1000);
+      ["dmap-svg-soften","dmap-svg-preview-soften"].forEach(id=>{
+        const blur = document.querySelector(`#${id} feGaussianBlur`);
+        if(blur) blur.setAttribute("stdDeviation", std);
+      });
     });
     softInput.addEventListener("change", e=>{ m.softness = +e.target.value; saveDB(); });
   }
@@ -5582,6 +5613,7 @@ app.addEventListener("click", e=>{
   if(closest("data-dmap-hide-all")){ setAllDungeonMapStrokes(true); return; }
   if(closest("data-dmap-polygon-finish")){ finishDungeonMapPolygon(getEntity("dungeonmap", dungeonMapCurrentId)); return; }
   if(closest("data-dmap-polygon-undo")){ undoDungeonMapPolygonVertex(getEntity("dungeonmap", dungeonMapCurrentId)); return; }
+  if(closest("data-dmap-preview-toggle")){ toggleDungeonMapPlayerPreview(); return; }
   // Images (formulaire créature) + agrandissement
   if(closest("data-add-img")){ $("#file-img").click(); return; }
   if((el=closest("data-remove-img"))){ formImages.splice(+el.dataset.removeImg,1); renderImageThumbs(); return; }
