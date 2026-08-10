@@ -4,3 +4,4 @@
 # voir docs/AUDIT.md).
 *.sh text eol=lf
 *.py text eol=lf
+*.woff2 binary
