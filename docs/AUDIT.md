@@ -713,19 +713,29 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   déplacés). **Non vérifié en jeu réel sur de vraies cartes de campagne** — à confirmer par toi.
 - **Point Crawl — statut d'avancement ajouté (2026-08-10)**, demande de Tristan pour s'y retrouver
   entre plusieurs point crawls préparés en parallèle. Nouveau champ `c.status` (jsonb, aucune
-  migration — absent/`""` = non catégorisé), 3 valeurs `CRAWL_STATUSES` (`creation`→« En création »,
-  `encours`→« En cours », `visite`→« Déjà visité »), chacune avec sa propre classe `.tag.status-*`
-  (nouvelles couleurs CSS, même style que les tags existants). Badge affiché sur chaque carte de
-  `listCrawls()` et dans l'en-tête de `detailCrawl()` ; filtre déroulant dans la liste (même schéma
-  que `creatureCatFilter`/`tableCatFilter` : variable globale `crawlStatusFilter`, option
-  `__none__` pour "sans statut", câblé dans le handler `change` partagé). Réglable via un
-  `<select>` dans `formCrawl()`/`saveCrawl()`. `duplicateEntity()` remet systématiquement le statut
-  à vide sur une copie (même logique que `dungeonmap.active=false` sur copie — une copie ne doit
-  jamais hériter d'un statut qui ne la concerne pas encore). Vérifié en direct dans le navigateur :
-  badge correct par statut (y compris l'absence de badge pour un point crawl sans statut), filtre
-  fonctionnel sur les 4 valeurs (3 statuts + « sans statut »), formulaire pré-rempli au bon statut à
-  l'édition et sauvegarde correcte, duplication d'un point crawl "en cours" produisant bien une
-  copie sans statut.
+  migration — absent/`""` = non catégorisé), 4 valeurs `CRAWL_STATUSES` (`creation`→« En création »,
+  `avisiter`→« À visiter », `encours`→« En cours », `visite`→« Déjà visité » — le 2ᵉ ajouté après
+  coup, à la demande de Tristan, pour distinguer un point crawl prêt mais pas encore joué d'un point
+  crawl encore en rédaction), chacune avec sa propre classe `.tag.status-*` (nouvelles couleurs CSS,
+  même style que les tags existants). Badge affiché sur chaque carte de `listCrawls()` et dans
+  l'en-tête de `detailCrawl()` ; filtre déroulant dans la liste (même schéma que
+  `creatureCatFilter`/`tableCatFilter` : variable globale `crawlStatusFilter`, câblé dans le handler
+  `change` partagé). Réglable via un `<select>` dans `formCrawl()`/`saveCrawl()`. `duplicateEntity()`
+  remet systématiquement le statut à vide sur une copie (même logique que `dungeonmap.active=false`
+  sur copie).
+  **Filtre "par défaut" intelligent, pas "tous" (même jour, second retour de Tristan)** : au premier
+  affichage de l'onglet (`crawlStatusFilter===""`), la liste ne montre PAS tous les point crawls —
+  elle montre ceux "en cours" (`encours`) en priorité, et à défaut (aucun "en cours") ceux "à
+  visiter" (`avisiter`), jamais "en création" ni "déjà visité" par défaut (`crawlFocusItems()`). Si
+  aucun des deux n'existe, état vide dédié avec un bouton "Afficher tous les point crawls"
+  (`data-crawl-status-show-all`) plutôt que de laisser un vide silencieux. Comme `""` a changé de
+  sens (focus intelligent plutôt que "tous"), "Tous" est devenu une option de filtre explicite et
+  séparée (`__all__`) dans le menu déroulant — sans quoi il aurait été impossible de distinguer
+  "l'utilisateur vient d'ouvrir l'onglet" de "l'utilisateur a choisi Tous", les deux ayant utilisé la
+  même valeur `""`. Vérifié en direct dans le navigateur : un seul "en cours" présent → lui seul
+  affiché ; on le repasse à un autre statut → repli automatique sur "à visiter" ; plus aucun des deux
+  → bouton de secours affiché, clic dessus → bascule bien sur `__all__` et montre les 4 point crawls
+  de test.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

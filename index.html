@@ -210,6 +210,7 @@
   .tag.neutre{color:var(--muted)}
   .tag.gold{color:#ffcf6e; border-color:#8a6a2a; background:rgba(255,207,110,.13)}
   .tag.status-creation{color:#ffb454; border-color:#8a6a2a; background:rgba(255,180,84,.13)}
+  .tag.status-avisiter{color:#c9a3f7; border-color:#6a4a8f; background:rgba(201,163,247,.13)}
   .tag.status-encours{color:#7fe06a; border-color:#3a7a37; background:rgba(127,224,106,.13)}
   .tag.status-visite{color:#8aa0c9; border-color:#3e5c78; background:rgba(138,160,201,.13)}
 
@@ -1054,9 +1055,10 @@ let crawlStatusFilter = ""; // filtre de statut des point crawls ("" = tous)
    plusieurs chantiers en parallèle — champ facultatif, "" ou absent = non catégorisé (aucune
    migration : un point crawl existant sans statut reste juste non filtré/sans badge). */
 const CRAWL_STATUSES = [
-  { value:"creation", label:"En création", cls:"status-creation" },
-  { value:"encours",  label:"En cours",     cls:"status-encours" },
-  { value:"visite",   label:"Déjà visité",  cls:"status-visite" }
+  { value:"creation",  label:"En création",  cls:"status-creation" },
+  { value:"avisiter",  label:"À visiter",     cls:"status-avisiter" },
+  { value:"encours",   label:"En cours",      cls:"status-encours" },
+  { value:"visite",    label:"Déjà visité",   cls:"status-visite" }
 ];
 function crawlStatusMeta(v){ return CRAWL_STATUSES.find(s=>s.value===v) || null; }
 
@@ -3168,19 +3170,32 @@ function saveNPC(){
 /* =========================================================================
    POINT CRAWL — carte de points (= événements) reliés par des segments
    ========================================================================= */
+/* Filtre "par défaut" (crawlStatusFilter==="") : pas "tous", mais un focus intelligent — les point
+   crawls "en cours" en priorité, sinon "à visiter" à défaut (jamais "en création"/"déjà visité" par
+   défaut, sans quoi la liste se remplirait de chantiers pas prêts ou déjà réglés). Demande de
+   Tristan (2026-08-10) : voir d'un coup d'œil ce qui est pertinent MAINTENANT en ouvrant l'onglet,
+   sans avoir à filtrer à la main à chaque fois. "Tous" devient un choix explicite séparé
+   (`__all__`), distinct de "" pour ne pas se confondre avec l'état par défaut au premier chargement. */
+function crawlFocusItems(all){
+  const enCours = all.filter(c=>c.status==="encours");
+  if(enCours.length) return enCours;
+  return all.filter(c=>c.status==="avisiter");
+}
 function listCrawls(){
   const all = db.pointcrawls;
   const bar = pageHead("Point Crawl", `${all.length} plan(s) de points d'intérêt`, "Nouveau point crawl", xmlToolbarHTML("pointcrawl"));
   if(!all.length){ app.innerHTML = bar + emptyState("🗺","Aucun point crawl. Créez une carte de lieux/événements reliés (donjon, zone…)."); return; }
   const statusSel = `<label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.4rem">Statut :</label>
-    <select data-crawl-status-filter style="width:auto;display:inline-block;min-width:150px">
-      <option value="">Tous</option>
+    <select data-crawl-status-filter style="width:auto;display:inline-block;min-width:220px">
+      <option value="" ${!crawlStatusFilter?"selected":""}>🎯 En cours (sinon à visiter)</option>
+      <option value="__all__" ${crawlStatusFilter==="__all__"?"selected":""}>Tous</option>
       ${CRAWL_STATUSES.map(s=>`<option value="${s.value}" ${crawlStatusFilter===s.value?"selected":""}>${esc(s.label)}</option>`).join("")}
       <option value="__none__" ${crawlStatusFilter==="__none__"?"selected":""}>(Sans statut)</option>
     </select>`;
   const toolbar = `<div style="margin-bottom:1.1rem;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${statusSel}</div>`;
-  const items = !crawlStatusFilter ? all
+  const items = crawlStatusFilter==="__all__" ? all
     : crawlStatusFilter==="__none__" ? all.filter(c=>!c.status)
+    : !crawlStatusFilter ? crawlFocusItems(all)
     : all.filter(c=>c.status===crawlStatusFilter);
   const body = items.length ? `<div class="grid">${items.map(c=>{
       const nodes = c.nodes||[];
@@ -3195,7 +3210,9 @@ function listCrawls(){
         </div>
       </div>`;
     }).join("")}</div>`
-    : emptyState("🗺","Aucun point crawl avec ce statut.");
+    : (!crawlStatusFilter
+        ? `<div class="empty"><span class="big">🎯</span>Rien « en cours » ni « à visiter » pour l'instant.<br><button class="btn ghost sm" style="margin-top:.8rem" data-crawl-status-show-all="1">Afficher tous les point crawls</button></div>`
+        : emptyState("🗺","Aucun point crawl avec ce statut."));
   app.innerHTML = bar + toolbar + body;
 }
 
@@ -5769,6 +5786,8 @@ app.addEventListener("click", e=>{
   // Lancer de dé sur une table
   if((el=closest("data-roll"))){ rollTable(el.dataset.roll); return; }
   if(t.id==="roll-add-session" && lastTableRoll){ addRollToCurrentSession(lastTableRoll); return; }
+  // Bouton de secours dans l'état vide du focus par défaut des Point Crawl (rien "en cours"/"à visiter")
+  if((el=closest("data-crawl-status-show-all"))){ crawlStatusFilter = "__all__"; renderList(); return; }
   // Table dynamique vide : lien direct vers l'onglet source (liste, pas une fiche précise)
   if((el=closest("data-goto-tab"))){
     const tab = el.dataset.gotoTab;
