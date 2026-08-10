@@ -844,7 +844,7 @@
     </div>
   </div>
   <nav class="tabs" id="tabs">
-    <button data-tab="sessions">Sessions</button>
+    <button data-tab="sessions">Carnet de route</button>
     <button data-tab="tables">Tables aléatoires</button>
     <button data-tab="events">Événements</button>
     <button data-tab="pointcrawls">Point Crawl</button>
@@ -853,7 +853,6 @@
     <button data-tab="pcs">PJ</button>
     <button data-tab="npcs">PNJ</button>
     <button data-tab="treasures">Trésor</button>
-    <button data-tab="roadbook">Carnet de route</button>
     <button data-tab="hexmaps">Hexcrawl</button>
     <button data-tab="dungeonmaps">Cartes de donjon</button>
     <button data-tab="initiative">Initiative</button>
@@ -922,7 +921,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], roadbook:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -1015,9 +1014,9 @@ let creatureCatFilter = "";     // filtre de catégorie ("" = toutes/regroupées
 let tableCatFilter = "";        // filtre de catégorie des tables aléatoires (même principe que creatureCatFilter)
 let readingMode = false; // "mode table de jeu" : masque les contrôles GM, agrandit le texte des fiches
 
-const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", roadbook:"Carnet de route", hexmap:"Hexcrawl", spell:"Sort" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","roadbook","hexmaps","dungeonmaps","initiative","wheel"];
-const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", roadbook:"roadbook", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel" };
+const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", hexmap:"Hexcrawl", spell:"Sort" };
+const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel"];
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
@@ -1046,11 +1045,11 @@ function findByName(name){
   for(const sp of db.spells)      if((sp.name||"").toLowerCase()===n) return {type:"spell", id:sp.id};
   return null;
 }
-const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", roadbook:"roadbook", hexmap:"hexmaps", dungeonmap:"dungeonmaps", spell:"spells", initiative:"initiative", wheel:"wheel" };
+const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", hexmap:"hexmaps", dungeonmap:"dungeonmaps", spell:"spells", initiative:"initiative", wheel:"wheel" };
 // Hoisté hors de applyRoleUI() pour être réutilisable ailleurs (ex. wheelRefViewable() : le bouton
 // "Voir" d'un bonus gagné à la roue ne doit être proposé à un joueur que pour un type d'entité
 // déjà public via cette même liste — une seule règle de visibilité, pas une inventée en double).
-const PLAYER_VISIBLE_TABS = ["roadbook","hexmaps","dungeonmaps","spells","pcs","initiative","wheel"];
+const PLAYER_VISIBLE_TABS = ["sessions","hexmaps","dungeonmaps","spells","pcs","initiative","wheel"];
 
 /* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
 function renderText(text){
@@ -1162,7 +1161,7 @@ function backlinksTo(targetType, targetId){
 }
 
 /* ------------------------------- CRUD ------------------------------------ */
-function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, roadbook:db.roadbook, hexmap:db.hexmaps, dungeonmap:db.dungeonmaps, spell:db.spells, initiative:db.initiative, wheel:db.wheel }[type]; }
+function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, hexmap:db.hexmaps, dungeonmap:db.dungeonmaps, spell:db.spells, initiative:db.initiative, wheel:db.wheel }[type]; }
 function getEntity(type,id){ return collectionOf(type).find(o=>o.id===id); }
 function deleteEntity(type,id){
   const c = collectionOf(type); const i = c.findIndex(o=>o.id===id);
@@ -1223,7 +1222,6 @@ function renderList(){
   if(view.tab==="pointcrawls") return listCrawls();
   if(view.tab==="pcs")       return listPCs();
   if(view.tab==="treasures") return listTreasures();
-  if(view.tab==="roadbook")  return listRoadbook();
   if(view.tab==="hexmaps")   return listHexmaps();
   if(view.tab==="dungeonmaps") return viewDungeonMaps();
   if(view.tab==="initiative") return listInitiative();
@@ -2346,15 +2344,21 @@ function listCreatures(){
 }
 
 function listSessions(){
-  const items = [...db.sessions].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  app.innerHTML = pageHead("Historique des sessions", `${items.length} session(s) de jeu`, "Nouvelle session") +
-    (items.length ? `<div class="grid">${items.map(s=>`
+  const isGM = myRole==="gm";
+  let items = [...db.sessions].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(!isGM) items = items.filter(s=>(s.entries||[]).some(e=>e.visible));
+  app.innerHTML = pageHead("Carnet de route", `${items.length} session(s) de jeu`, "Nouvelle session") +
+    (items.length ? `<div class="grid">${items.map(s=>{
+      const visibleEntries = (s.entries||[]).filter(e=>e.visible);
+      const previewEntry = isGM ? (s.entries||[])[0] : visibleEntries[0];
+      return `
       <div class="card" data-open="session:${s.id}">
-        <div class="meta">${s.date?`<span class="tag">${esc(s.date)}</span>`:""}</div>
+        <div class="meta">${s.date?`<span class="tag">${esc(s.date)}</span>`:""}${isGM && !visibleEntries.length?`<span class="tag" style="color:var(--muted)">MJ uniquement</span>`:""}</div>
         <h3 style="margin-top:.6rem">${esc(s.title||"Session sans titre")}</h3>
-        <p>${esc(firstLine((s.entries||[])[0]?.notes)||"Pas encore de notes")}</p>
-      </div>`).join("")}</div>`
-    : emptyState("📜","Aucune session. Commencez votre journal de campagne."));
+        <p>${esc(firstLine(previewEntry?.notes)||"Pas encore de notes")}</p>
+      </div>`;
+    }).join("")}</div>`
+    : emptyState(isGM?"📜":"🧭", isGM ? "Aucune session. Commencez votre journal de campagne." : "Ton MJ n'a encore rien partagé ici."));
 }
 
 const AMBITIONS_PNJ_ROWS = [ // maison, non issue du livre — génériques, courtes, réutilisables pour n'importe quel PNJ
@@ -2469,7 +2473,6 @@ function renderDetail(){
   if(type==="pointcrawl") return detailCrawl(o);
   if(type==="pc")       return detailPC(o);
   if(type==="treasure") return detailTreasure(o);
-  if(type==="roadbook") return detailRoadbook(o);
   if(type==="hexmap") return detailHexmap(o);
   if(type==="dungeonmap") return detailDungeonMap(o);
 }
@@ -2489,7 +2492,7 @@ function duplicateEntity(type,id){
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = uid();
   // régénère les identifiants des sous-éléments pour éviter les collisions
-  (copy.entries||[]).forEach(x=>x.id=uid());
+  (copy.entries||[]).forEach(x=>{ x.id=uid(); x.visible=false; }); // une copie ne doit jamais être visible aux joueurs à leur insu
   (copy.nodes||[]).forEach(x=>x.id=uid());
   (copy.edges||[]).forEach(x=>x.id=uid());
   (copy.images||[]).forEach(x=>x.id=uid());
@@ -2630,19 +2633,20 @@ function detailNPC(n){
 }
 
 function detailSession(s){
-  const entries = s.entries||[];
+  const isGM = myRole==="gm";
+  const entries = isGM ? (s.entries||[]) : (s.entries||[]).filter(e=>e.visible);
   app.innerHTML = `<div class="detail">
-    <button class="back" data-back="1">← Sessions</button>
+    <button class="back" data-back="1">← Carnet de route</button>
     <span class="tag session">Session</span>
     <h1>${esc(s.title||"Session sans titre")}</h1>
     ${s.date?`<div class="faint" style="font-family:var(--ui);font-size:.85rem">${esc(s.date)}</div>`:""}
     ${detailActions("session",s.id)}
     ${entries.length?entries.map(en=>`
       <div class="session-entry">
-        <div class="etitle">${esc(en.label||"Moment")}</div>
+        <div class="etitle">${esc(en.label||"Moment")}${isGM?(en.visible?' <span class="tag gold" style="font-size:.7rem;margin-left:.4rem">👁 Visible aux joueurs</span>':' <span class="tag" style="font-size:.7rem;margin-left:.4rem;color:var(--muted)">MJ uniquement</span>'):""}</div>
         <div class="prose" style="font-family:var(--ui);font-size:.92rem">${renderText(en.notes)||'<span class="faint">— (pas de notes)</span>'}</div>
       </div>`).join("")
-      : `<p class="faint">Aucune entrée dans cette session.</p>`}
+      : `<p class="faint">${isGM?"Aucune entrée dans cette session.":"Ton MJ n'a encore rien partagé pour cette session."}</p>`}
     ${backlinksBlock("session",s.id)}
   </div>`;
 }
@@ -2670,7 +2674,6 @@ function renderForm(){
   if(view.tab==="pointcrawls") return formCrawl();
   if(view.tab==="pcs")       return formPC();
   if(view.tab==="treasures") return formTreasure();
-  if(view.tab==="roadbook")  return formRoadbook();
   if(view.tab==="hexmaps")   return formHexmap();
   if(view.tab==="dungeonmaps") return formDungeonMap();
 }
@@ -3022,7 +3025,10 @@ function entryInput(e){
     <div class="field" style="margin-bottom:.5rem"><label>Jour / moment</label>
       <div class="rrow"><input type="text" class="entry-label" style="flex:1 1 auto" value="${esc(e.label)}" placeholder="Jour 1 — matin">
       <button class="btn danger sm" data-remove-entry>✕</button></div></div>
-    <div class="field" style="margin:0"><label>Notes libres</label><textarea class="entry-notes" placeholder="Les héros rencontrent [[Le Marchand Borgne]]...">${esc(e.notes)}</textarea></div>
+    <div class="field" style="margin:0 0 .5rem"><label>Notes libres</label><textarea class="entry-notes" placeholder="Les héros rencontrent [[Le Marchand Borgne]]...">${esc(e.notes)}</textarea></div>
+    <label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:0;cursor:pointer">
+      <input type="checkbox" class="entry-visible" ${e.visible?"checked":""} style="width:auto"> 👁 Visible aux joueurs
+    </label>
   </div>`;
 }
 function saveSession(){
@@ -3033,7 +3039,8 @@ function saveSession(){
   o.entries = [...document.querySelectorAll("#entries-wrap [data-entryitem]")].map(el=>({
     id: uid(),
     label: el.querySelector(".entry-label").value.trim(),
-    notes: el.querySelector(".entry-notes").value
+    notes: el.querySelector(".entry-notes").value,
+    visible: el.querySelector(".entry-visible").checked
   }));
   if(!o.title){ toast("Le titre est requis."); return; }
   if(view.mode==="new") db.sessions.push(o);
@@ -4141,47 +4148,6 @@ function detailSpell(s){
 }
 
 /* =========================================================================
-   CARNET DE ROUTE — onglet en lecture seule pour un joueur invité
-   ========================================================================= */
-function listRoadbook(){
-  const items = [...db.roadbook];
-  app.innerHTML = pageHead("Carnet de route", `${items.length} entrée(s)`, "Nouvelle entrée") +
-    (items.length ? `<div class="grid">${items.map(r=>`
-      <div class="card" data-open="roadbook:${r.id}">
-        <h3>${esc(r.title||"Sans titre")}</h3>
-        <p>${esc(truncate(firstLine(r.content),140))||"Pas de contenu"}</p>
-      </div>`).join("")}</div>`
-    : emptyState("🧭", myRole==="gm" ? "Rien pour l'instant. Ajoute des informations à destination de tes joueurs." : "Ton MJ n'a encore rien déposé ici."));
-}
-
-function formRoadbook(){
-  const r = view.mode==="edit" ? getEntity("roadbook",view.id) : {title:"",content:""};
-  app.innerHTML = `<div class="form">
-    <button class="back" data-back="1">← Annuler</button>
-    <h1>${view.mode==="edit"?"Modifier":"Nouvelle"} entrée</h1>
-    <div class="field"><label>Titre</label><input type="text" id="f-title" value="${esc(r.title)}" placeholder="À l'attention de…"></div>
-    <div class="field"><label>Contenu</label><textarea id="f-content" style="min-height:180px" placeholder="Notes, indices, informations pour ton joueur…">${esc(r.content)}</textarea></div>
-    <div class="form-actions"><button class="btn" data-save="roadbook">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
-  </div>`;
-}
-function saveRoadbook(){
-  const o = view.mode==="edit" ? getEntity("roadbook",view.id) : {id:uid()};
-  o.title = $("#f-title").value.trim();
-  o.content = $("#f-content").value;
-  if(!o.title){ toast("Le titre est requis."); return; }
-  if(view.mode==="new") db.roadbook.push(o);
-  saveDB(); toast("Entrée enregistrée."); view={tab:"roadbook",mode:"detail",id:o.id}; render();
-}
-function detailRoadbook(r){
-  app.innerHTML = `<div class="detail">
-    <button class="back" data-back="1">← Carnet de route</button>
-    <h1>${esc(r.title||"Sans titre")}</h1>
-    ${detailActions("roadbook",r.id)}
-    ${(r.content&&r.content.trim()) ? `<div class="section">${renderBullets(r.content)}</div>` : `<p class="faint" style="font-family:var(--ui)">Pas de contenu.</p>`}
-  </div>`;
-}
-
-/* =========================================================================
    HEXCRAWL — carte hexagonale importée (terrain + brouillard de guerre)
    Format source : export JSON d'un éditeur hexcrawl externe (coordonnées
    axiales q,r). Le MJ voit tout ; les joueurs ne voient que les hexagones
@@ -5214,7 +5180,7 @@ function exportJSON(){
   downloadBlob(blob, `grimoire-shadowdark-${new Date().toISOString().slice(0,10)}.json`);
   toast("Données exportées. Le fichier est téléchargé sur votre appareil, généralement dans votre dossier Téléchargements.");
 }
-const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","roadbook","hexmaps","spells","initiative","wheel","dungeonmaps"];
+const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","hexmaps","spells","initiative","wheel","dungeonmaps"];
 function countItems(d){ return DB_COLS.reduce((n,c)=>n+((d[c]||[]).length),0); }
 function mergeDB(data){
   let added = 0;
@@ -5619,7 +5585,6 @@ app.addEventListener("click", e=>{
     else if(ty==="npc") saveNPC(); else if(ty==="pointcrawl") saveCrawl();
     else if(ty==="pc") savePC(); else if(ty==="treasure") saveTreasure();
     else if(ty==="spell") saveSpell();
-    else if(ty==="roadbook") saveRoadbook();
     else if(ty==="hexmap") saveHexmap();
     else if(ty==="dungeonmap") saveDungeonMap();
     return;
@@ -6377,7 +6342,7 @@ async function startApp(){
     return;
   }
   applyRoleUI();
-  if(myRole!=="gm") view = { tab:"roadbook", mode:"list", id:null };
+  if(myRole!=="gm") view = { tab:"sessions", mode:"list", id:null };
   render();
 }
 
