@@ -1,6 +1,53 @@
 # Modularisation du Codex — analyse et plan de découpage
 
-Document de préparation demandé par Tristan (2026-08-10, avant de partir) : réfléchir à la
+## Journal d'avancement (mis à jour au fur et à mesure, le plus récent en haut)
+
+### 2026-08-10 (soir) — Phase 0, Phase 1 et modules JS déjà contigus : fait
+
+`index.html` est passé de **1 044 541 octets à 217 329 octets (-79 %)**, sans aucune régression
+(chaque étape testée dans le navigateur avant commit, `git push` après chaque étape). Détail :
+
+- **Phase 0** (assets statiques) : polices → `fonts/*.woff2`, librairie Supabase vendue →
+  `vendor/supabase.min.js`, planche d'icônes → `icons.svg` (référencé en `<use>` cross-fichier,
+  fonctionne bien — le risque de compatibilité évoqué plus bas dans ce document est levé).
+- **Phase 1** : CSS réel → `style.css`.
+- **Phase 2** (modules JS déjà contigus, tous extraits) : `js/modal.js`, `js/autocomplete.js`,
+  `js/search.js`, `js/importexport.js` + `js/xml-generic.js` (scindés en deux — voir plus bas),
+  `js/initiative.js`, `js/wheel.js`, `js/pointcrawl.js` (cœur uniquement, voir plus bas),
+  `js/hexcrawl.js`, `js/dungeonmaps.js`.
+
+**Écarts découverts par rapport au plan initial, en le faisant réellement :**
+- Le bloc « IMPORT/EXPORT » mélangeait en fait 3 choses : JSON générique, XML générique, **et** le
+  système XML historique propre aux créatures — scindé en `importexport.js` + `xml-generic.js`,
+  le XML créature laissé inline (déplacement vers `js/creatures.js` à faire dans la prochaine
+  phase, plus lourde).
+- Le bloc « Point Crawl » n'était en réalité contigu que pour sa partie liste/détail/canevas
+  (`js/pointcrawl.js`) — la suite du fichier à cet endroit était en fait une section
+  d'impression PDF **partagée** par plusieurs onglets (créatures, PNJ, PJ, trésor, tables), pas
+  du Point Crawl. Laissée inline, à traiter avec la phase « entités éclatées » ci-dessous.
+
+**Deux bugs trouvés et corrigés en cours de route** (même cause : oubli de fermer le `<script>`
+inline avant d'insérer une référence externe) :
+1. Une fois dans `index.html` lui-même — repéré immédiatement par `outils/audit-check.sh`
+   (`SyntaxError`), corrigé.
+2. Une fois dans `outils/audit-check.sh` : une ligne `<script src>...</script>` auto-suffisante
+   tombant pile entre un vrai `<script>` ouvrant et un vrai `</script>` fermant se retrouvait
+   incluse dans le bloc extrait pour vérification. Le script exclut désormais ces lignes du
+   contenu (pas seulement du comptage open/close) avant de scanner.
+
+**Ce qui reste** (voir « Cartographie » plus bas pour le détail) :
+- Les entités « éclatées » en 3 zones du fichier (Événements, Tables, Créatures, PNJ, Sessions,
+  PJ, Trésor, Sorts) — plus lent, chaque module demande de rassembler des fonctions dispersées
+  plutôt que de couper un bloc.
+- Les fonctions d'impression PDF partagées, actuellement encore inline entre l'ancien bloc Point
+  Crawl et la section PJ.
+- Le noyau partagé (`js/core.js`) et le fichier de démarrage (`js/app.js`), à faire en tout
+  dernier.
+- Mise à jour du README/`.gitattributes` (`*.js text eol=lf`, jamais fait faute d'y être revenu).
+
+---
+
+Document de préparation initial, demandé par Tristan (2026-08-10, avant de partir) : réfléchir à la
 méthode de découpage de `index.html` en plusieurs fichiers, **sans rien modifier sur le site**.
 Question posée : vaut-il mieux écrire d'abord un fichier de structure complète, ou commencer
 directement à découper ? Réponse et raisonnement ci-dessous, puis l'analyse complète du fichier
