@@ -1054,15 +1054,19 @@ const PLAYER_VISIBLE_TABS = ["sessions","hexmaps","dungeonmaps","spells","pcs","
 /* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
 function renderText(text){
   if(!text) return "";
-  let html = esc(text);
-  html = html.replace(/\[\[([^\]]+)\]\]/g, (m, raw)=>{
-    const name = raw.trim();
+  const s = String(text);
+  const re = /\[\[([^\]]+)\]\]/g;
+  let html = "", last = 0, m;
+  while((m = re.exec(s))){
+    html += esc(s.slice(last, m.index));
+    const name = m[1].trim();
     const hit = findByName(name);
-    if(hit){
-      return `<a class="wl ${hit.type}" data-goto="${hit.type}:${hit.id}">${esc(name)}</a>`;
-    }
-    return `<a class="wl bad" title="Aucune entité nommée « ${esc(name)} »" data-create="${esc(name)}">${esc(name)}</a>`;
-  });
+    html += hit
+      ? `<a class="wl ${hit.type}" data-goto="${hit.type}:${hit.id}">${esc(name)}</a>`
+      : `<a class="wl bad" title="Aucune entité nommée « ${esc(name)} »" data-create="${esc(name)}">${esc(name)}</a>`;
+    last = re.lastIndex;
+  }
+  html += esc(s.slice(last));
   return html;
 }
 

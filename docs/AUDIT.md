@@ -759,3 +759,40 @@ Réorganisation du dossier projet suite aux constats 2 et 3 ci-dessus :
   passage ne permettait de le vérifier, toujours à confirmer par toi.
 - Constat #4 : les PDF/XML/JSON sources restent volontairement hors dépôt
   (maintenant rangés dans `sources/`, gitignorés) — sauf avis contraire.
+
+### Contenu ajouté — 2026-08-10 : Point Crawl « Le Château des Rats »
+
+Demande ad hoc de Tristan (PDF de scénario Shadowdark fourni, déjà lu/extrait
+côté session — pas dans ce dépôt), pas liée à `docs/TODO.md`. Contenu de
+campagne créé directement en base Supabase via Claude in Chrome
+(`db`/`saveDB()` en console sur le site live), conformément au workflow déjà
+en mémoire — **aucune donnée de campagne n'est dans ce dépôt**, seul le
+correctif de code ci-dessous l'est.
+
+**Contenu créé** : point crawl 23 nœuds / 27 connexions (21 salles + 2
+entrées), 5 créatures (Armure pleine de rats, Rat guerrier, Rats mutants,
+Horde de rat, Chien (Molosse)), 9 PNJ (Fael N'adal le Rat-Sorcier, Mage Royal
+Nath'ri, Merrick l'Apprenti, Bauduin le Majordome, Ratier Églantin, Kam le
+Rouge, Dusol, Lakass et Keth, Jdedan), 2 tables aléatoires (Rumeurs, Noms de
+rats D20). Réutilisé un point crawl existant vide (« Le chateau de Fael
+N'Adal », créé au préalable par Tristan/Dual comme jalon, 0 nœud) plutôt que
+d'en créer un doublon — renommé en « Le Château des Rats » et rempli.
+
+**Bug de code trouvé et corrigé en cours de vérification** : `renderText()`
+(ligne ~1054) appelait `esc(text)` sur le texte entier *avant* d'extraire les
+liens `[[Nom]]`, donc tout nom contenant une apostrophe (ex. « Fael N'adal »,
+« Nath'ri ») produisait un lien cassé (`class="wl bad"`, non résolu) affichant
+en plus l'entité `&#39;` en clair (double échappement : l'apostrophe déjà
+transformée en `&#39;` par le premier passage se faisait rééchapper une
+seconde fois par le `esc(name)` du label du lien). Repéré en testant
+l'affichage du nouveau point crawl : les liens vers les deux PNJ principaux
+du scénario étaient cassés. **Fix** : `renderText()` traite maintenant le
+texte brut en une seule passe (regex `[[...]]` sur la chaîne non échappée,
+segments de texte libre échappés au fur et à mesure, nom du lien échappé une
+seule fois) — corrige la classe entière de bug pour tout caractère spécial
+HTML dans un nom lié (apostrophe, esperluette, chevrons), pas seulement le
+cas observé. Vérifié en direct dans le navigateur (Claude in Chrome, patch
+temporaire de la fonction en mémoire avant de l'appliquer au fichier) : les
+liens vers « Fael N'adal, le Rat-Sorcier » et « Mage Royal Nath'ri »
+passent de `wl bad` à `wl npc` correctement résolu, apostrophe affichée
+normalement. `outils/audit-check.sh` relancé après coup (syntaxe JS OK).
