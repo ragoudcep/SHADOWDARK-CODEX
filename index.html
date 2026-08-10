@@ -718,6 +718,7 @@
   @media print{
     @page{ size:A4 portrait; margin:14mm; }
     @page mapland{ size:A4 landscape; margin:11mm; }
+    @page cards{ size:A4 portrait; margin:8mm; } /* marge réduite : la grille 3×3 de cartes 63×88mm fait 189×264mm, trop large pour la marge par défaut de 14mm */
     header, main, #toast, #modal, #lightbox, #ac-pop{ display:none !important; }
     html, body{ background:#fff !important; }
     #print-area{ display:block !important; color:#241f18; font-family:var(--font);
@@ -759,6 +760,30 @@
     #print-area .pp-pc-currency{ font-family:var(--ui); font-size:9pt; color:#6a5a3a; margin:1pt 0 5pt; }
     #print-area .pp-inv-list{ columns:2; column-gap:16pt; margin:0; padding-left:15pt; }
     #print-area .pp-inv-list li{ font-size:10pt; line-height:1.6; border-bottom:.5pt dotted #cbb27f; min-height:13pt; break-inside:avoid; padding-right:6pt; }
+    /* ---- Cartes créatures 63×88mm (recto/verso, 9 par page, sans espace entre elles) ---- */
+    #print-area .pp-cards-page{ page:cards; break-after:page; display:flex; flex-direction:column; align-items:center; padding-top:4mm; }
+    #print-area .pp-cards-page:last-child{ break-after:auto; }
+    #print-area .pp-cards-pagelabel{ font-family:var(--ui); font-size:8pt; color:#888; margin-bottom:2mm; text-align:center; max-width:189mm; }
+    #print-area .pp-cards-grid{ display:grid; grid-template-columns:repeat(3,63mm); grid-template-rows:repeat(3,88mm); }
+    /* Pas de gap volontairement : chaque bordure de carte adjacente à la suivante forme une ligne de
+       découpe continue sur toute la largeur/hauteur de la page — un seul coup de massicot sépare
+       deux cartes à la fois, au lieu de devoir isoler chaque carte individuellement si elles étaient
+       espacées. */
+    #print-area .pp-card{ width:63mm; height:88mm; box-sizing:border-box; border:.4pt solid #999; overflow:hidden; position:relative; break-inside:avoid; }
+    #print-area .pp-card-empty{ border-style:dashed; }
+    #print-area .pp-card-front{ display:flex; flex-direction:column; height:100%; }
+    #print-area .pp-card-art{ width:100%; flex:1 1 auto; min-height:0; object-fit:cover; display:block; }
+    #print-area .pp-card-noart{ flex:1 1 auto; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#e8ddc0,#cbb27f); }
+    #print-area .pp-card-noart span{ font-family:var(--blackletter); font-size:40pt; color:#7a6438; }
+    #print-area .pp-card-frontfoot{ padding:2mm 3mm; text-align:center; border-top:.4pt solid #999; flex:0 0 auto; }
+    #print-area .pp-card-name{ font-family:var(--blackletter); font-size:11pt; color:#2a241c; line-height:1.15; }
+    #print-area .pp-card-cat{ font-family:var(--ui); font-size:6.5pt; color:#8a7748; text-transform:uppercase; letter-spacing:.4pt; margin-top:.5mm; }
+    #print-area .pp-card-back{ padding:3mm; display:flex; flex-direction:column; gap:1.3mm; height:100%; box-sizing:border-box; }
+    #print-area .pp-card-back-name{ font-family:var(--font); font-size:9.5pt; font-weight:700; color:#2a241c; text-align:center; border-bottom:.4pt solid #cbb27f; padding-bottom:1mm; margin-bottom:.5mm; flex:0 0 auto; }
+    #print-area .pp-card-back-line{ font-family:var(--ui); font-size:6.7pt; color:#3a3226; text-align:center; flex:0 0 auto; }
+    #print-area .pp-card-back-sec{ font-family:var(--ui); font-size:6.3pt; color:#3a3226; line-height:1.3; }
+    #print-area .pp-card-back-sec b{ color:#8a7748; text-transform:uppercase; font-size:5.8pt; letter-spacing:.3pt; display:block; margin-bottom:.3mm; }
+    #print-area .pp-card-back-sec .pp-link{ font-weight:700; text-decoration:underline; text-decoration-thickness:.5pt; }
   }
 </style>
 
@@ -2362,6 +2387,7 @@ function listCreatures(){
         <button class="btn ghost" data-export-xml-type="creature">⭳ Export XML</button>
         <button class="btn ghost" data-xml-sample="1">📄 Modèle XML</button>
         <button class="btn danger" data-purge="1">🗑 Vider</button>
+        <button class="btn ghost" data-print-creature-cards="1">🖨 Exporter en cartes</button>
         <button class="btn" data-new="1">✦ Nouvelle créature</button>
       </div>
     </div>`;
@@ -3649,6 +3675,91 @@ function openPrintPCsModal(){
     const ids = [...document.querySelectorAll(".pcp-check:checked")].map(c=>c.value);
     closeModal();
     printPCs(ids);
+  });
+}
+
+/* ---- Export "cartes à jouer" des créatures (recto illustration, verso stat bloc) ----
+   Format standard 63×88mm (cartes à jouer type Magic), 3×3 = 9 cartes par page A4, SANS espace
+   entre les cartes (grille CSS sans gap) — chaque bordure de cellule devient une ligne de découpe
+   continue sur toute la hauteur/largeur de la page, ce qui permet de couper au massicot en quelques
+   passes droites plutôt que carte par carte. Demande explicite de Tristan (2026-08-10) : "collées
+   entre elles, sinon il faut faire plus de traits de découpe".
+   Recto et verso sont générés comme deux groupes de pages SÉPARÉS (tout le recto, puis tout le
+   verso), dans le MÊME ordre/même position de grille — pas de retournement/miroir tenté pour un
+   recto-verso imprimé en duplex sur une même feuille : la convention de retournement (bord long/bord
+   court) dépend de l'imprimante et du pilote de chacun, impossible à vérifier depuis cette session.
+   Choix volontairement robuste : Tristan imprime/découpe les deux jeux de feuilles séparément, puis
+   associe chaque recto à son verso par position (même case sur la même page = même créature), et les
+   colle/laminae dos à dos lui-même. Chaque page porte un repère "Recto/Verso — page N/T" pour ne pas
+   se tromper d'association. */
+function creatureCardFrontHTML(c){
+  const img = (c.images && c.images[0]) ? c.images[0].data : "";
+  return `<div class="pp-card pp-card-front">
+    ${img
+      ? `<img class="pp-card-art" src="${img}" alt="">`
+      : `<div class="pp-card-noart"><span>${esc((c.name||"?").trim().slice(0,1).toUpperCase())}</span></div>`}
+    <div class="pp-card-frontfoot">
+      <div class="pp-card-name">${esc(c.name||"Sans nom")}</div>
+      ${c.category?`<div class="pp-card-cat">${esc(c.category)}</div>`:""}
+    </div>
+  </div>`;
+}
+function creatureCardBackHTML(c){
+  const stats = [["FOR",c.str],["DEX",c.dex],["CON",c.con],["INT",c.int],["SAG",c.wis],["CHA",c.cha]]
+    .filter(([,v])=>v).map(([l,v])=>`${l} ${esc(fmtMod(v))}`).join(" · ");
+  const attacks = (c.attacks||[]).filter(a=>a.name||a.damage)
+    .map(a=>`${esc(a.name||"Attaque")}${a.bonus?" "+esc(a.bonus):""} (${esc(a.damage||"?")})`).join(" ; ");
+  return `<div class="pp-card pp-card-back">
+    <div class="pp-card-back-name">${esc(c.name||"Sans nom")}</div>
+    <div class="pp-card-back-line">CA ${esc(c.ac||"—")} · PV ${esc(c.hp||"—")} · Niv. ${esc(c.level||"—")}${c.alignment?" · "+esc(cap(c.alignment)):""}</div>
+    ${stats?`<div class="pp-card-back-line">${stats}</div>`:""}
+    ${attacks?`<div class="pp-card-back-sec"><b>Attaques</b>${attacks}</div>`:""}
+    ${c.abilities?`<div class="pp-card-back-sec"><b>Capacités</b>${renderTextPrint(c.abilities)}</div>`:""}
+  </div>`;
+}
+function creatureCardGridPages(cards, htmlFn, labelFn){
+  const totalPages = Math.max(1, Math.ceil(cards.length/9));
+  const pages = [];
+  for(let i=0;i<cards.length;i+=9){
+    const pageNum = i/9+1;
+    const slice = cards.slice(i, i+9);
+    const cells = slice.map(htmlFn).join("")
+      + Array(9-slice.length).fill('<div class="pp-card pp-card-empty"></div>').join("");
+    pages.push(`<div class="pp-cards-page"><div class="pp-cards-pagelabel">${labelFn(pageNum,totalPages)}</div><div class="pp-cards-grid">${cells}</div></div>`);
+  }
+  return pages.join("");
+}
+function printCreatureCards(ids){
+  const list = ids.map(id=>getEntity("creature",id)).filter(Boolean);
+  if(!list.length){ toast("Sélectionnez au moins une créature."); return; }
+  $("#print-area").innerHTML =
+    creatureCardGridPages(list, creatureCardFrontHTML, (n,t)=>`Recto — page ${n}/${t}`)
+    + creatureCardGridPages(list, creatureCardBackHTML, (n,t)=>`Verso — page ${n}/${t} (même position que le recto ${n}/${t})`);
+  document.fonts.load('30pt "JSL Blackletter"').catch(()=>{}).then(()=> window.print());
+}
+function openPrintCreatureCardsModal(){
+  const items = db.creatures;
+  if(!items.length){ toast("Aucune créature à exporter."); return; }
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+      <h2 style="margin:0;color:var(--gold2)">Exporter des créatures en cartes</h2>
+      <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <p class="faint" style="font-family:var(--ui);margin:.3rem 0 .8rem">Cartes 63×88mm, 9 par page, recto (nom + illustration) et verso (stat bloc) sur des feuilles séparées à associer par position.</p>
+    <div style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem;margin-bottom:.8rem">
+      ${items.map(c=>`<label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.9rem;cursor:pointer">
+        <input type="checkbox" class="crp-check" value="${c.id}" style="width:auto"> ${esc(c.name||"Sans nom")} <span class="faint">(${esc(c.category||"—")})</span>
+      </label>`).join("")}
+    </div>
+    <div class="form-actions">
+      <button class="btn ghost sm" id="crp-all">Tout cocher</button>
+      <button class="btn ghost sm" id="crp-none">Tout décocher</button>
+      <button class="btn" id="crp-go">🖨 Exporter la sélection</button>
+    </div>`);
+  document.getElementById("crp-all").addEventListener("click", ()=> document.querySelectorAll(".crp-check").forEach(c=>c.checked=true));
+  document.getElementById("crp-none").addEventListener("click", ()=> document.querySelectorAll(".crp-check").forEach(c=>c.checked=false));
+  document.getElementById("crp-go").addEventListener("click", ()=>{
+    const ids = [...document.querySelectorAll(".crp-check:checked")].map(c=>c.value);
+    closeModal();
+    printCreatureCards(ids);
   });
 }
 
@@ -5726,6 +5837,7 @@ app.addEventListener("click", e=>{
   if(closest("data-crawl-link")){ toggleLinkMode(); return; }
   if(closest("data-crawl-print")){ printCrawl(crawlState.id); return; }
   if(closest("data-print-pcs")){ openPrintPCsModal(); return; }
+  if(closest("data-print-creature-cards")){ openPrintCreatureCardsModal(); return; }
   if((el=closest("data-print-pc"))){ printPCs([el.dataset.printPc]); return; }
   // Hexcrawl
   if((el=t.closest("[data-hexq]"))){

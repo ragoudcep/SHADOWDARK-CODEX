@@ -30,17 +30,6 @@ Implique probablement une notion de « groupe de tables liées » ou de
 « recette de génération » qui n'existe pas encore dans le modèle de
 données actuel — à concevoir.
 
-## Créatures
-
-**Ne pas toucher le fonctionnement actuel.** Ajout souhaité : sélectionner
-plusieurs créatures et les exporter en PDF sous forme de cartes au format
-63×88mm (format carte à jouer) — recto : nom + illustration si disponible
-(la plupart des créatures n'en ont pas), verso : toutes les infos
-textuelles (stats, capacités, etc.). Probablement réutilisable/à
-rapprocher du système d'export PDF des PJ déjà existant (une page A4 par
-personnage) — voir comment il gère la mise en page recto/verso avant de
-partir de zéro.
-
 ## Roue
 
 L'animation du coffre (mode « coffre » de la révélation de bonus) ne

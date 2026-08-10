@@ -736,6 +736,47 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   affiché ; on le repasse à un autre statut → repli automatique sur "à visiter" ; plus aucun des deux
   → bouton de secours affiché, clic dessus → bascule bien sur `__all__` et montre les 4 point crawls
   de test.
+- **Créatures — export en cartes à jouer 63×88mm (2026-08-10)**, demande de Tristan (format standard
+  type Magic). Nouveau bouton `🖨 Exporter en cartes` dans la liste Créatures, ouvre une modale de
+  sélection (cases à cocher, décochées par défaut — potentiellement beaucoup de créatures, pas
+  d'intérêt à tout exporter d'un coup contrairement aux PJ) calquée sur `openPrintPCsModal()`, puis
+  réutilise le mécanisme d'impression existant du point crawl/PJ (`#print-area` + `window.print()`,
+  pas de vraie génération PDF côté serveur — le navigateur/l'utilisateur imprime ou "imprime en PDF").
+  **Mise en page** : grille CSS 3×3 (9 cartes/page A4, `@page cards{margin:8mm}` — la marge par
+  défaut de 14mm était trop large pour loger la grille 189×264mm), **sans `gap`** entre les cartes
+  (délibéré, demande explicite de Tristan : "collées entre elles, sinon il faut faire plus de traits
+  de découpe") — la bordure de chaque carte (`.pp-card{border:.4pt solid}`) forme ainsi une ligne de
+  découpe continue sur toute la largeur/hauteur de la page, coupable au massicot en quelques passes
+  droites plutôt que carte par carte. Cases vides du dernier feuillet remplies par des cellules
+  fantômes à bordure pointillée pour garder une grille 3×3 complète et des lignes de coupe régulières
+  même si le nombre de créatures sélectionnées n'est pas un multiple de 9.
+  **Recto** (`creatureCardFrontHTML`) : illustration en plein cadre (`object-fit:cover`, seulement
+  `c.images[0]`, ignorées si plusieurs) si disponible, sinon un fond dégradé avec l'initiale du nom en
+  lettrine — nom + catégorie en pied de carte. **Verso** (`creatureCardBackHTML`) : nom, ligne
+  CA/PV/Niveau/Alignement, ligne de caractéristiques (FOR/DEX/CON/INT/SAG/CHA via `fmtMod()`, même
+  formatage que la fiche détail), attaques, capacités (`renderTextPrint()`, même traitement des liens
+  `[[...]]` que les autres exports). Polices réduites (6,3–9,5pt) pour tenir sur une carte aussi
+  petite — **limite connue et acceptée** : une créature avec un texte de capacités très long peut
+  être tronquée visuellement (`.pp-card{overflow:hidden}`, coupe silencieusement plutôt que de
+  déborder sur la carte voisine — comportement délibéré, un débordement visible aurait cassé la
+  grille de découpe) ; pas de solution générale possible sur un format aussi contraint, à l'usage de
+  Tristan de garder les capacités concises s'il veut qu'une carte donnée tienne entièrement.
+  **Recto/verso volontairement NON dupliqués sur la même feuille en duplex** : générés comme deux
+  groupes de pages séparés (tout le recto d'abord, puis tout le verso), dans le même ordre/même
+  position de grille plutôt que retournés en miroir pour un duplex automatique — la convention de
+  retournement (bord long/bord court) dépend du pilote d'imprimante de chacun et n'a pas pu être
+  vérifiée dans cette session ; imprimer les deux feuillets séparément et associer chaque recto à son
+  verso par position (repère « Recto/Verso — page N/T » sur chaque page) est le choix le plus robuste
+  ici, quitte à ce que Tristan colle/laminae lui-même dos à dos. Non tenté : miroir automatique du
+  verso pour un vrai duplex — faute de pouvoir tester contre un vrai pilote d'imprimante, un mauvais
+  sens de miroir aurait été pire qu'aucune tentative (cartes visiblement désalignées après découpe).
+  **Vérifié dans le navigateur** (aperçu écran temporaire des styles d'impression, `window.print`
+  neutralisé pour ne pas bloquer sur la vraie boîte de dialogue native) : 11 créatures de test → 2
+  pages de recto + 2 pages de verso, la 2ᵉ page de chaque groupe avec 2 cartes réelles + 7 cellules
+  fantômes ; rendu correct de l'illustration de test, du fond de repli sans illustration, des lignes
+  de statistiques et de la section capacités. **Non vérifié** : rendu physique réel via une vraie
+  impression/un vrai massicot (aucune imprimante disponible dans cette session) — à confirmer par
+  Tristan, notamment que les 8mm de marge de page suffisent bien sur son imprimante réelle.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
