@@ -4638,6 +4638,17 @@ const DMAP_STROKE_COLORS = ["#e05252","#e0a052","#d4c93f","#7fc24e","#3fc29e","#
 
 let dungeonMapsPollTimer = null;
 function stopDungeonMapsPolling(){ if(dungeonMapsPollTimer){ clearInterval(dungeonMapsPollTimer); dungeonMapsPollTimer=null; } }
+/* Intervalle volontairement différent de celui de l'Initiative (4,5s) — ici, chaque tick
+   retélécharge la ligne ENTIÈRE de la carte active (`select("data")` ramène tout le jsonb, donc
+   l'image base64 du plan à chaque fois, pas seulement `strokes`/`active`), potentiellement
+   plusieurs centaines de Ko, alors que l'Initiative ne transporte que du texte léger. Descendre
+   trop bas ferait exploser la consommation de data mobile sur une session de plusieurs heures.
+   2,5s reste un compromis raisonnable (Tristan trouvait 4,5s trop lent en jeu). Pour aller plus
+   vite sans alourdir la bande passante, il faudrait séparer l'image (statique, à charger une
+   fois) de l'état qui bouge vraiment (strokes/active/softness) — via une sélection PostgREST sur
+   des sous-champs du jsonb plutôt que la ligne complète — non fait ici faute de pouvoir tester
+   contre le vrai projet Supabase (un mauvais nom de colonne romprait silencieusement le
+   rafraîchissement joueur, pire que la lenteur actuelle). */
 function startDungeonMapsPolling(){
   if(dungeonMapsPollTimer) return;
   dungeonMapsPollTimer = setInterval(async ()=>{
@@ -4648,7 +4659,7 @@ function startDungeonMapsPolling(){
       db.dungeonmaps = (data||[]).map(r=>r.data);
       if(view.tab==="dungeonmaps") renderList();
     }catch(e){ /* silencieux, on retente au prochain tick */ }
-  }, 4500);
+  }, 2500);
 }
 
 function loadImageAsync(src){

@@ -528,6 +528,34 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   MJ (0 puis 1 puis 2 trous testés), le toggle masque/affiche bien le bloc,
   l'état se réinitialise au changement de carte, et le sous-titre change
   bien selon `m.active`.
+- **Cartes de donjon — intervalle de polling joueur descendu de 4,5s à
+  2,5s, à la demande de Tristan (même soirée)** : latence perçue jugée trop
+  grande entre un tap MJ et sa répercussion côté joueur. Ce n'était pas une
+  limite technique dure — juste la même valeur que l'Initiative, reprise
+  par convention. **Point d'attention laissé en commentaire dans le code**,
+  à ne pas perdre de vue si on veut descendre encore : contrairement à
+  l'Initiative (données texte légères), chaque tick de polling des cartes
+  de donjon retélécharge la ligne Supabase **entière** de la carte active —
+  `select("data")` ramène tout le jsonb, donc l'image base64 du plan à
+  chaque fois, pas seulement `strokes`/`active`/`softness`. Potentiellement
+  plusieurs centaines de Ko par tick ; sur une session de plusieurs heures
+  au téléphone, la consommation de data mobile cumulée est réelle et croît
+  linéairement avec la fréquence de polling. 2,5s est un compromis
+  raisonnable non testé en usage réel (pas de mesure de consommation data
+  disponible dans cette session) — à confirmer par toi que la sensation de
+  latence s'est bien améliorée sans que la conso data devienne gênante en
+  jeu. **Optimisation plus poussée identifiée mais volontairement pas
+  tentée** : séparer l'image (statique, à charger une fois par session) de
+  l'état qui bouge vraiment (`strokes`/`active`/`softness`), via une
+  sélection PostgREST sur des sous-champs du jsonb (`select=data->active,
+  data->strokes,...`) plutôt que la ligne complète — permettrait de
+  descendre bien plus bas (1-1,5s) sans alourdir la bande passante. Pas
+  implémenté ici : je n'ai pas d'accès direct au vrai projet Supabase pour
+  vérifier le nom exact des colonnes résultantes de cette syntaxe contre le
+  schéma réel, et une erreur de sélection silencieuse casserait le
+  rafraîchissement joueur sans message d'erreur visible (pire que la
+  lenteur actuelle) — à faire dans une session où ce point peut être
+  vérifié en direct contre la vraie base, ou par Tristan lui-même.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
