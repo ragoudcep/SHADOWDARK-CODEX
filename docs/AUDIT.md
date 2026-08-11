@@ -847,8 +847,26 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   redéclaration — contourné en extrayant et ré-évaluant uniquement la fonction modifiée). Aucun
   rapport avec un vrai comportement utilisateur : un vrai rechargement de page (F5) n'exécute
   chaque script qu'une fois, ce problème n'existe que dans ce sandbox de test.
-  **Confirmé par Tristan à l'usage (2026-08-11)** : le coffre convainc, pas de troisième réglage
-  nécessaire — chantier considéré clos, retiré de `docs/TODO.md`.
+  **Correction (2026-08-11, plus tard le même jour)** : un premier retour de Tristan avait semblé
+  confirmer ce design ; un second retour, plus tardif, l'a en fait rejeté (« celle-là ne me plaît
+  pas ») — voir l'entrée de revert ci-dessous. La ligne précédente laissée pour la trace, mais elle
+  ne reflète plus l'état actuel du coffre.
+- **Roue — revert du redesign visuel du coffre, préréglages conservés (2026-08-11)** : Tristan n'a
+  pas aimé la deuxième passe du coffre décrite juste au-dessus (lattes de bois, dôme prononcé,
+  double cerclage, animation dédiée `wheel-chest-lid-open`) et a demandé de revenir à l'apparence
+  précédente. Diff de `101ee04` examiné en détail : le redesign visuel (`style.css`, règles
+  `.reveal-box.chest*`) et la clarification des préréglages personnalisés (`index.html` +
+  `js/wheel.js`, champ de nom inline au lieu d'un `promptModal()`) touchaient des fichiers/blocs
+  disjoints — séparables proprement, pas de revert du commit entier. Seul `style.css` a été
+  restauré à l'état d'avant `101ee04` (celui introduit par `a244ef9`, la toute première refonte
+  « vraie malle, pas un cadeau recoloré ») : coffre 148×92, dégradés unis (pas de lattes), simple
+  cerclage, couvercle qui rouvre avec l'animation partagée `wheel-lid-pop` (le « pop » diagonal du
+  cadeau) plutôt qu'une animation dédiée. La clarification des préréglages personnalisés n'a pas
+  été critiquée et reste en place telle quelle. Vérifié : `node --check` sur `js/wheel.js`,
+  équilibre des accolades CSS, aucune référence résiduelle à `chest.open`/`wheel-chest-lid-open`
+  dans le code, et rendu comparé via une page de test isolée chargeant le vrai `style.css`
+  (`getComputedStyle` : dimensions 148×92 et `animation-name:wheel-lid-pop` confirmés sur le
+  couvercle une fois `.open` appliqué) — page de test jetable, non commitée.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

@@ -417,7 +417,7 @@
   }
   .reveal-box.shake{animation:wheel-gift-shake .55s ease-in-out}
   @keyframes wheel-lid-pop{ to{ transform:translate(14px,-54px) rotate(-32deg); opacity:0 } }
-  .reveal-box.gift.open .reveal-lid{animation:wheel-lid-pop .5s cubic-bezier(.34,1.56,.64,1) forwards}
+  .reveal-box.open .reveal-lid{animation:wheel-lid-pop .5s cubic-bezier(.34,1.56,.64,1) forwards}
   @keyframes wheel-burst{ 0%{opacity:0; transform:translate(-50%,-50%) scale(.2)} 40%{opacity:.9} 100%{opacity:0; transform:translate(-50%,-50%) scale(2.4)} }
   .reveal-box.open::after{content:""; position:absolute; left:50%; top:20%; width:40px; height:40px; border-radius:50%;
     background:radial-gradient(circle,rgba(224,185,104,.9),transparent 70%); animation:wheel-burst .6s ease-out forwards;
@@ -429,50 +429,22 @@
   .reveal-box.gift .reveal-lid{background:linear-gradient(160deg,var(--gold2),var(--gold))}
   .reveal-box.gift .reveal-lid::before{content:""; position:absolute; left:50%; top:-14px; width:22px; height:22px; transform:translateX(-50%);
     border-radius:50% 50% 0 0/60% 60% 0 0; background:var(--gold2); box-shadow:-14px 4px 0 -2px var(--gold), 14px 4px 0 -2px var(--gold)}
-  /* ambiance "chest" — vraie silhouette de coffre au trésor, deuxième passe (2026-08-11) après
-     retour de Tristan : la première version (un cran plus bombée qu'un cadeau, mais un seul
-     rectangle arrondi en dessous) se lisait encore comme "un paquet cadeau avec un toit rond",
-     pas comme un coffre. Cette fois : lattes de bois verticales visibles sur le corps ET le
-     couvercle (repeating-linear-gradient, pas juste une couleur bois unie), couvercle en vrai
-     dôme/tonneau (border-radius elliptique très prononcé, pas juste des coins arrondis), DEUX
-     cerclages métalliques qui s'alignent pile à la jointure quand c'est fermé (un sur le bas du
-     couvercle, un sur le haut du corps — vus ensemble ils lisent comme un seul bandeau qui
-     enserre tout le coffre), et un fermoir/cadenas central bien visible en haut du corps, sous la
-     charnière. Animation d'ouverture dédiée (wheel-chest-lid-open, pas wheel-lid-pop du cadeau) :
-     le couvercle pivote depuis SA BASE (transform-origin:50% 100%, pas un coin comme le cadeau)
-     vers l'arrière au-delà de la verticale, comme une vraie charnière de coffre — pas un
-     "pop" qui s'envole en diagonale, ce geste-là appartient au ruban de cadeau, pas à un coffre. */
-  .reveal-box.chest{width:156px; height:108px}
-  .reveal-box.chest .reveal-base{left:3px; right:3px; bottom:0; height:60px; border-radius:3px;
-    background:
-      repeating-linear-gradient(90deg, #6e4c2d 0 8px, #5f4126 8px 9px),
-      linear-gradient(160deg,#7a5636,#4a331d);
-    border:1px solid #1c1206; box-shadow:0 10px 22px rgba(0,0,0,.6)}
-  /* cerclage bas, sur le corps — s'aligne avec le cerclage du couvercle ci-dessous quand fermé */
-  .reveal-box.chest .reveal-base::before{content:""; position:absolute; left:-4px; right:-4px; top:9px; height:7px;
-    background:linear-gradient(180deg,var(--gold2),var(--gold)); box-shadow:0 0 0 1px #1c1206}
-  /* fermoir/cadenas, centré, chevauche la jointure couvercle/corps */
-  .reveal-box.chest .reveal-base::after{content:""; position:absolute; left:50%; top:-9px; width:20px; height:22px; transform:translateX(-50%);
-    background:linear-gradient(160deg,var(--gold2),var(--gold)); border:1px solid #1c1206; border-radius:3px 3px 7px 7px;
-    box-shadow:0 2px 5px rgba(0,0,0,.5); z-index:2}
-  .reveal-box.chest .reveal-lid{left:1px; right:1px; top:0; height:56px;
-    border-radius:50% 50% 3px 3px/100% 100% 5px 5px;
-    background:
-      repeating-linear-gradient(90deg, #8a6440 0 8px, #79552f 8px 9px),
-      linear-gradient(160deg,#9a7248,#5c4326);
-    border:1px solid #1c1206; box-shadow:0 4px 10px rgba(0,0,0,.5);
-    transform-origin:50% 100%; transform-style:preserve-3d}
-  /* cerclage haut, sur le bas du dôme — voir cerclage bas du corps ci-dessus */
-  .reveal-box.chest .reveal-lid::before{content:""; position:absolute; left:-4px; right:-4px; bottom:5px; height:7px;
-    background:linear-gradient(180deg,var(--gold2),var(--gold)); box-shadow:0 0 0 1px #1c1206}
-  /* reflet clair au sommet du dôme, pour vendre le volume bombé plutôt qu'un simple coin arrondi */
-  .reveal-box.chest .reveal-lid::after{content:""; position:absolute; left:50%; top:6px; width:46%; height:34%; transform:translateX(-50%);
-    background:radial-gradient(ellipse at 50% 0%, rgba(255,236,190,.35), transparent 70%); border-radius:50%; pointer-events:none}
-  @keyframes wheel-chest-lid-open{
-    0%{transform:rotate(0deg) translateY(0)}
-    100%{transform:rotate(-70deg) translateY(-18px)}
-  }
-  .reveal-box.chest.open .reveal-lid{animation:wheel-chest-lid-open .6s cubic-bezier(.3,1.3,.5,1) forwards}
+  /* ambiance "chest" — vraie silhouette de coffre (pas juste un cadeau recoloré) : malle large et
+     trapue, couvercle bombé (au lieu du couvercle plat du cadeau), cerclages métalliques dorés,
+     fermoir central. Ne réutilise que la structure animée (shake/pop) de .reveal-box, pas sa
+     géométrie — c'est cette géométrie qui faisait "toujours un cadeau" malgré la couleur bois. */
+  .reveal-box.chest{width:148px; height:92px}
+  .reveal-box.chest .reveal-base{height:56px; border-radius:4px;
+    background:linear-gradient(160deg,#8a6440,#4a331d); border:1px solid #241708}
+  .reveal-box.chest .reveal-base::before{content:""; position:absolute; left:-2px; right:-2px; top:13px; height:8px;
+    background:linear-gradient(180deg,var(--gold2),var(--gold)); box-shadow:0 0 0 1px #241708}
+  .reveal-box.chest .reveal-lid{left:0; right:0; top:0; height:46px;
+    border-radius:74px 74px 6px 6px/44px 44px 6px 6px;
+    background:linear-gradient(160deg,#a17a52,#5c4326); border:1px solid #241708; transform-origin:12% 96%}
+  .reveal-box.chest .reveal-lid::before{content:""; position:absolute; left:50%; top:4px; bottom:0; width:9px; transform:translateX(-50%);
+    background:linear-gradient(180deg,var(--gold2),var(--gold)); box-shadow:0 0 0 1px #241708}
+  .reveal-box.chest .reveal-lid::after{content:""; position:absolute; left:50%; bottom:-9px; width:22px; height:16px; transform:translateX(-50%);
+    background:linear-gradient(160deg,var(--gold2),var(--gold)); border-radius:3px; box-shadow:0 0 0 1px #241708; z-index:1}
   .wheel-reward-banner{position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:.9rem; opacity:0; transform:translateY(8px) scale(.94);
     transition:opacity .5s ease, transform .5s cubic-bezier(.34,1.56,.64,1)}
   /* z-index:2 = garde-fou pour que le bandeau (et le bouton Fermer) restent toujours cliquables
