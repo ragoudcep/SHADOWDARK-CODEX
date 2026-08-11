@@ -350,7 +350,7 @@ function entityText(type, o){
   if(type==="session")  return [o.title,(o.entries||[]).map(e=>e.label+" "+e.notes).join(" \n ")].join(" \n ");
   if(type==="npc")      return [o.name,o.description,o.physique,o.age,o.possessions,o.objectif,o.moyens,o.comportement].join(" \n ");
   if(type==="pointcrawl") return [o.title,o.description,(o.nodes||[]).map(nd=>{const ev=getEntity("event",nd.eventId);return ev?ev.title:"";}).join(" ")].join(" \n ");
-  if(type==="pc")       return [o.name,o.ancestry,o.cls,o.info,o.skills,o.spells,o.inventory,(o.talents||[]).map(t=>t.text).join(" ")].join(" \n ");
+  if(type==="pc")       return [o.name,o.ancestry,o.cls,o.info,o.skills,o.spells,o.inventory,o.languages,o.deity,o.masteredWeapon].join(" \n ");
   if(type==="treasure") return [o.name,treasureCatLabel(o.category),o.description,o.bonus,o.boon,o.curse,o.personality].join(" \n ");
   if(type==="spell")    return [o.name,spellClassLabel(o.class),o.tier?"rang "+o.tier:"",o.range,o.duration,o.effect].join(" \n ");
   return "";
@@ -1677,10 +1677,6 @@ function printCrawl(id){
 }
 
 /* ---- Impression de fiches PJ (une par page A4, inspirée de la fiche perso vierge) ---- */
-function pcInfoExtract(info, label){
-  const m = String(info||"").match(new RegExp("^\\s*"+label+"\\s*:\\s*(.*)$","im"));
-  return m ? m[1].trim() : "";
-}
 function pcInfoRest(info){
   const skipRe = /^\s*(Titre|Langues|Divinité|Trait d'ascendance.*|Armes autorisées|Armures autorisées|Capacités de classe|Jet de talent.*|PJ généré automatiquement.*)\s*:?/i;
   return String(info||"").split(/\r?\n/).filter(l=>!skipRe.test(l)).join("\n").trim();
@@ -1693,26 +1689,44 @@ function printInventoryList(p){
     <div class="pp-pc-currency">PO ______&nbsp;&nbsp;&nbsp; PA ______&nbsp;&nbsp;&nbsp; PC ______</div>
     <ol class="pp-inv-list">${items.map(t=>`<li>${t}</li>`).join("")}</ol></div>`;
 }
+/* Bloc « Classe » du PDF — même source que pcClassSectionHTML (CLASSES_DATA[p.cls]), juste avec
+   les classes CSS d'impression au lieu de celles de la fiche détail. */
+function printClassBlock(p){
+  const cd = CLASSES_DATA[p.cls];
+  if(!cd) return "";
+  let spellLine = "";
+  if(cd.spellClass){
+    const dc = [1,2,3,4,5].map(r=>`Rang ${r} : DD ${spellCastDC(r)}`).join(" · ");
+    spellLine = `<p>Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${p.cls==="Prêtre"?" (+ Renvoi des morts-vivants, offert)":""}<br>Difficulté d'incantation — ${dc}</p>`;
+  }
+  let weaponLine = "";
+  if(p.masteredWeapon && p.masteredWeapon.trim()){
+    const bonus = 1 + Math.floor((parseInt(p.level)||1)/2);
+    weaponLine = `<p>Arme maîtrisée : ${esc(p.masteredWeapon)} (+${bonus} attaque/dégâts)</p>`;
+  }
+  return `<div class="pp-sec"><h4>Classe — ${esc(p.cls)}</h4>
+    <p>Dé de vie d${cd.hitDie} · Armes : ${esc(cd.weapons)} · Armures : ${esc(cd.armor)}</p>
+    <p>${esc(cd.feature)}</p>
+    ${weaponLine}${spellLine}
+    <table class="pp-tal"><tbody>${cd.talents.map(t=>`<tr><td>${esc(t.roll)}</td><td>${renderTextPrint(t.text)}</td></tr>`).join("")}</tbody></table>
+  </div>`;
+}
 function printPCSheet(p){
   const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
-  const titre = pcInfoExtract(p.info,"Titre");
-  const langues = pcInfoExtract(p.info,"Langues");
-  const divinite = pcInfoExtract(p.info,"Divinité");
-  const notes = pcInfoRest(p.info);
-  const talentsRows = (p.talents||[]).filter(t=>t.roll||t.text);
+  const titre = p.cls ? titleFor(p.cls, p.alignment, p.level) : "";
+  const notes = pcInfoRest(p.info); // sécurité : retire encore les éventuelles lignes figées d'anciens PJ non nettoyés
   const sub = [p.ancestry,p.cls,p.level?`Niveau ${p.level}`:"",titre,p.alignment?cap(p.alignment):""].filter(Boolean).join(" · ");
-  const talentsText = talentsRows.length ? `<table class="pp-tal"><tbody>${talentsRows.map(t=>`<tr><td>${esc(t.roll)}</td><td>${renderTextPrint(t.text)}</td></tr>`).join("")}</tbody></table>` : "";
   return `<section class="pp-pcsheet">
     <h1>${esc(p.name||"Sans nom")}</h1>
-    <p class="pp-desc">${esc(sub||"—")}${langues?` · Langues : ${esc(langues)}`:""}${divinite?` · Divinité : ${esc(divinite)}`:""}</p>
+    <p class="pp-desc">${esc(sub||"—")}${p.languages?` · Langues : ${esc(p.languages)}`:""}${p.deity?` · Divinité : ${esc(p.deity)}`:""}</p>
     <div class="pp-pcstats">
       <div class="pp-pcbox"><label>PV</label><div class="v">${esc(p.hpCurrent||"—")}/${esc(p.hp||"—")}</div></div>
       <div class="pp-pcbox"><label>CA</label><div class="v">${esc(p.ac||"—")}</div></div>
       ${ab.map(([lbl,k])=>`<div class="pp-pcbox"><label>${lbl}</label><div class="v">${esc(p[k]||"—")}</div></div>`).join("")}
     </div>
+    ${printClassBlock(p)}
     ${printSection("Compétences", p.skills)}
     ${p.spells&&p.spells.trim() ? printSection("Sortilèges", p.spells) : ""}
-    ${talentsText ? `<div class="pp-sec"><h4>Talents — 2d6</h4>${talentsText}</div>` : ""}
     ${printInventoryList(p)}
     ${notes ? printSection("Notes", notes) : ""}
   </section>`;
@@ -1906,7 +1920,6 @@ function openPrintNPCCardsModal(){
 /* =========================================================================
    PJ — fiches de personnages-joueurs (stat bloc + inventaire + talents 2d6)
    ========================================================================= */
-const DEFAULT_TALENTS = ()=>[{roll:"2",text:""},{roll:"3-6",text:""},{roll:"7-9",text:""},{roll:"10-11",text:""},{roll:"12",text:""}];
 const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien"];
 
 /* =========================================================================
@@ -1932,20 +1945,42 @@ const DIVINITES = [
   {name:"Ramlaat", align:"chaos", desc:"Le Pillard, le Barbare, la Horde — adoré par nombre d'orques."},
   {name:"Shune l'Infâme", align:"chaos", desc:"Murmure des secrets arcaniques aux sorciers et sorcières, rivale d'Ord."}
 ];
+/* Ascendances (2026-08-11) : à la demande de Tristan, plus aucune dénomination raciale
+   (Nain/Elfe/Gobelin...) — l'identité visuelle du personnage passe désormais uniquement par son
+   portrait/illustration. Les ascendances ne sont plus que des traits mécaniques génériques,
+   piochés parmi 12 (d12) : les 6 premières reprennent exactement les traits des anciennes
+   races (renommés), les 6 suivantes sont de nouveaux traits fournis par Tristan. Plus de
+   langues liées à l'ascendance (cf. generateRandomPC : tirage d'une langue courante au hasard,
+   indépendant de l'ascendance) — seul `robust` reste un flag spécial pour le calcul des PV. */
 const ASCENDANCES = {
-  "Demi-Orque": { languages:["Langue commune","Orque"],
-    trait:"Puissance — bonus de +1 aux jets d'attaque avec des armes de corps à corps." },
-  "Elfe": { languages:["Langue commune","Elfique","Sylvestre"],
-    trait:"Yeux perçants — bonus de +1 aux jets d'attaque avec des armes à distance, ou bonus de +1 aux tests d'incantation." },
-  "Gobelin": { languages:["Langue commune","Gobelin"],
-    trait:"Sens aiguisés — on ne peut pas vous prendre par surprise." },
-  "Halfelin": { languages:["Langue commune"],
-    trait:"Discret — une fois par jour, vous pouvez devenir invisible pendant 3 rounds." },
-  "Humain": { languages:["Langue commune"], extraLanguage:true,
-    trait:"Ambitieux — vous recevez un jet de talent supplémentaire au 1er niveau." },
-  "Nain": { languages:["Langue commune","Langue naine"], robust:true,
-    trait:"Robuste — commencez avec +2 PV ; avantage sur le dé de points de vie gagné par niveau." }
+  "Puissance": { trait:"Puissance — bonus de +1 aux jets d'attaque avec des armes de corps à corps." },
+  "Yeux perçants": { trait:"Yeux perçants — bonus de +1 aux jets d'attaque avec des armes à distance, ou bonus de +1 aux tests d'incantation." },
+  "Sens aiguisés": { trait:"Sens aiguisés — on ne peut pas vous prendre par surprise." },
+  "Discret": { trait:"Discret — une fois par jour, vous pouvez devenir invisible pendant 3 rounds." },
+  "Ambitieux": { trait:"Ambitieux — vous recevez un jet de talent supplémentaire au 1er niveau." },
+  "Robuste": { robust:true,
+    trait:"Robuste — commencez avec +2 PV ; avantage sur le dé de points de vie gagné par niveau." },
+  "Rapide": { trait:"Rapide — utilisez votre modificateur de Dextérité au lieu de Force pour vos jets d'attaque au corps à corps." },
+  "Géant": { trait:"Géant — avantage aux jets de Force ; désavantage aux jets de Discrétion." },
+  "Minuscule": { trait:"Minuscule — désavantage aux jets de Force ; avantage aux jets de Discrétion." },
+  "Envoûtant": { trait:"Envoûtant — bonus de +1 aux jets d'interaction sociale." },
+  "Prédestiné": { trait:"Prédestiné — vous pouvez relancer un jeton de chance qui vient d'être dépensé, mais devez accepter le second résultat." },
+  "Athlétique": { trait:"Athlétique — avantage aux jets de course, de saut et d'escalade." }
 };
+/* Texte du trait d'ascendance affiché sur la fiche — calculé en direct (pas stocké), pour rester
+   toujours cohérent si la classe change. Seul « Yeux perçants » a un texte conditionnel selon
+   que la classe lance des sorts ou non. */
+function ascendanceTraitText(ancestryName, cls){
+  const asc = ASCENDANCES[ancestryName];
+  if(!asc) return "";
+  if(ancestryName==="Yeux perçants"){
+    const cd = CLASSES_DATA[cls];
+    return (cd && cd.spellClass)
+      ? "Yeux perçants — bonus de +1 aux tests d'incantation."
+      : "Yeux perçants — bonus de +1 aux jets d'attaque avec des armes à distance.";
+  }
+  return asc.trait;
+}
 const CLASSES_DATA = {
   "Guerrier": {
     hitDie:8, weapons:"Toutes.", armor:"Toutes les armures, tous les boucliers.",
@@ -2030,12 +2065,18 @@ const ORIGINES_ROWS = [
   "Chirurgien. Vous connaissez l'anatomie, la chirurgie et les premiers soins."
 ];
 const ASCENDANCE_ROWS = [
-  "Demi-Orque — Immenses guerriers aussi audacieux que les humains et impitoyables que les orques. Langues : commune, orque. Trait : Puissance (+1 aux jets d'attaque en mêlée).",
-  "Elfe — Peuple éthéré et gracieux épris de savoir et de beauté, qui voit loin et vit longtemps. Langues : commune, elfique, sylvestre. Trait : Yeux perçants (+1 aux attaques à distance ou aux tests d'incantation).",
-  "Gobelin — Êtres verts et futés qui prospèrent dans les lieux sombres et exigus, aussi féroces que minuscules. Langues : commune, gobelin. Trait : Sens aiguisés (impossible à prendre par surprise).",
-  "Halfelin — Petit peuple joyeux et campagnard, non dénué de malice, qui apprécie les plaisirs simples. Langue : commune. Trait : Discret (invisible 3 rounds, 1×/jour).",
-  "Humain — Peuple audacieux et adaptable qui apprend vite et accomplit de grands exploits. Langues : commune + 1 langue courante supplémentaire. Trait : Ambitieux (jet de talent supplémentaire au 1er niveau).",
-  "Nain — Peuple courageux et solide comme les royaumes de pierre qu'il se taille dans les montagnes. Langues : commune, naine. Trait : Robuste (+2 PV, avantage sur le dé de PV gagné par niveau)."
+  "Puissance — +1 aux jets d'attaque en mêlée.",
+  "Yeux perçants — +1 aux attaques à distance ou aux tests d'incantation.",
+  "Sens aiguisés — impossible à prendre par surprise.",
+  "Discret — invisible 3 rounds, 1×/jour.",
+  "Ambitieux — jet de talent supplémentaire au 1er niveau.",
+  "Robuste — +2 PV, avantage sur le dé de PV gagné par niveau.",
+  "Rapide — utilise Dextérité au lieu de Force pour les attaques au corps à corps.",
+  "Géant — avantage aux jets de Force, désavantage aux jets de Discrétion.",
+  "Minuscule — désavantage aux jets de Force, avantage aux jets de Discrétion.",
+  "Envoûtant — +1 aux jets d'interaction sociale.",
+  "Prédestiné — peut relancer un jeton de chance dépensé, doit accepter le second résultat.",
+  "Athlétique — avantage aux jets de course, de saut et d'escalade."
 ];
 const DIVINITES_ROWS = DIVINITES.map(d=>`${d.name} (${cap(d.align)}) — ${d.desc}`);
 const NOMS_ROWS = [ // banque maison, non issue du livre — purement pratique pour un tirage rapide
@@ -2049,7 +2090,7 @@ function seedCharGenTables(){
     db.tables.push({id:uid(), title, context, rows});
   };
   ensure("Origines", "Votre passé et vos expériences antérieures (d20) — création de personnage, Quickstart p.14.", ORIGINES_ROWS);
-  ensure("Ascendances", "L'héritage ancestral et culturel de votre personnage (d6) — création de personnage, Quickstart p.16-17.", ASCENDANCE_ROWS);
+  ensure("Ascendances", "Traits génériques de votre personnage, sans dénomination raciale — l'identité passe par le portrait (d12).", ASCENDANCE_ROWS);
   ensure("Langues courantes", "Langue supplémentaire connue en plus de la langue commune (d9) — Quickstart p.29.", LANGUES_COURANTES);
   ensure("Langues rares", "Langues rares, réservées à certaines classes/origines (d4) — Quickstart p.29.", LANGUES_RARES);
   ensure("Divinités", "Dieux que peut servir un PJ, notamment les prêtres (d7) — Quickstart p.30-31.", DIVINITES_ROWS);
@@ -2084,7 +2125,6 @@ function generateRandomPC(){
   }
 
   const level = "1";
-  const title = titleFor(cls, alignment, level);
 
   const rollTalent = ()=>{
     const total = rollDice(2,6);
@@ -2092,10 +2132,12 @@ function generateRandomPC(){
     return { total, text: row?row.text:"" };
   };
   const talentRolls = [rollTalent()];
-  if(ancestryName==="Humain") talentRolls.push(rollTalent()); // Ambitieux : jet de talent supplémentaire
+  if(ancestryName==="Ambitieux") talentRolls.push(rollTalent()); // jet de talent supplémentaire
 
-  let languages = asc.languages.slice();
-  if(asc.extraLanguage) languages.push(pick(LANGUES_COURANTES));
+  // Langues (2026-08-11) : plus liées à l'ascendance (supprimée avec les races) — chaque PJ tire
+  // 1 langue courante au hasard en plus de la commune ; les bonus de classe (Magicien, etc.)
+  // s'ajoutent par-dessus comme avant.
+  let languages = ["Langue commune", pick(LANGUES_COURANTES)];
   if(cd.extraCommonLanguages) languages.push(...pickN(LANGUES_COURANTES, cd.extraCommonLanguages));
   if(cd.extraRareLanguages) languages.push(...pickN(LANGUES_RARES, cd.extraRareLanguages));
   languages = [...new Set(languages)];
@@ -2107,13 +2149,6 @@ function generateRandomPC(){
   if(cls==="Prêtre"){
     const candidates = DIVINITES.filter(d=>d.align===alignment);
     deity = (candidates.length ? pick(candidates) : pick(DIVINITES)).name;
-  }
-
-  let traitText = asc.trait;
-  if(ancestryName==="Elfe"){
-    traitText = cd.spellClass
-      ? "Yeux perçants — bonus de +1 aux tests d'incantation."
-      : "Yeux perçants — bonus de +1 aux jets d'attaque avec des armes à distance.";
   }
 
   let spellLines = [];
@@ -2141,20 +2176,19 @@ function generateRandomPC(){
     spells: spellLines.join("\n"),
     invSlots: String(invSlots),
     inventory: `${gold} po pour acheter votre équipement de départ (armes/armure autorisées par la classe — l'appli ne connaît pas encore les prix, à compléter manuellement).`,
+    languages: languages.join(", "),
+    deity: deity,
+    masteredWeapon: "",
+    // Titre, langues (déjà stockées à part), armes/armures/capacités de classe et talents ne
+    // sont plus figés ici : ils sont recalculés en direct depuis p.cls/p.ascendance à
+    // l'affichage (voir detailPC/printPCSheet) — seul le jet de talent initial (un événement
+    // ponctuel, pas une règle de classe) reste noté ici à titre d'historique.
     info: [
-      `Titre : ${title}`,
-      `Langues : ${languages.join(", ")}`,
-      deity ? `Divinité : ${deity}` : "",
-      `Trait d'ascendance (${ancestryName}) : ${traitText}`,
-      `Armes autorisées : ${cd.weapons}`,
-      `Armures autorisées : ${cd.armor}`,
-      `Capacités de classe : ${cd.feature}`,
-      ...talentRolls.map((r,i)=>`Jet de talent ${talentRolls.length>1?(i+1)+" ":""}(2d6=${r.total}) : ${r.text||"—"}`),
+      ...talentRolls.map((r,i)=>`Jet de talent initial ${talentRolls.length>1?(i+1)+" ":""}(2d6=${r.total}) : ${r.text||"—"}`),
       `PJ généré automatiquement (règles de création, Quickstart p.12-31).`
     ].filter(Boolean).join("\n"),
-    talents: cd.talents.map(t=>({roll:t.roll, text:t.text})),
     images: [],
-    portrait: pickRandomPortrait(ancestryName)
+    portrait: pickRandomPortrait()
   };
 
   db.pcs.push(o);
@@ -2182,19 +2216,23 @@ function listPCs(){
 
 function formPC(){
   const p = view.mode==="edit" ? getEntity("pc",view.id)
-    : {name:"",ancestry:"",cls:"",level:"1",alignment:"neutre",ac:"",hp:"",hpCurrent:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",skills:"",spells:"",inventory:"",invSlots:"",info:"",talents:DEFAULT_TALENTS()};
-  const talents = p.talents && p.talents.length ? p.talents : DEFAULT_TALENTS();
+    : {name:"",ancestry:"",cls:"",level:"1",alignment:"neutre",ac:"",hp:"",hpCurrent:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",skills:"",spells:"",inventory:"",invSlots:"",info:"",languages:"",deity:"",masteredWeapon:""};
   formImages = (p.images||[]).slice();
   formPortrait = p.portrait || "";
   const alignOpt = ["loyal","neutre","chaos"].map(v=>`<option value="${v}" ${p.alignment===v?"selected":""}>${cap(v)}</option>`).join("");
+  // Ascendance et Classe sont des listes fermées (2026-08-11) — nécessaire pour que les règles de
+  // classe/ascendance affichées sur la fiche (voir detailPC) se calculent toujours correctement ;
+  // un texte libre mal orthographié ne matcherait plus rien dans CLASSES_DATA/ASCENDANCES.
+  const ancestryOpt = `<option value="">— Aucune —</option>` + Object.keys(ASCENDANCES).map(a=>`<option value="${esc(a)}" ${p.ancestry===a?"selected":""}>${esc(a)}</option>`).join("");
+  const clsOpt = `<option value="">— Aucune —</option>` + PC_CLASSES.map(c=>`<option value="${esc(c)}" ${p.cls===c?"selected":""}>${esc(c)}</option>`).join("");
   const stats = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
     <h1>${view.mode==="edit"?"Modifier le":"Nouveau"} personnage-joueur</h1>
     <div class="field"><label>Nom</label><input type="text" id="f-name" value="${esc(p.name)}" placeholder="Aldric le Vaillant"></div>
     <div class="row">
-      <div class="field"><label>Ascendance</label><input type="text" id="f-ancestry" value="${esc(p.ancestry)}" placeholder="Elfe, Humain, Nain, Halfelin…"></div>
-      <div class="field"><label>Classe</label><input type="text" id="f-cls" list="pc-classes" value="${esc(p.cls)}" placeholder="Voleur, Magicien, Guerrier, Clerc"><datalist id="pc-classes">${PC_CLASSES.map(c=>`<option value="${esc(c)}"></option>`).join("")}</datalist></div>
+      <div class="field"><label>Ascendance</label><select id="f-ancestry">${ancestryOpt}</select></div>
+      <div class="field"><label>Classe</label><select id="f-cls">${clsOpt}</select></div>
       <div class="field" style="flex:0 1 110px"><label>Niveau</label><input type="number" id="f-level" min="1" max="20" value="${esc(p.level)}"></div>
       <div class="field" style="flex:0 1 140px"><label>Alignement</label><select id="f-align">${alignOpt}</select></div>
     </div>
@@ -2208,17 +2246,18 @@ function formPC(){
         ${stats.map(([lbl,k])=>`<div class="field" style="margin:0"><label>${lbl}</label><input type="text" id="f-${k}" value="${esc(p[k])}" placeholder="+0"></div>`).join("")}
       </div>
     </div>
+    <div class="row">
+      <div class="field"><label>Langues <span class="hint">(commune + tirages/choix)</span></label><input type="text" id="f-languages" value="${esc(p.languages||"")}" placeholder="Langue commune, Elfique…"></div>
+      <div class="field"><label>Divinité <span class="hint">(surtout pour un Prêtre)</span></label><input type="text" id="f-deity" list="pc-deities" value="${esc(p.deity||"")}" placeholder="Sainte Terragnis…"><datalist id="pc-deities">${DIVINITES.map(d=>`<option value="${esc(d.name)}"></option>`).join("")}</datalist></div>
+      <div class="field"><label>Arme maîtrisée <span class="hint">(surtout pour un Guerrier)</span></label><input type="text" id="f-masteredWeapon" value="${esc(p.masteredWeapon||"")}" placeholder="Épée longue…"></div>
+    </div>
     <div class="field"><label>Compétences <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
     <div class="field"><label>Sortilèges <span class="hint">(un par ligne)</span></label><textarea id="f-spells" placeholder="Lumière…&#10;Projectile magique…">${esc(p.spells)}</textarea></div>
     <div class="row">
       <div class="field" style="flex:0 1 220px"><label>Emplacements d'inventaire <span class="hint">(10 ou Force, la plus haute valeur)</span></label><input type="text" id="f-invSlots" value="${esc(p.invSlots||"")}" placeholder="10"></div>
     </div>
     <div class="field"><label>Inventaire <span class="hint">(un objet par ligne)</span></label><textarea id="f-inventory" placeholder="Épée longue…&#10;Corde (15m)…&#10;Rations x3">${esc(p.inventory)}</textarea></div>
-    <div class="field"><label>Informations / notes</label><textarea id="f-info" placeholder="Histoire, ascendance détaillée, liens avec des [[PNJ]]…">${esc(p.info)}</textarea></div>
-    <div class="field"><label>Talents — table 2d6 <span class="hint">(5 lignes ; à compléter selon la classe)</span></label>
-      <div id="talents-wrap">${talents.map(t=>talentInput(t)).join("")}</div>
-      <button class="btn ghost sm" data-add-talent="1" style="margin-top:.4rem">+ Ajouter une ligne</button>
-    </div>
+    <div class="field"><label>Informations / notes</label><textarea id="f-info" placeholder="Histoire, liens avec des [[PNJ]]…">${esc(p.info)}</textarea></div>
     ${portraitFieldHTML(formPortrait)}
     <div class="field"><label>Autres images <span class="hint">(illustrations libres, plusieurs possibles)</span></label>
       <div id="images-wrap"></div>
@@ -2228,15 +2267,6 @@ function formPC(){
     <div class="form-actions"><button class="btn" data-save="pc">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
   </div>`;
   renderImageThumbs();
-}
-function talentInput(t){
-  t = t||{};
-  return `<div class="repeat-item" data-talentitem>
-    <div class="rrow">
-      <div class="field" style="flex:0 1 90px"><label>2d6</label><input type="text" class="tal-roll" value="${esc(t.roll)}" placeholder="7-9"></div>
-      <div class="field" style="flex:1 1 200px"><label>Talent / évolution</label><input type="text" class="tal-text" value="${esc(t.text)}" placeholder="(à compléter)"></div>
-      <button class="btn danger sm" data-remove-talent>✕</button>
-    </div></div>`;
 }
 function savePC(){
   const o = view.mode==="edit" ? getEntity("pc",view.id) : {id:uid()};
@@ -2255,10 +2285,9 @@ function savePC(){
   o.invSlots = $("#f-invSlots").value.trim();
   o.inventory = $("#f-inventory").value;
   o.info = $("#f-info").value;
-  o.talents = [...document.querySelectorAll("#talents-wrap [data-talentitem]")].map(el=>({
-    roll: el.querySelector(".tal-roll").value.trim(),
-    text: el.querySelector(".tal-text").value.trim()
-  }));
+  o.languages = $("#f-languages").value.trim();
+  o.deity = $("#f-deity").value.trim();
+  o.masteredWeapon = $("#f-masteredWeapon").value.trim();
   o.images = formImages.slice();
   o.portrait = formPortrait || "";
   if(!o.name){ toast("Le nom est requis."); return; }
@@ -2267,10 +2296,41 @@ function savePC(){
   saveDB(); toast("Personnage enregistré."+(_n?` · ${_n} lien(s) mis à jour`:"")); view={tab:"pcs",mode:"detail",id:o.id}; render();
 }
 
+/* Section "Classe" (2026-08-11) : entièrement calculée en direct depuis p.cls/CLASSES_DATA —
+   aucune donnée de classe n'est stockée sur le PJ, donc changer sa classe dans le formulaire met
+   instantanément à jour armes/armures/capacités/sorts/DD/talents affichés ici, y compris pour un
+   PJ créé à la main (pas seulement ceux générés aléatoirement). Réutilisée par printPCSheet(). */
+function pcClassSectionHTML(p){
+  const cd = CLASSES_DATA[p.cls];
+  if(!cd) return "";
+  let spellBlock = "";
+  if(cd.spellClass){
+    const dcTags = [1,2,3,4,5].map(r=>`<span class="tag">Rang ${r} : DD ${spellCastDC(r)}</span>`).join(" ");
+    spellBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0">
+      <b>Sorts connus (rang 1)</b> : ${cd.spellsKnownLvl1}${p.cls==="Prêtre" ? " (+ Renvoi des morts-vivants, offert)" : ""}<br>
+      <b>Difficulté (DD) d'incantation</b> : 10 + (rang du sort × 2) — ${dcTags}
+    </p>`;
+  }
+  let weaponBlock = "";
+  if(p.masteredWeapon && p.masteredWeapon.trim()){
+    const bonus = 1 + Math.floor((parseInt(p.level)||1)/2);
+    weaponBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0"><b>Arme maîtrisée</b> : ${esc(p.masteredWeapon)} (+${bonus} aux jets d'attaque et de dégâts avec cette arme)</p>`;
+  }
+  return `<div class="section"><h2>🛡 Classe — ${esc(p.cls)}</h2>
+    <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0"><b>Dé de vie</b> d${cd.hitDie} &nbsp;·&nbsp; <b>Armes</b> ${esc(cd.weapons)} &nbsp;·&nbsp; <b>Armures</b> ${esc(cd.armor)}</p>
+    <p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0">${esc(cd.feature)}</p>
+    ${weaponBlock}
+    ${spellBlock}
+    <div style="margin:.6rem 0 .5rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6 (talent)</button> <span id="talent-roll-out" class="roll-result"></span></div>
+    <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Talent / évolution</th></tr></thead>
+      <tbody id="talents-body">${cd.talents.map(t=>`<tr data-roll-range="${esc(t.roll)}"><td class="idx" style="text-align:center">${esc(t.roll)}</td><td>${renderText(t.text)}</td></tr>`).join("")}</tbody></table>
+  </div>`;
+}
 function detailPC(p){
   const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
   const listSec = (icon,label,val)=> (val&&val.trim()) ? `<div class="section"><h2>${icon} ${label}</h2>${renderBullets(val)}</div>` : "";
-  const talents = (p.talents||[]).filter(t=>t.roll||t.text);
+  const titre = p.cls ? titleFor(p.cls, p.alignment, p.level) : "";
+  const ascTrait = p.ancestry && ASCENDANCES[p.ancestry] ? ascendanceTraitText(p.ancestry, p.cls) : "";
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PJ</button>
     <span class="tag pc">PJ</span>
@@ -2279,7 +2339,8 @@ function detailPC(p){
       <h1>${esc(p.name||"Sans nom")}</h1>
       ${favStarHTML("pc",p.id,p.favorite,true)}
     </div>
-    <p class="muted" style="font-family:var(--ui)">${esc([p.ancestry,p.cls].filter(Boolean).join(" · "))}${p.alignment?` · ${esc(cap(p.alignment))}`:""}</p>
+    <p class="muted" style="font-family:var(--ui)">${esc([p.ancestry,p.cls,titre].filter(Boolean).join(" · "))}${p.alignment?` · ${esc(cap(p.alignment))}`:""}</p>
+    ${(p.languages||p.deity)?`<p class="muted" style="font-family:var(--ui);font-size:.85rem">${p.languages?`Langues : ${esc(p.languages)}`:""}${p.languages&&p.deity?" · ":""}${p.deity?`Divinité : ${esc(p.deity)}`:""}</p>`:""}
     ${detailActions("pc",p.id)}
     <div style="margin:.2rem 0 .8rem"><button class="btn ghost sm" data-print-pc="${p.id}">🖨 Imprimer cette fiche (PDF)</button></div>
     <div class="statblock">
@@ -2294,14 +2355,12 @@ function detailPC(p){
         ${ab.map(([lbl,k])=>`<div class="ab"><div class="n">${lbl}</div><div class="v">${esc(p[k]||"—")}</div></div>`).join("")}
       </div>
     </div>
+    ${ascTrait?`<p class="muted" style="font-family:var(--ui);font-size:.85rem;margin:.4rem 0 0">${esc(ascTrait)}</p>`:""}
+    ${pcClassSectionHTML(p)}
     ${listSec("🎯","Compétences",p.skills)}
     ${listSec("✨","Sortilèges",p.spells)}
     ${listSec("🎒",`Inventaire${p.invSlots?` (${esc(p.invSlots)} emplacements)`:""}`,p.inventory)}
     ${p.info?`<div class="section"><h2>📝 Informations</h2><div class="prose" style="font-family:var(--ui)">${renderText(p.info)}</div></div>`:""}
-    ${talents.length?`<div class="section"><h2>⭐ Talents (2d6)</h2>
-      <div style="margin:.2rem 0 .7rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6</button> <span id="talent-roll-out" class="roll-result"></span></div>
-      <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Talent / évolution</th></tr></thead>
-        <tbody id="talents-body">${talents.map(t=>`<tr data-roll-range="${esc(t.roll)}"><td class="idx" style="text-align:center">${esc(t.roll||"—")}</td><td>${renderText(t.text)||'<span class="faint">(à compléter)</span>'}</td></tr>`).join("")}</tbody></table></div>`:""}
     ${(p.images&&p.images.length)?`<div class="section"><h2>Portraits</h2>
       <div class="gallery">${p.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
     ${backlinksBlock("pc",p.id)}
@@ -2829,9 +2888,7 @@ app.addEventListener("click", e=>{
     else if(ty==="dungeonmap") saveDungeonMap();
     return;
   }
-  // Répéteurs & lancer — talents PJ
-  if(closest("data-add-talent")){ $("#talents-wrap").insertAdjacentHTML("beforeend", talentInput({})); return; }
-  if((el=t.closest("[data-remove-talent]"))){ el.closest("[data-talentitem]").remove(); return; }
+  // Lancer les talents 2d6 (table dérivée de la classe, voir detailPC)
   if((el=closest("data-roll-talents"))){ rollTalents(el.dataset.rollTalents); return; }
   if(closest("data-gen-pc")){ generateRandomPC(); return; }
   if(closest("data-gen-npc")){ generateRandomNPC(); return; }

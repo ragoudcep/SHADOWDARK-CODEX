@@ -8,6 +8,15 @@ que le Quickstart ne détaille pas (l'équipement précis est p.32, non fourni).
 Implémenté dans `index.html`, section `GÉNÉRATION ALÉATOIRE DE PJ` (constantes
 `CLASSES_DATA`, `ASCENDANCES`, `TITRES`, `DIVINITES`, `ORIGINES_ROWS`, etc.).
 
+**Refonte 2026-08-11 [maison]** : Ascendance et Classe sont des listes fermées (menus
+déroulants) sur la fiche PJ — plus de texte libre — pour que les règles de classe/ascendance
+ci-dessous se calculent **toujours en direct** depuis `p.cls`/`p.ancestry` sur la fiche
+détail (armes, armures, capacités, sorts connus, DD d'incantation, table de talents 2d6),
+y compris pour un PJ créé à la main. Changer la classe d'un PJ met tout à jour
+instantanément — rien n'est plus figé en texte à la création. Les dénominations raciales
+(Nain, Elfe, Gobelin…) ont été retirées à la demande de Tristan : l'identité d'un
+personnage passe désormais uniquement par son portrait/illustration, pas par une race.
+
 ## Personnage de 1er niveau — ce qu'il faut déterminer
 
 Une origine, des caractéristiques, une ascendance au choix, une classe au choix, un jet de
@@ -28,16 +37,28 @@ Modificateur : 1-3 → −4 · 4-5 → −3 · 6-7 → −2 · 8-9 → −1 · 1
 pas le modificateur), + mod. CON (s'il est positif) pour un Guerrier (talent *Bête de
 somme*).
 
-## Ascendances (d6)
+## Ascendances (d12) [maison, sans dénomination raciale depuis 2026-08-11]
 
-| Ascendance | Langues | Trait |
-|---|---|---|
-| Demi-Orque | commune, orque | **Puissance** — +1 aux jets d'attaque en corps à corps |
-| Elfe | commune, elfique, sylvestre | **Yeux perçants** — +1 attaques à distance OU +1 tests d'incantation (l'appli choisit incantation si la classe lance des sorts) |
-| Gobelin | commune, gobelin | **Sens aiguisés** — impossible à prendre par surprise |
-| Halfelin | commune | **Discret** — invisible 3 rounds, 1×/jour |
-| Humain | commune + 1 langue courante | **Ambitieux** — jet de talent de classe supplémentaire au 1er niveau |
-| Nain | commune, naine | **Robuste** — +2 PV ; avantage sur le dé de PV gagné par niveau |
+Plus aucune race (Nain/Elfe/Gobelin...) : chaque ascendance n'est qu'un trait mécanique
+générique, choisi librement ou tiré au hasard parmi 12. Les 6 premières reprennent
+exactement les anciens traits raciaux (renommés) ; les 6 suivantes sont de nouveaux traits
+fournis par Tristan. Les langues ne dépendent plus de l'ascendance (voir section Langues
+ci-dessous).
+
+| Ascendance | Trait |
+|---|---|
+| Puissance | +1 aux jets d'attaque en corps à corps |
+| Yeux perçants | +1 attaques à distance OU +1 tests d'incantation (l'appli choisit incantation si la classe lance des sorts) |
+| Sens aiguisés | impossible à prendre par surprise |
+| Discret | invisible 3 rounds, 1×/jour |
+| Ambitieux | jet de talent de classe supplémentaire au 1er niveau |
+| Robuste | +2 PV ; avantage sur le dé de PV gagné par niveau |
+| Rapide | utilise Dextérité au lieu de Force pour les attaques au corps à corps |
+| Géant | avantage aux jets de Force, désavantage aux jets de Discrétion |
+| Minuscule | désavantage aux jets de Force, avantage aux jets de Discrétion |
+| Envoûtant | +1 aux jets d'interaction sociale |
+| Prédestiné | peut relancer un jeton de chance dépensé, doit accepter le second résultat |
+| Athlétique | avantage aux jets de course, de saut et d'escalade |
 
 ## Classes (4 de base)
 
@@ -106,7 +127,12 @@ Le générateur pioche au hasard parmi les sorts déjà importés dans l'onglet 
 
 Loyal, Neutre ou Chaotique — au choix (le générateur tire au hasard).
 
-## Langues
+## Langues [maison, revu 2026-08-11]
+
+Plus liées à l'ascendance (supprimée avec les races). Le générateur donne à chaque PJ la
+langue commune + 1 langue courante tirée au hasard ; les bonus de langues liés à la classe
+(ex. Magicien : +2 courantes, +2 rares) s'ajoutent par-dessus, inchangés. Champ « Langues »
+libre sur la fiche, modifiable à la main ensuite.
 
 Courantes (d9, en plus de la langue commune) : Elfique, Géant, Gobelin, Langue naine,
 Merran, Orque, Reptilien, Sylvestre, Thanien.
@@ -140,7 +166,8 @@ Le générateur les crée à la volée si elles n'existent pas encore (et les r�
 donc éditables — sinon) :
 
 - **Origines** (d20) — Quickstart p.14.
-- **Ascendances** (d6) — Quickstart p.16-17.
+- **Ascendances** (d12) — **[maison depuis 2026-08-11]**, traits génériques sans race, voir
+  plus haut (inspiré des traits du Quickstart p.16-17, mais renommé/étendu).
 - **Langues courantes** (d9) — Quickstart p.29.
 - **Langues rares** (d4) — Quickstart p.29.
 - **Divinités** (d7) — Quickstart p.30-31.

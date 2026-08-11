@@ -1438,3 +1438,70 @@ vrai) des nœuds colorés et de la palette de pastilles, styles calculés
 vérifiés via `getComputedStyle` — bordures/liserés et couleurs de pastille
 conformes à `NODE_COLORS`. Pas de test end-to-end via l'appli réelle (login
 requis) ; à confirmer par Tristan sur un point crawl existant.
+
+## Refonte — Création de PJ : classe fiable + ascendances génériques (2026-08-11)
+
+Demande de Tristan, plan validé avant implémentation (voir
+`C:\Users\Tristan\.claude\plans\functional-inventing-pascal.md`) : la fiche PJ ne reflétait
+pas fiablement les règles de classe. `generateRandomPC()` calculait bien tout (armes, sorts,
+talents...) mais figeait le résultat en texte brut dans `info` au moment de la génération —
+rien ne se recalculait si la classe changeait ensuite. Les PJ créés à la main n'avaient
+jamais ce traitement du tout (`cls`/`ancestry` étaient du texte libre non relié à
+`CLASSES_DATA`/`ASCENDANCES`). Deuxième demande dans le même chantier : supprimer les
+dénominations raciales (Nain/Elfe/Gobelin...) — l'identité d'un PJ doit passer par son
+portrait, pas par une race.
+
+**Classe et Ascendance deviennent des `<select>` fermés** (`formPC()`, comme l'alignement
+déjà) — condition nécessaire pour que `CLASSES_DATA[p.cls]`/`ASCENDANCES[p.ancestry]`
+matchent toujours, texte libre banni.
+
+**`ASCENDANCES` réécrite (12 entrées génériques, d12)** : les 6 anciennes (Demi-Orque→
+Puissance, Elfe→Yeux perçants, Gobelin→Sens aiguisés, Halfelin→Discret, Humain→Ambitieux,
+Nain→Robuste) renommées sans référence raciale, + 6 nouvelles fournies par Tristan (Rapide,
+Géant, Minuscule, Envoûtant, Prédestiné, Athlétique). Langues retirées de la définition de
+l'ascendance (`languages`/`extraLanguage` supprimés) — remplacées par un tirage
+indépendant : chaque PJ généré reçoit la langue commune + 1 langue courante (d9) au hasard,
+les bonus de classe (Magicien +2/+2) s'ajoutant par-dessus comme avant. `ASCENDANCE_ROWS`
+(table « Ascendances » dans Tables aléatoires) mise à jour en conséquence (d6→d12).
+
+**Nouvelle section « Classe » calculée en direct** (`pcClassSectionHTML()` dans
+`detailPC()`, pendant `printClassBlock()` pour le PDF) : dé de vie, armes/armures
+autorisées, capacités de classe, sorts connus + DD d'incantation (réutilise
+`spellCastDC()`), et la table de talents 2d6 — plus jamais stockée sur le PJ
+(`p.talents` supprimé), toujours lue depuis `CLASSES_DATA[p.cls].talents`. Changer la
+classe d'un PJ met instantanément à jour toute cette section, y compris pour un PJ créé à
+la main. Ajout d'un champ `masteredWeapon` (texte libre, surtout pour un Guerrier) affichant
+le bonus concret calculé (`+1 + moitié du niveau`). Le titre (`Titre :`) n'est plus stocké
+non plus, toujours recalculé via `titleFor(p.cls, p.alignment, p.level)` (fonction déjà
+existante, inchangée). Nouveaux champs `languages`/`deity`, remplissables à la main,
+affichés sous le nom du PJ.
+
+**`generateRandomPC()` allégée** : ne bake plus Titre/Langues/Divinité/Trait
+d'ascendance/Armes/Armures/Capacités/Talents dans `info` (tout est dérivé à l'affichage) ;
+`info` ne garde que le jet de talent initial (2d6), un événement ponctuel propre à ce
+personnage, pas une règle de classe. `pickRandomPortrait()` appelé sans argument de race
+(le filtrage `p.race` du manifeste de portraits devient inutilisé côté PJ — conforme à la
+volonté que l'identité passe par le portrait, pas par une race ; aucune casse, juste un
+retour au pool complet).
+
+**Formulaire simplifié** : bloc d'édition manuelle des talents 2d6 retiré (`talents-wrap`,
+`data-add-talent`/`data-remove-talent`, `talentInput()`, `DEFAULT_TALENTS()`) — les talents
+n'ont plus de raison d'être éditables à la main puisqu'ils sont 100% dérivés de la classe.
+
+Vérifié dans le navigateur (bac à sable) : PJ sans classe → aucune section Classe ; assigné
+Guerrier + arme maîtrisée + niveau 3 → section Classe correcte (bonus d'arme +2 calculé) ;
+changé en Magicien → talents/armes/DD se mettent à jour instantanément, bonus d'arme
+maîtrisée résiduel toléré (champ indépendant, pas de garde-fou par classe — accepté comme
+limite mineure). PJ généré aléatoirement → ascendance générique, 6 langues cohérentes
+(commune + 1 tirage + 2+2 bonus Magicien), `info` ne contient plus que le jet de talent
+initial. Formulaire d'édition : select Ascendance/Classe pré-sélectionnent bien la valeur
+existante, plus de bloc Talents. `printPCSheet()` généré sans erreur, bloc Classe présent.
+`outils/audit-check.sh` : syntaxe JS OK sur les 8 blocs `<script>`.
+
+**Reste à faire (hors code)** : passe de nettoyage des PJ déjà en base sur le site live
+(remapper les anciennes ascendances raciales vers les nouvelles, extraire
+Titre/Langues/Divinité de `info` vers les nouveaux champs, retirer les lignes figées
+résiduelles) + mise à jour de la table « Ascendances » déjà seedée en Supabase (le `ensure()`
+de `seedCharGenTables()` ne réécrit pas une table existante) — prévu juste après ce commit,
+via Claude in Chrome sur le site déployé, même méthode que les autres passes de données de
+cette session.
