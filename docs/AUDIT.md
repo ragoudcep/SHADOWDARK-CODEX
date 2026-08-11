@@ -1505,3 +1505,27 @@ résiduelles) + mise à jour de la table « Ascendances » déjà seedée en Sup
 de `seedCharGenTables()` ne réécrit pas une table existante) — prévu juste après ce commit,
 via Claude in Chrome sur le site déployé, même méthode que les autres passes de données de
 cette session.
+
+- **Audit de cohérence après la soirée multi-sessions (2026-08-11)** : ~9 sessions cloud en
+  parallèle (Point Crawl château des rats, aperçu joueur global, audit refactor, trésors
+  homebrew, onglet notes MJ, fix cartes de donjon, favoris étoile, couleur nœuds Point Crawl,
+  récupération post-plantage) + la modularisation locale de Tristan ("Dual") en même temps.
+  Vérification demandée par Tristan ("attention aux conflits de commit") : `git log` sur les 40
+  derniers commits d'`origin/main` (aucun merge commit, aucun écrasement visible, historique
+  strictement linéaire), `git status` (2 commits locaux pas encore poussés, aucun conflit),
+  recherche de marqueurs `<<<<<<<`/`=======`/`>>>>>>>` sur tout le repo (aucun), `node --check`
+  sur les 11 fichiers `js/*.js` et sur les 8 blocs `<script>` d'`index.html` (tous propres).
+  **Tout confirmé présent et cohérent** : onglet `gmnotes` bien exclu de
+  `PLAYER_VISIBLE_TABS`, garde `effectiveRole()` dans `render()`/`js/dungeonmaps.js` (fix
+  fermeture intempestive), couleur par nœud du Point Crawl (`n.color` + swatches), retrait du
+  champ icône des Trésors (commit `7225677`, revert volontaire et documenté de Tristan — pas un
+  accident de merge, cf. entrée plus haut), marqueur "créé par le MJ" (`o.gmCreated`) partout,
+  aucune référence orpheline à un ancien système de rôle.
+  **Bug réel trouvé et corrigé** : l'étoile de favori en vue détail (commit `06ee1e2`,
+  intitulé "PJ/PNJ/Trésor") ne couvrait que 3 des 5 types annoncés par le commit d'origine
+  (`26b27c6`, "PJ/PNJ/Créatures/Trésor/Sorts") — `detailCreature()` et `detailSpell()`
+  n'avaient pas l'étoile inline malgré le filtre "favoris uniquement" déjà actif sur ces deux
+  onglets en liste. Ajouté `favStarHTML("creature",c.id,c.favorite,true)` et
+  `favStarHTML("spell",s.id,s.favorite,true)`, mêmes wrapper flex que Trésor/PNJ/PJ. Vérifié :
+  `node --check` OK sur les 8 blocs `<script>`, page de connexion s'affiche sans erreur console
+  (pas de compte de test disponible dans ce contexte pour aller plus loin dans le bac à sable).

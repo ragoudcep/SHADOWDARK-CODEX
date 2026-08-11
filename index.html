@@ -1016,7 +1016,10 @@ function detailCreature(c){
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Créatures</button>
     <div class="meta"><span class="tag creature">Créature</span>${c.category?`<span class="tag">${esc(c.category)}</span>`:""}</div>
-    <h1>${esc(c.name||"Sans nom")}</h1>
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <h1>${esc(c.name||"Sans nom")}</h1>
+      ${favStarHTML("creature",c.id,c.favorite,true)}
+    </div>
     ${c.desc?`<p class="muted" style="font-family:var(--ui)">${renderText(c.desc)}</p>`:""}
     ${detailActions("creature",c.id)}
     <div class="statblock">
@@ -2566,7 +2569,10 @@ function detailSpell(s){
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Sorts</button>
     <div class="meta"><span class="tag spell">Sort</span><span class="tag ${s.class||'wizard'}">${esc(spellClassLabel(s.class))}</span><span class="tag gold">Rang ${esc(s.tier||'?')}</span></div>
-    <h1>${esc(s.name||"Sans nom")}</h1>
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <h1>${esc(s.name||"Sans nom")}</h1>
+      ${favStarHTML("spell",s.id,s.favorite,true)}
+    </div>
     ${detailActions("spell",s.id)}
     <div class="meta" style="margin-top:.6rem">${s.range?`<span class="tag">Portée : ${esc(s.range)}</span>`:""}${s.duration?`<span class="tag">Durée : ${esc(s.duration)}</span>`:""}</div>
     ${(s.effect&&s.effect.trim())
