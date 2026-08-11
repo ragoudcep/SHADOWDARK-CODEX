@@ -237,9 +237,9 @@ function filterGmCreated(list){ return gmCreatedOnly ? list.filter(o=>o.gmCreate
    masqué en aperçu joueur et pour un vrai compte joueur pour éviter toute confusion. */
 let pcFavOnly = false, npcFavOnly = false, creatureFavOnly = false, treasureFavOnly = false, spellFavOnly = false;
 function filterFavorites(list, only){ return only ? list.filter(o=>o.favorite) : list; }
-function favStarHTML(type,id,fav){
+function favStarHTML(type,id,fav,inline){
   if(effectiveRole()!=="gm") return "";
-  return `<button class="fav-star${fav?" fav-star-on":""}" data-toggle-fav="${type}:${id}" title="${fav?"Retirer des favoris":"Ajouter aux favoris"}">${fav?"★":"☆"}</button>`;
+  return `<button class="fav-star${fav?" fav-star-on":""}${inline?" fav-star-inline":""}" data-toggle-fav="${type}:${id}" title="${fav?"Retirer des favoris":"Ajouter aux favoris"}">${fav?"★":"☆"}</button>`;
 }
 function favFilterBtnHTML(type,only){
   return `<button class="btn ghost sm${only?" active-mode":""}" data-toggle-fav-filter="${type}" title="N'afficher que les favoris de cet onglet">${only?"★ Favoris uniquement":"☆ Tous"}</button>`;
@@ -1040,7 +1040,10 @@ function detailNPC(n){
     <button class="back" data-back="1">← PNJ</button>
     <span class="tag npc">PNJ</span>
     ${n.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(n.portrait)}" alt="">`:""}
-    <h1>${esc(n.name||"Sans nom")}</h1>
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <h1>${esc(n.name||"Sans nom")}</h1>
+      ${favStarHTML("npc",n.id,n.favorite,true)}
+    </div>
     ${n.description?`<p class="muted" style="font-family:var(--ui)">${renderText(n.description)}</p>`:""}
     ${detailActions("npc",n.id)}
     ${n.age?`<div class="faint" style="font-family:var(--ui);font-size:.88rem"><b style="color:var(--gold2)">Âge :</b> ${esc(n.age)}</div>`:""}
@@ -2259,7 +2262,10 @@ function detailPC(p){
     <button class="back" data-back="1">← PJ</button>
     <span class="tag pc">PJ</span>
     ${p.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(p.portrait)}" alt="">`:""}
-    <h1>${esc(p.name||"Sans nom")}</h1>
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <h1>${esc(p.name||"Sans nom")}</h1>
+      ${favStarHTML("pc",p.id,p.favorite,true)}
+    </div>
     <p class="muted" style="font-family:var(--ui)">${esc([p.ancestry,p.cls].filter(Boolean).join(" · "))}${p.alignment?` · ${esc(cap(p.alignment))}`:""}</p>
     ${detailActions("pc",p.id)}
     <div style="margin:.2rem 0 .8rem"><button class="btn ghost sm" data-print-pc="${p.id}">🖨 Imprimer cette fiche (PDF)</button></div>
@@ -2406,7 +2412,10 @@ function detailTreasure(t){
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Trésor</button>
     <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${treasureIconHTML(t.icon)}</div>
-    <h1>${esc(t.name||"Sans nom")}</h1>
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <h1>${esc(t.name||"Sans nom")}</h1>
+      ${favStarHTML("treasure",t.id,t.favorite,true)}
+    </div>
     ${detailActions("treasure",t.id)}
     ${(t.description&&t.description.trim())
       ? `<div class="section"><h2>Description</h2>${renderBullets(t.description)}</div>`

@@ -162,6 +162,9 @@
     font-size:1.05rem; line-height:1; color:var(--muted); padding:0;
   }
   .fav-star:hover{border-color:var(--gold); color:var(--gold2)}
+  /* Variante vue détail (2026-08-11) : pas de .card autour pour ancrer le positionnement absolu, donc
+     l'étoile est placée en flux normal à côté du <h1>, dans un conteneur flex ajouté au marquage. */
+  .fav-star.fav-star-inline{position:static; margin:0}
   .fav-star.fav-star-on{color:var(--gold2); border-color:var(--gold); text-shadow:0 0 8px rgba(224,185,104,.6)}
   .tag{
     font-family:var(--ui); font-size:.68rem; font-weight:700; letter-spacing:.4px;
