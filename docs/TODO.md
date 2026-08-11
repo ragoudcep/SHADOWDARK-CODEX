@@ -29,3 +29,15 @@ un résultat composé final, plutôt que de tirer chaque table séparément.
 Implique probablement une notion de « groupe de tables liées » ou de
 « recette de génération » qui n'existe pas encore dans le modèle de
 données actuel — à concevoir.
+
+## Filtre "mes créations" (idée, pas encore demandée fermement)
+
+Le marqueur "créé par le MJ" existe déjà par fiche (bouton dans les actions
+de détail, voir `docs/AUDIT.md`, 2026-08-11). Tristan a évoqué vouloir,
+plus tard, un bouton global (en-tête ?) pour filtrer les listes et
+n'afficher que ce qu'il a lui-même marqué "créé par le MJ", en excluant
+tout le reste (import en masse, génération aléatoire, contenu IA non
+qualifié). Pas encore implémenté — présenté par lui comme une idée pour
+plus tard, pas une demande immédiate. La donnée existe déjà, ce sera
+uniquement un filtre à ajouter dans chaque `list*()` (ou une fonction
+partagée) le moment venu.

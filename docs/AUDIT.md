@@ -867,6 +867,26 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   dans le code, et rendu comparé via une page de test isolée chargeant le vrai `style.css`
   (`getComputedStyle` : dimensions 148×92 et `animation-name:wheel-lid-pop` confirmés sur le
   couvercle une fois `.open` appliqué) — page de test jetable, non commitée.
+- **Marqueur "créé par le MJ" (2026-08-11)**, demandé par Tristan en ajoutant du contenu à la main
+  (objets magiques) : besoin de distinguer, sur la durée, ce qu'il a écrit lui-même de ce qui vient
+  d'un import en masse, d'une génération aléatoire (`generateRandomNPC`/`generateRandomPC`) ou d'un
+  contenu produit par une IA en test. Nouveau champ jsonb `o.gmCreated` (booléen, absent par défaut
+  — aucune migration), une seule bascule manuelle ajoutée à `detailActions()` (donc universelle à
+  TOUS les types d'entités qui passent par cette fonction partagée — créatures, PNJ, PJ, trésors,
+  sorts, événements, tables, sessions, point crawls, cartes — sans avoir eu à toucher aux 8+
+  formulaires individuels) : bouton `🎲 Import / génération` / `🖋 Créé par le MJ` juste à côté du
+  bouton "mode table de jeu", jamais rendu quand `effectiveRole()!=="gm"` (donc invisible à un vrai
+  joueur ET en mode aperçu joueur — vérifié dans le navigateur sur Trésor, Créatures et PJ).
+  **Volontairement jamais positionné automatiquement** : ni à la création manuelle via formulaire
+  (une saisie manuelle peut très bien recopier du contenu IA), ni par les générateurs aléatoires —
+  seul un geste explicite du MJ le fait basculer, pour ne jamais lui faire dire quelque chose de
+  faux sur du contenu déjà existant. Handler générique `data-toggle-gm-created="type:id"` dans le
+  dispatcher de clics partagé, lit/écrit via `getEntity()` + `saveDB()` comme le reste de l'appli.
+  **Pas fait, explicitement différé** (Tristan l'a lui-même présenté comme une idée pour plus tard,
+  pas une demande immédiate) : un filtre/bouton global "n'afficher que mes créations" qui utiliserait
+  ce marqueur pour filtrer les listes — voir `docs/TODO.md`. Le marqueur seul suffit pour l'instant à
+  ce que Tristan puisse commencer à qualifier son contenu existant et nouveau au fil de l'eau ; le
+  filtre pourra être ajouté a posteriori sans migration puisque la donnée sera déjà là.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
