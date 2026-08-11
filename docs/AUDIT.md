@@ -1572,3 +1572,50 @@ calculé correctement pour les 3 nouvelles classes à tous les paliers d'alignem
 assigné uniquement pour les Ensorceleur générés ; fiche imprimable (`printPCSheet`) génère
 sans erreur pour un Ensorceleur avec mentor. `outils/audit-check.sh` : syntaxe JS OK sur
 les 8 blocs `<script>`.
+
+### Suite de la nuit — 11 classes de Cursed Scroll #2 à #6
+
+Après les 3 classes de Cursed Scroll #1, Tristan a demandé de vérifier les 5 autres numéros
+du zine pour d'éventuelles classes de PJ et de tout intégrer avant le matin, en mettant du
+hasard là où le PDF est ambigu et en laissant une liste pour validation au réveil.
+
+**11 classes trouvées et ajoutées** à `CLASSES_DATA`/`PC_CLASSES`/`TITRES`, même format que
+les classes déjà en place : Cavalier du désert, Combattant de l'arène, Ras-Godai (Cursed
+Scroll #2 « Sables rouges », VF) ; Loup des mers, Augure (Cursed Scroll #3 « Soleil de
+minuit », VF) ; Guerrier basilic, Rôdeur (Cursed Scroll #4 « River of Night », VO) ;
+Fouilleur, Corrompu (Cursed Scroll #5 « Dwellers in the Deep », VO) ; Barde, Duelliste
+(Cursed Scroll #6 « City of Masks », VO). Détail dans
+`docs/REGLES-CREATION-PERSONNAGE.md`.
+
+- Même méthode d'extraction (`pdftotext -enc UTF-8`, sans `-layout` — lecture linéaire par
+  fiche, comme pour les reliques et Cursed Scroll #1) sur les 5 PDF (2 en VF avec le même
+  nommage `shd0X-cursedscrollY` que Cursed Scroll #1, 3 en VO anglaise). **Piège évité** :
+  un premier grep ciblé sur "classe d'" (apostrophe droite) a raté « Classe d'augure » dans
+  Cursed Scroll #3, qui utilise une apostrophe typographique (’) — confirmé en relisant le
+  texte en continu plutôt qu'en se fiant au seul grep. Les PDF "Limpo...Mapas-Sem-Marcacoes"
+  (PT-BR) fournis en parallèle sont des versions cartes-seules sans texte de règles — pas
+  pertinents pour ce chantier, non ouverts.
+- **Augure** réutilise `spellClass:"seer"`, une autre entrée de `SPELL_CLASSES` déjà
+  présente mais jamais utilisée jusqu'ici (même trouvaille que `witch` pour la Sorcière) —
+  aucune modification de code nécessaire pour que l'onglet Sorts la gère.
+- **Traductions françaises non officielles** pour les classes venant des 3 numéros anglais
+  (Basilisk Warrior→Guerrier basilic, Ranger→Rôdeur, Delver→Fouilleur, Wyrdling→Corrompu,
+  Bard→Barde, Duelist→Duelliste) et pour tous les titres associés — choix éditoriaux de
+  cette session, à confirmer/ajuster par Tristan.
+- **Deux mini-tables lues mais non implémentées** (comme les Catastrophes diaboliques de
+  Cursed Scroll #1) : « Lotus noir » (Ras-Godai, d12) et « Corruption » (Corrompu, d10) —
+  juste référencées dans le texte de capacité de classe.
+- **Un talent illisible à l'extraction** : Loup des mers, tranche 10-11 (Cursed Scroll #3
+  p.10) — le texte du PDF pour cette case précise s'est retrouvé fusionné avec une case
+  voisine lors de l'extraction. Valeur provisoire posée (« +1 aux attaques à distance ou de
+  corps à corps », cohérente avec le reste de la table) plutôt que de bloquer, comme demandé
+  — marqué explicitement dans le code et dans `docs/TODO.md` pour vérification manuelle du
+  PDF source.
+
+Vérifié en bac à sable avant commit : les 18 classes désormais dans `CLASSES_DATA`
+s'affichent sans erreur en détail (`pcClassSectionHTML`) et à l'impression (`printPCSheet`)
+pour un PJ de test de niveau 5 par classe (boucle sur `Object.keys(CLASSES_DATA)`, aucune
+exception levée) ; `titleFor()` renvoie un titre cohérent pour chacune ; 80 générations
+aléatoires successives ont fait apparaître 17 des 18 classes sans erreur (la 18e n'étant
+qu'une question de probabilité sur l'échantillon, testée séparément avec succès).
+`outils/audit-check.sh` : syntaxe JS OK sur les 8 blocs `<script>`.

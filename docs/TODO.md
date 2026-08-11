@@ -45,5 +45,20 @@ que de bloquer. Liste de ce qu'il faut relire/trancher (détail technique dans
 - **Catastrophes diaboliques**, **Origines diaboliques** et les **46 sorts de sorcière**
   (Cursed Scroll #1) sont documentés dans `docs/REGLES-CREATION-PERSONNAGE.md` mais **pas
   implémentés** cette nuit (hors scope initial : juste les 3 classes + mentors).
-- (Cette section sera complétée au fil de la nuit avec ce qui est trouvé dans Cursed Scroll
-  #2 à #6 — classes ajoutées, valeurs mises au hasard faute de certitude, etc.)
+- **11 classes de plus trouvées dans Cursed Scroll #2 à #6** et implémentées (Cavalier du
+  désert, Combattant de l'arène, Ras-Godai, Loup des mers, Augure, Guerrier basilic, Rôdeur,
+  Fouilleur, Corrompu, Barde, Duelliste — 18 classes au total dans l'appli désormais). Points
+  à trancher :
+  - **Talent 10-11 du Loup des mers illisible à l'extraction** (Cursed Scroll #3 p.10) —
+    valeur provisoire posée dans le code, marquée explicitement ; **à vérifier dans le PDF
+    original avant utilisation en jeu.**
+  - Deux mini-tables lues mais pas implémentées, comme les Catastrophes diaboliques :
+    « Lotus noir » (Ras-Godai, d12, Cursed Scroll #2 p.15) et « Corruption » (Corrompu, d10,
+    Cursed Scroll #5 p.12).
+  - **Traductions françaises non officielles** pour les 6 classes venant des numéros anglais
+    (Cursed Scroll #4-6) et leurs titres — noms choisis cette nuit sans référence VF
+    existante pour ces suppléments tiers, à valider ou changer.
+  - 18 classes dans un seul menu déroulant sur la fiche PJ (`formPC`) — pas encore
+    réorganisé par source/thème ; à voir si ça reste lisible une fois toutes les campagnes
+    de Tristan dessus, ou si un regroupement (classes de base / Cursed Scroll #1 / #2-3 /
+    #4-6) vaudrait le coup visuellement.

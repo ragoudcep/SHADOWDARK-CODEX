@@ -1934,7 +1934,7 @@ function openPrintNPCCardsModal(){
 /* =========================================================================
    PJ — fiches de personnages-joueurs (stat bloc + inventaire + talents 2d6)
    ========================================================================= */
-const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien","Chevalier de Saint Ydris","Ensorceleur","Sorcière"];
+const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien","Chevalier de Saint Ydris","Ensorceleur","Sorcière","Cavalier du désert","Combattant de l'arène","Ras-Godai","Loup des mers","Augure","Guerrier basilic","Rôdeur","Fouilleur","Corrompu","Barde","Duelliste"];
 
 /* =========================================================================
    GÉNÉRATION ALÉATOIRE DE PJ — règles de création de personnage tirées du
@@ -2151,6 +2151,134 @@ const CLASSES_DATA = {
       {roll:"10-11", text:"Vous apprenez un sortilège de sorcière supplémentaire parmi les rangs que vous pouvez lancer."},
       {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
     ]
+  },
+  /* 2026-08-12, Cursed Scroll #2 « Sables rouges » (VF). */
+  "Cavalier du désert": {
+    hitDie:8, weapons:"Gourdin, dague, javelot, épée longue, pique, arc court, cimeterre, lance, fouet.", armor:"Armure de cuir, boucliers.",
+    feature:"Charge (3/jour, en chargeant sur au moins une distance intermédiaire avant d'attaquer, vos attaques de corps à corps infligent le double de dégâts ce round) ; Monture (chameau ou cheval fidèle qui répond à votre appel et ne panique jamais ; bonus de CA à tous deux égal à la moitié de votre niveau en chevauchant ; la monture gagne la moitié de vos niveaux ; en cas de perte, test de CHA ND 15 pour en dresser une nouvelle pendant le répit entre deux aventures).",
+    talents: [
+      {roll:"2", text:"Vous pouvez utiliser n'importe quelle créature susceptible d'être chevauchée comme monture."},
+      {roll:"3-6", text:"+1 à l'attaque ou aux dégâts."},
+      {roll:"7-9", text:"+2 en Force ou en Dextérité, ou +1 aux attaques de corps à corps."},
+      {roll:"10-11", text:"Une utilisation supplémentaire de votre talent Charge chaque jour."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Combattant de l'arène": {
+    hitDie:8, weapons:"Toutes.", armor:"Armure de cuir, boucliers.",
+    feature:"Coup spectaculaire (3/jour, regagnez 1d6 PV en touchant un ennemi au corps à corps) ; Implacable (avantage aux tests de Constitution contre blessures, poison et environnements extrêmes) ; Jusqu'au bout (mourant, vous vous relevez avec 1 PV sur un 18-20 naturel) ; Inébranlable (3/jour, à 0 PV, test de CON ND 18 pour ne tomber qu'à 1 PV — bénéficie du talent Implacable).",
+    talents: [
+      {roll:"2", text:"Une fois par jour, ignorez tous les dégâts et effets d'une attaque."},
+      {roll:"3-6", text:"Bonus de +1 aux dégâts des armes de corps à corps."},
+      {roll:"7-9", text:"+2 en Force ou en Dextérité, ou +1 aux attaques de corps à corps."},
+      {roll:"10-11", text:"Le nombre de PV que vous rapporte Coup spectaculaire augmente de 1d6."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Ras-Godai": {
+    hitDie:6, weapons:"Sarbacane, bolas, dague, chaîne-rasoir, cimeterre, shuriken, lance.", armor:"Armure de cuir.",
+    feature:"Assassin (avantage pour vous cacher et vous déplacer discrètement ; dégâts doublés contre une cible inconsciente de votre présence) ; Marche de fumée (3/jour, téléportation vers un point vu à portée intermédiaire, sans dépenser d'action) ; Lotus noir (vous avez survécu à la sorcellerie du légendaire lotus noir — tirez 1 talent sur la table « Lotus noir », d12, non modélisée dans l'appli, cf. Cursed Scroll #2 p.15).",
+    talents: [
+      {roll:"2", text:"Vous êtes formé à l'usage des poisons."},
+      {roll:"3-6", text:"Tirez un autre talent sur la table de talents de lotus noir."},
+      {roll:"7-9", text:"+2 en Force ou en Dextérité, ou +1 aux attaques de corps à corps."},
+      {roll:"10-11", text:"Une utilisation supplémentaire pour votre talent Marche de fumée."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  /* 2026-08-12, Cursed Scroll #3 « Soleil de minuit » (VF). */
+  "Loup des mers": {
+    hitDie:8, weapons:"Dague, hache à deux mains, hache à une main, arc long, épée longue, lance.", armor:"Armure de cuir, cotte de mailles, boucliers.",
+    feature:"Marin (avantage pour la navigation et le maniement des bateaux) ; Anciens dieux (chaque jour après un repos, harmonisez-vous avec Odin [+1d4 PV par ennemi tué], Freya [1/jour un jeton de chance si vous n'en avez pas, +1d6 aux jets où vous en dépensez un] ou Loki [avantage pour mentir, vous déplacer discrètement et vous cacher] jusqu'au prochain repos) ; Mur de boucliers (avec un bouclier, action pour passer en posture défensive : CA 20).",
+    talents: [
+      {roll:"2", text:"Une fois par jour, la furie guerrière vous prend : immunisé aux dégâts pendant 3 rounds. Vos attaques infligent +1 dégât."},
+      {roll:"3-6", text:"+2 en Force ou en Constitution, ou +1 aux attaques."},
+      {roll:"7-9", text:"Dualité : choisissez deux effets d'anciens dieux différents chaque jour."},
+      {roll:"10-11", text:"(Texte illisible à l'extraction du PDF — à vérifier dans Cursed Scroll #3 p.10. Provisoire : +1 aux attaques à distance ou de corps à corps.)"},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Augure": {
+    hitDie:6, weapons:"Dague, canne, lance.", armor:"Armure de cuir.",
+    feature:"Destin (chaque fois que vous dépensez un jeton de chance, ajoutez 1d6 au jet de dé) ; Présage (3/jour, test de SAG ND 9 pour recevoir un jeton de chance, maximum un à la fois) ; Incantation (vous lancez les sorts d'augure que vous connaissez, à la Sagesse, DD = 10 + rang du sort). Un échec au test bloque le sort jusqu'au repos complet ; un 1 naturel bloque le sort jusqu'à une pénitence d'augure (non modélisée dans l'appli).",
+    spellClass:"seer", spellsKnownLvl1:1,
+    talents: [
+      {roll:"2", text:"Apprenez un nouveau sort d'augure d'un rang qui vous est accessible."},
+      {roll:"3-6", text:"Recevez une utilisation supplémentaire de Présage par jour."},
+      {roll:"7-9", text:"+2 en Sagesse ou en Charisme, ou +1 à vos tests d'incantation."},
+      {roll:"10-11", text:"Votre dé de Destin augmente d'un cran (d6→d8→d10...)."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  /* 2026-08-12, Cursed Scroll #4 « River of Night » (VO anglaise — noms de classe traduits en
+     français, pas de traduction officielle existante pour ce supplément tiers). */
+  "Guerrier basilic": {
+    hitDie:8, weapons:"Boomerang, gourdin, dague, lance, propulseur de lance.", armor:"Aucune.",
+    feature:"Regard pétrifiant (une créature de votre niveau ou moins qui croise votre regard doit réussir un test de CON ND 15 ou être pétrifiée pendant 1d4 rounds — elle continue de subir les dégâts normalement ; utilisable un nombre de fois par jour égal à votre modificateur de Constitution, minimum 1) ; Sang de basilic (avantage aux tests de Constitution contre maladies, poisons ou afflictions) ; Peau de pierre (+2 + moitié niveau arrondi à l'inférieur à la CA si vous êtes sans armure ; avantage pour vous cacher en milieu naturel).",
+    talents: [
+      {roll:"2", text:"Vous trouvez un œuf de basilic ; un bébé fidèle éclot en 1d4 jours (relancez si vous avez déjà un basilic)."},
+      {roll:"3-6", text:"+1 aux jets d'attaque et de dégâts avec une arme."},
+      {roll:"7-9", text:"+2 en Force, Dextérité ou Constitution."},
+      {roll:"10-11", text:"+1 utilisation par jour du Regard pétrifiant."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Rôdeur": {
+    hitDie:8, weapons:"Dague, arc long, épée longue, arc court, épée courte, lance, bâton.", armor:"Armure de cuir, cotte de mailles.",
+    feature:"Pisteur (avantage aux tests de navigation, pistage, débrouillardise en milieu sauvage, discrétion, et liés aux animaux sauvages) ; Herboristerie (test d'Intelligence pour préparer un remède au choix — ND11 Onguent : soigne 1 PV ; ND12 Stimulant : ne peut être pris par surprise pendant 10 rounds ; ND13 Fléau : avantage aux attaques/dégâts contre un type de créature choisi pendant 1d6 rounds ; ND14 Reconstituant : guérit un poison ou une maladie ; ND15 Curatif : équivalent à une Potion de soins — un échec bloque ce remède jusqu'au repos, un remède non utilisé expire en 3 rounds).",
+    talents: [
+      {roll:"2", text:"Vous infligez d12 en dégâts avec un type d'arme au choix."},
+      {roll:"3-6", text:"+1 aux attaques et dégâts de corps à corps ou à distance."},
+      {roll:"7-9", text:"+2 en Force, Dextérité ou Intelligence."},
+      {roll:"10-11", text:"Avantage aux tests d'Herboristerie pour un remède au choix."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  /* 2026-08-12, Cursed Scroll #5 « Dwellers in the Deep » (VO anglaise). */
+  "Fouilleur": {
+    hitDie:6, weapons:"Gourdin, arbalète, dague, javelot, masse d'armes, arc court, épée courte, lance, bâton.", armor:"Armure de cuir, cotte de mailles, boucliers.",
+    feature:"Langues (2 langues courantes supplémentaires) ; Charognard (quand vous épuisez la dernière utilisation d'un objet consommable porté depuis votre dernier repos, lancez 1d6 : sur 5-6, vous récupérez une utilisation) ; Pionnier (avantage aux tests d'escalade, natation, cueillette, compréhension de langues inconnues, et pour éviter/échapper aux dangers naturels du terrain) ; Équipement de confiance (choisissez un type d'équipement/arme : +1 + moitié niveau arrondi à l'inférieur aux tests/jets d'attaque avec).",
+    talents: [
+      {roll:"2", text:"Vous gagnez 2 emplacements d'équipement et un Équipement de confiance supplémentaire."},
+      {roll:"3-6", text:"+1 aux attaques et dégâts de corps à corps ou à distance."},
+      {roll:"7-9", text:"+2 en Force, Dextérité ou Constitution."},
+      {roll:"10-11", text:"Ajoutez 1 point à la plage de réussite de Charognard (relancez si elle est déjà 3-6)."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Corrompu": {
+    hitDie:6, weapons:"Gourdin, arbalète, dague, pseudopode, arc court, épée courte, lance.", armor:"Armure de cuir, cotte de mailles, boucliers.",
+    feature:"Langues (vous parlez le primordial) ; Corruption (tirez un talent sur la table de Corruption, d10, non modélisée dans l'appli, cf. Cursed Scroll #5 p.12) ; Biologie hideuse (vous pouvez étirer votre corps pour passer par une fissure large de quelques centimètres ; 3 rounds pour franchir un obstacle ainsi) ; Pseudopode (arme naturelle griffue, 1d6, Finesse — FOR ou DEX au choix pour l'attaque).",
+    talents: [
+      {roll:"2", text:"Gagnez deux nouveaux talents de Corruption."},
+      {roll:"3-6", text:"+2 en Force, Dextérité ou Charisme."},
+      {roll:"7-9", text:"Gagnez un nouveau talent de Corruption."},
+      {roll:"10-11", text:"+1 aux attaques et dégâts avec votre pseudopode."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  /* 2026-08-12, Cursed Scroll #6 « City of Masks » (VO anglaise). */
+  "Barde": {
+    hitDie:6, weapons:"Arbalète, dague, masse d'armes, arc court, épée courte, lance, bâton.", armor:"Armure de cuir, cotte de mailles, boucliers.",
+    feature:"Fascination (Attention : test de CHA ND 12 pour hypnotiser toutes les cibles à portée proche de niveau ≤ 1 + moitié votre niveau arrondi à l'inférieur ; échec = indisponible jusqu'au repos, sauf en dépensant votre Attention) ; Inspiration (chaque jour, distribuez un nombre de jetons de chance égal à votre modificateur de Charisme, minimum 1) ; Langues (4 langues courantes supplémentaires + 1 langue rare) ; Dilettante magique (vous pouvez activer des parchemins et baguettes avec votre Charisme ; échec critique = mésaventure de magicien) ; Arts du barde (formé en art oratoire, arts de la scène, érudition et diplomatie — avantage aux tests liés). À la place d'un jet de talent, vous pouvez trouver une baguette de prêtre ou de magicien au hasard (vous choisissez le type).",
+    talents: [
+      {roll:"2", text:"Avantage aux tests de temps mort (hors bringue)."},
+      {roll:"3-6", text:"+1 aux attaques de corps à corps et à distance, ou +1 aux jets de Fascination."},
+      {roll:"7-9", text:"+2 points à répartir parmi vos caractéristiques."},
+      {roll:"10-11", text:"+2 aux jets d'événement de bringue de votre groupe."},
+      {roll:"12", text:"Choisissez un talent."}
+    ]
+  },
+  "Duelliste": {
+    hitDie:8, weapons:"Dague, toutes les épées.", armor:"Armure de cuir, cotte de mailles en mithral.",
+    feature:"Beau parleur (test de CHA ND 15 : si réussi, les inconnus autour de vous vous croient célèbre et important pour le reste de l'interaction — un même individu ne peut être dupé deux fois) ; Parade (une fois par jour, une attaque de votre choix qui vous aurait touché rate) ; Provocation (quand un ennemi vous rate, avantage à vos attaques contre lui au round suivant).",
+    talents: [
+      {roll:"2", text:"Une fois par jour, toutes les attaques qui vous toucheraient ce round ratent à la place."},
+      {roll:"3-6", text:"+1 aux attaques et dégâts de corps à corps, ou +1 utilisation de Parade par jour."},
+      {roll:"7-9", text:"+2 en Force, Dextérité ou Charisme."},
+      {roll:"10-11", text:"Infligez +1d6 dégâts quand vous touchez avec une attaque de Provocation."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
   }
 };
 const TITRES = {
@@ -2160,7 +2288,18 @@ const TITRES = {
   "Magicien": {loyal:["Apprenti","Conjurateur","Arcaniste","Mage","Archimage"], chaos:["Adepte","Envoûteur","Sorcière/Sorcier","Diaboliste","Ensorceleur"], neutre:["Chaman","Augure","Gardien","Sage","Druide"]},
   "Chevalier de Saint Ydris": {loyal:["Arbitre","Exécuteur","Chevalier Maréchal","Juge","Pourvoyeur de justice"], chaos:["Traître","Déchu","Parjure","Garde Noir","Seigneur démon"], neutre:["Frère/Sœur","Exorciste","Révérend Chevalier","Inquisiteur","Grand Inquisiteur"]},
   "Ensorceleur": {loyal:["Favorisé","Héraut","Éminence","Exalté","Incarnation"], chaos:["Marqué","Zélote","Occultiste","Champion","Annonciateur"], neutre:["Élu","Incantateur","Annoncé","Transcendant","Avatar"]},
-  "Sorcière": {loyal:["Voyante","Augure","Prophète","Sagace","Baba"], chaos:["Chuchoteuse","Malfaisante","Guenaude/Ancien","Mégère/Oncle","Baba"], neutre:["Chamane","Conjuratrice","Devineresse","Médiatrice","Baba"]}
+  "Sorcière": {loyal:["Voyante","Augure","Prophète","Sagace","Baba"], chaos:["Chuchoteuse","Malfaisante","Guenaude/Ancien","Mégère/Oncle","Baba"], neutre:["Chamane","Conjuratrice","Devineresse","Médiatrice","Baba"]},
+  "Cavalier du désert": {loyal:["Éclaireur","Coureur des sables","Pionnier","Bourrasque","Coureur d'orage"], chaos:["Bandit","Détrousseurs","Pillard","Fléau","Roi/Reine des bandits"], neutre:["Rat","Renard","Loup","Tigre","Dragon"]},
+  "Combattant de l'arène": {loyal:["Novice","Gladiateur","Héros","Champion","Légende"], chaos:["Voyou","Lutteur","Crapule","Affreux","Légende"], neutre:["Tocard","Outsider","Risque-tout","Triomphateur","Légende"]},
+  "Ras-Godai": {loyal:["Acolyte","Sentier du miroir","Moine","Maître","Lotus blanc"], chaos:["Acolyte","Sentier de l'ombre","Moine","Assassin","Lotus noir"], neutre:["Acolyte","Sentier du feu","Moine","Lame-démon","Lotus rouge"]},
+  "Loup des mers": {loyal:["Homme/Femme libre","Porte-bouclier","Thane","Jarl","Roi/Reine"], chaos:["Agitateur","Pillard","Maraudeur","Conquérant","Usurpateur"], neutre:["Vagabond","Explorateur","Aventurier","Renommé","Légendaire"]},
+  "Augure": {loyal:["Guide","Chantre","Lectrice des runes","Sagace","Augure d'Odin"], chaos:["Sorcière des bois","Chuchoteuse","Lectrice des os","Redoutable","Augure de Loki"], neutre:["Diseuse de bonne aventure","Chanteuse","Lectrice des astres","Bénie","Augure de Freya"]},
+  "Guerrier basilic": {loyal:["Guerrier de pierre","Pierre forte","Protecteur","Serpent du soleil","Basilic d'ambre"], chaos:["Guerrier de pierre","Pierre acérée","Tueur","Serpent de lune","Basilic d'obsidienne"], neutre:["Guerrier de pierre","Pierre silencieuse","Veilleur","Serpent du ciel","Basilic de saphir"]},
+  "Rôdeur": {loyal:["Vagabond","Arpenteur","Gardien","Protecteur","Sentinelle"], chaos:["Encapuchonné","Hors-la-loi","Fugitif","Exilé","Paria"], neutre:["Étranger","Voyageur","Étranger des terres","Reclus","Ermite"]},
+  "Fouilleur": {loyal:["Explorateur","Chercheur","Antiquaire","Archéologue","Professeur"], chaos:["Intrus","Opportuniste","Larcin","Pilleur de tombes","Profanateur"], neutre:["Enquêteur","Observateur","Éclaireur","Défricheur","Pionnier"]},
+  "Corrompu": {loyal:["Élu","Maudit","Hanté","Torturé","Fou furieux"], chaos:["Élu","Béni","Consacré","Révéré","Exalté"], neutre:["Élu","Chercheur","Auditeur","Guetteur","Érudit"]},
+  "Barde": {loyal:["Conteur","Ménestrel","Philosophe","Poète","Maître Poète"], chaos:["Vaurien","Charlatan","Satiriste","Langue d'Argent","Oiseau de mauvais augure"], neutre:["Chercheur","Témoin","Porte-parole","Voix","Porteur de vérité"]},
+  "Duelliste": {loyal:["Escrimeur","Défenseur","Mangouste","Loup","Maître d'armes"], chaos:["Voyou","Provocateur","Vipère","Cobra","Maître d'armes"], neutre:["Étudiant","Challenger","Chat de gouttière","Panthère","Maître d'armes"]}
 };
 function titleFor(cls, alignment, level){
   const t = TITRES[cls]; if(!t) return "";

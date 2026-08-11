@@ -217,6 +217,41 @@ du Trésor cette session. Reste à faire : décider si on renomme le libellé en
 avant import, et faire la passe d'import (contenu de campagne, donc en Supabase via
 Claude in Chrome, pas dans ce dépôt — même workflow que les reliques).
 
+## Classes additionnelles — Cursed Scroll #2 à #6 (2026-08-12, implémentées)
+
+Même nuit, même méthode (`pdftotext`, lecture intégrale avant implémentation) — Tristan a
+demandé de vérifier les 5 autres numéros du zine pour d'éventuelles classes et de tout
+intégrer d'un coup. Détail complet (armes/armures/capacités/talents 2d6) dans
+`CLASSES_DATA`/`TITRES` (`index.html`) ; résumé ci-dessous. Les 3 derniers numéros (#4-6)
+sont en anglais dans l'édition fournie — **noms de classe traduits par mes soins, pas de VF
+officielle disponible pour ces suppléments tiers.**
+
+| Classe | Source | Dé de vie | Spécificité principale |
+|---|---|---|---|
+| Cavalier du désert | CS#2 « Sables rouges » | 1d8 | Monture fidèle (chameau/cheval), talent Charge |
+| Combattant de l'arène | CS#2 | 1d8 | Résistant (Implacable/Jusqu'au bout/Inébranlable) |
+| Ras-Godai | CS#2 | 1d6 | Assassin + table « Lotus noir » (d12, **non modélisée**) |
+| Loup des mers | CS#3 « Soleil de minuit » | 1d8 | Choix quotidien d'un Ancien dieu (Odin/Freya/Loki) |
+| Augure | CS#3 | 1d6 | Incantation (`spellClass:"seer"`, déjà présent dans `SPELL_CLASSES`, jamais utilisé avant ce soir), 1 sort connu au 1er niveau |
+| Guerrier basilic | CS#4 « River of Night » | 1d8 | Regard pétrifiant (ND CON 15) |
+| Rôdeur | CS#4 | 1d8 | Herboristerie (table de remèdes ND11-15 repliée dans le texte de capacité) |
+| Fouilleur | CS#5 « Dwellers in the Deep » | 1d6 | Charognard (récupère les consommables épuisés sur 5-6 au d6) |
+| Corrompu | CS#5 | 1d6 | Pseudopode (arme naturelle) + table « Corruption » (d10, **non modélisée**) |
+| Barde | CS#6 « City of Masks » | 1d6 | Fascination (hypnose de zone), Dilettante magique (active parchemins/baguettes au CHA) |
+| Duelliste | CS#6 | 1d8 | Beau parleur, Parade, Provocation |
+
+**Écarts/incertitudes à vérifier** (voir aussi `docs/TODO.md`) :
+- **Talent 10-11 du Loup des mers** (CS#3 p.10) : le texte extrait du PDF pour cette tranche
+  est illisible/manquant (`pdftotext` a fusionné deux blocs). Valeur provisoire mise en
+  place (« +1 aux attaques à distance ou de corps à corps ») — **à vérifier dans le PDF
+  original avant utilisation en jeu.**
+- Tables « Lotus noir » (Ras-Godai) et « Corruption » (Corrompu) lues et documentées dans
+  le PDF mais **pas implémentées** — même décision que les Catastrophes diaboliques de
+  Cursed Scroll #1 (hors scope de cette nuit).
+- Traductions de classe (Guerrier basilic, Rôdeur, Fouilleur, Corrompu, Barde, Duelliste)
+  et de titres sont des choix éditoriaux faits cette nuit, pas une VF officielle — à
+  valider/ajuster si Tristan préfère d'autres noms.
+
 ## Sorts connus au 1er niveau
 
 | Classe | Rang 1 connus |
