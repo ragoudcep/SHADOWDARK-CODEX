@@ -831,6 +831,8 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   redéclaration — contourné en extrayant et ré-évaluant uniquement la fonction modifiée). Aucun
   rapport avec un vrai comportement utilisateur : un vrai rechargement de page (F5) n'exécute
   chaque script qu'une fois, ce problème n'existe que dans ce sandbox de test.
+  **Confirmé par Tristan à l'usage (2026-08-11)** : le coffre convainc, pas de troisième réglage
+  nécessaire — chantier considéré clos, retiré de `docs/TODO.md`.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

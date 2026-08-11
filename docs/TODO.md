@@ -29,9 +29,3 @@ un résultat composé final, plutôt que de tirer chaque table séparément.
 Implique probablement une notion de « groupe de tables liées » ou de
 « recette de génération » qui n'existe pas encore dans le modèle de
 données actuel — à concevoir.
-
-## Roue
-
-**Coffre redessiné et préréglages personnalisés clarifiés (2026-08-11).** Voir `docs/AUDIT.md`
-pour le détail. À confirmer par Tristan à l'usage — si le coffre ne convainc toujours pas, ce
-sera un troisième réglage plutôt qu'un problème nouveau.
