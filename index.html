@@ -443,7 +443,17 @@ function maybePropagate(oldName, newName){
    ========================================================================= */
 function render(){
   if(initiativePollTimer && view.tab!=="initiative") stopInitiativePolling();
-  if(dungeonMapsPollTimer && view.tab!=="dungeonmaps") stopDungeonMapsPolling();
+  // effectiveRole()==="gm" en plus de view.tab!=="dungeonmaps" : contrairement à l'Initiative
+  // (pollée pour les DEUX rôles, donc seul le changement d'onglet importe), le poll des cartes de
+  // donjon n'est démarré QUE côté joueur (playerDungeonMapView()) — un MJ qui active puis désactive
+  // l'aperçu joueur global sans changer d'onglet laissait tourner ce timer indéfiniment en tâche de
+  // fond, puisque la condition ne testait jamais un retour à "gm" sur le MÊME onglet. Chaque tick
+  // suivant écrasait alors `db.dungeonmaps` avec les données fraîches ET appelait `renderList()`
+  // directement (pas `render()`), qui ignore `view.mode` et réaffiche donc la LISTE même si le MJ
+  // était en train de consulter le détail d'une carte — d'où la fermeture intempestive ~2,5s après
+  // un aller-retour en aperçu (signalé par Tristan : la fiche se refermait toute seule peu après
+  // ouverture). Voir docs/AUDIT.md pour le détail du diagnostic.
+  if(dungeonMapsPollTimer && (view.tab!=="dungeonmaps" || effectiveRole()==="gm")) stopDungeonMapsPolling();
   if(wheelAudioActive && view.tab!=="wheel") stopWheelTensionSound();
   // onglets actifs
   document.body.setAttribute("data-tab", view.tab);

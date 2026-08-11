@@ -1179,6 +1179,65 @@ haut) existait déjà et n'a pas eu besoin de changement de code : coché
 manuellement sur chacun des 9 objets lors de leur création en base (contenu
 de campagne, donc en Supabase — voir entrée « Contenu ajouté » suivante).
 
+## Bug — Cartes de donjon : la fiche détail se refermait toute seule (2026-08-11)
+
+Signalé par Tristan (bloquant) : cliquer sur une carte dans « Cartes de
+donjon » ouvrait bien la fiche détail, mais elle se refermait toute seule
+peu après, retombant sur la liste — impossible d'éditer une carte.
+
+**Cause racine** : collision entre deux mécanismes qui existaient déjà
+séparément, exactement le risque identifié en introduisant le mode « Aperçu
+joueur » global le même jour (voir l'entrée plus haut, « Effet de bord
+découvert et corrigé au passage ») — mais un second effet de bord, distinct
+du premier, n'avait pas été repéré à l'époque :
+
+- Le poll des Cartes de donjon (`startDungeonMapsPolling()`/
+  `stopDungeonMapsPolling()`, 2,5s, dans `js/dungeonmaps.js`) n'est démarré
+  QUE côté rendu joueur (`playerDungeonMapView()`), contrairement à celui de
+  l'Initiative qui tourne pour les deux rôles (donc insensible à un
+  changement de rôle en cours de route).
+- `render()` n'arrêtait ce timer que sur un changement d'**onglet**
+  (`view.tab!=="dungeonmaps"`) — jamais sur un changement de **rôle effectif**
+  sur le même onglet.
+- Or c'est exactement ce que permet le nouveau mode « Aperçu joueur »
+  global : un MJ qui bascule l'aperçu ON puis OFF **sans changer d'onglet**
+  pendant qu'il est sur « Cartes de donjon » démarre ce timer (ON, rendu via
+  `playerDungeonMapView()`) sans jamais le stopper (OFF, retour à
+  `effectiveRole()==="gm"`, mais toujours sur l'onglet "dungeonmaps" donc la
+  garde de `render()` ne se déclenchait pas).
+- Le timer restait alors actif en tâche de fond indéfiniment. Chaque tick
+  suivant écrasait `db.dungeonmaps` avec les données rafraîchies depuis
+  Supabase et appelait **`renderList()` directement** (pas `render()`) —
+  qui ignore totalement `view.mode` et réaffiche donc la liste même si le
+  MJ était en train de consulter/éditer le détail d'une carte. D'où la
+  fermeture intempestive, à un moment déconnecté du clic lui-même (calé sur
+  la phase du timer, pas sur l'action de l'utilisateur — d'où l'impression
+  d'un délai fixe « d'une demi-seconde »).
+- Repro confirmée en console (`myRole="gm"`, `togglePlayerPreview()` deux
+  fois de suite sur l'onglet "dungeonmaps" sans changer d'onglet, puis
+  ouverture d'une fiche) : le timer restait vivant (`dungeonMapsPollTimer`
+  non nul) après le second bascule, et le tick suivant écrasait bien la vue
+  détail par la liste — y compris avec de vraies requêtes réseau contre le
+  Supabase de prod, observées pendant le diagnostic.
+
+**Fix** (`index.html` et `js/dungeonmaps.js`) : la garde d'arrêt du timer
+teste maintenant aussi le rôle effectif, pas seulement l'onglet —
+`view.tab!=="dungeonmaps" || effectiveRole()==="gm"` — à deux endroits en
+défense en profondeur : dans `render()` (arrêt immédiat dès que
+`togglePlayerPreview()` repasse en MJ) et dans le tick du timer lui-même
+(filet de sécurité si `render()` n'a pas encore tourné entre-temps).
+
+**Vérifié** en local (serveur statique, fonctions appelées en console faute
+de session Supabase locale) : (1) bascule aperçu ON/OFF sur l'onglet
+"dungeonmaps" sans changer d'onglet → timer bien arrêté (`null`) après le
+retour en MJ, ouverture d'une fiche détail reste stable au moins 3s après
+(un tick complet) ; (2) flux joueur normal non cassé : le timer démarre
+toujours à l'entrée sur l'onglet, s'arrête en le quittant, redémarre en y
+revenant ; (3) l'ancien mode aperçu spécifique aux cartes de donjon
+(`dmapShowPlayerPreview`, bouton « 👁 Aperçu joueur » dans la vue détail
+MJ) reste inchangé et fonctionnel — il ne touche jamais au poll timer, donc
+aucun recouvrement avec ce correctif.
+
 ### Onglet ajouté — 2026-08-11 : « To-do MJ »
 
 Demande de Tristan : un endroit dans la partie MJ pour noter une liste de
@@ -1236,3 +1295,56 @@ d'onglet ; désactivé : onglet et notes réapparaissent à l'identique, aucune
 perte d'état. `outils/audit-check.sh` relancé après coup (syntaxe JS OK sur
 tous les blocs, accolades CSS équilibrées — vérifié à la main, l'étape
 Python du script n'est pas disponible dans cet environnement).
+
+### Favoris (étoile) PJ/PNJ/Trésor — complété le 2026-08-11
+
+Tristan a redemandé cette fonctionnalité en pensant qu'elle n'avait jamais
+été faite (session précédente sans accès à l'historique). En réalité elle
+existait déjà, commitée localement mais **jamais poussée sur `origin/main`**
+(`26b27c6 Ajout des favoris (étoile) pour PJ/PNJ/Créatures/Trésor/Sorts`,
+13:33) : marqueur `o.favorite`, étoile cliquable + filtre « Favoris
+uniquement » par onglet, déjà présents pour les **5** entités PJ/PNJ/
+Créatures/Trésor/Sorts (plus large que les 3 demandées cette fois-ci) — mais
+**seulement en vue liste**, jamais en vue détail malgré la demande initiale.
+
+**Complété ici** : étoile ajoutée en vue détail pour PJ/PNJ/Trésor
+(`detailPC`/`detailNPC`/`detailTreasure`, `index.html`) — placée à côté du
+`<h1>` dans un conteneur flex, via `favStarHTML(type,id,fav,true)` (nouveau
+4e paramètre `inline`) + classe CSS `.fav-star-inline` (`style.css`,
+`position:static` au lieu de l'ancrage `position:absolute` sur `.card` utilisé
+en liste, qui n'a pas de sens sans carte autour). Créatures/Sorts non
+touchés (hors du périmètre demandé cette fois, restent liste-seule comme
+avant).
+
+**Décision GM-only maintenue, pas artificielle** : Tristan a explicitement
+demandé de vérifier les permissions existantes avant de décider si les
+joueurs devraient voir l'étoile sur leurs propres PJ. Vérifié : `npcs` et
+`treasures` ne sont même pas dans `PLAYER_VISIBLE_TABS` (un vrai compte
+joueur n'atteint jamais ces onglets, question sans objet) ; `pcs` a une
+policy MJ CRUD + une policy de lecture joueur (encore ⏳, voir ledger
+Supabase plus haut) mais **aucune policy d'écriture joueur nulle part** —
+un joueur ne peut donc persister aucun changement sur sa propre fiche PJ
+via Supabase RLS, étoile ou non. Ouvrir le bouton aux joueurs afficherait
+donc une étoile cliquable qui échoue silencieusement à chaque clic (RLS
+refuse l'écriture) — pire qu'une absence de bouton. GM-only reste donc le
+seul choix cohérent avec le modèle de permissions réel, pas une restriction
+arbitraire copiée de `gmCreated`.
+
+**Testé** (pas de session Supabase disponible ici, donc pas de vérification
+de la persistance serveur réelle — voir remarque plus bas) : serveur
+statique local (`python -m http.server`), `myRole`/`view`/`db` manipulés en
+console comme pour les autres entrées de ce journal, `saveDB()` stubbé en
+mémoire le temps du test. Vérifié pour PJ/PNJ/Trésor : l'étoile apparaît en
+liste ET en détail, reflète correctement `o.favorite` (☆/★), le clic bascule
+la valeur sur le bon objet et déclenche `saveDB()` (donc persisterait en
+conditions réelles), le filtre « Favoris uniquement » masque bien les
+non-favoris (0 résultat sur une liste d'1 élément non favori après filtre),
+et repasse **`myRole="player"`** : zéro étoile, zéro bouton de filtre, en
+liste comme en détail, sur les trois entités — confirmé qu'aucune fuite ne
+dépend d'un oubli de test par ailleurs. Positionnement de l'étoile en vue
+détail vérifié par mesure DOM (`getBoundingClientRect`) : alignée sur la
+même ligne que le titre, pas de chevauchement horizontal. **Non testé** :
+persistance réelle côté Supabase (nécessite une session MJ authentifiée,
+indisponible dans ce bac à sable — le compte GM de Tristan est déjà connecté
+sur le site déployé via Chrome, à confirmer par lui après déploiement en
+cochant une étoile puis en rechargeant la page).

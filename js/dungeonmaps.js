@@ -57,7 +57,11 @@ function stopDungeonMapsPolling(){ if(dungeonMapsPollTimer){ clearInterval(dunge
 function startDungeonMapsPolling(){
   if(dungeonMapsPollTimer) return;
   dungeonMapsPollTimer = setInterval(async ()=>{
-    if(view.tab!=="dungeonmaps"){ stopDungeonMapsPolling(); return; }
+    // effectiveRole()==="gm" en plus du changement d'onglet : filet de sécurité en doublon de la
+    // même garde dans render() (voir son commentaire) — un MJ repassé en rôle effectif "gm" sans
+    // que render() se soit exécuté entre-temps ne doit pas non plus laisser ce tick écraser
+    // db.dungeonmaps et forcer un retour à la liste.
+    if(view.tab!=="dungeonmaps" || effectiveRole()==="gm"){ stopDungeonMapsPolling(); return; }
     try{
       const { data, error } = await sb.from("dungeonmaps").select("data");
       if(error) return; // table pas encore créée côté Supabase, ou souci réseau — on retente au prochain tick
