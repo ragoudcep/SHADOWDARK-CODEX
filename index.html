@@ -55,6 +55,7 @@
     </div>
     <div class="hbtns">
       <button class="icon-btn hidden" id="btn-player-preview" title="Voir l'appli comme un joueur, sans changer de compte">👁 Aperçu joueur</button>
+      <button class="icon-btn hidden" id="btn-gm-created-filter" title="N'afficher que les fiches marquées « Créé par le MJ » (voir le bouton dans chaque fiche)">🖋 Mes créations</button>
       <button class="icon-btn" id="btn-credits" title="Crédits des icônes">ⓘ Crédits</button>
       <button class="icon-btn" id="btn-broken-links" title="Voir les liens [[...]] qui ne pointent vers rien">⚠ Liens</button>
       <button class="icon-btn" id="btn-export" title="Exporter toutes les données (JSON)">⭳ Export</button>
@@ -215,6 +216,16 @@ let creatureCatFilter = "";     // filtre de catégorie ("" = toutes/regroupées
 let tableCatFilter = "";        // filtre de catégorie des tables aléatoires (même principe que creatureCatFilter)
 let readingMode = false; // "mode table de jeu" : masque les contrôles GM, agrandit le texte des fiches
 let crawlStatusFilter = ""; // filtre de statut des point crawls ("" = tous)
+/* Filtre global "mes créations" (2026-08-11) : contrairement aux filtres ci-dessus (par onglet),
+   celui-ci est UNIQUE et partagé par tous les onglets qui portent le marqueur o.gmCreated (voir
+   detailActions()) — bouton dans l'en-tête, pas un <select> par liste. Appliqué explicitement dans
+   chaque list*() concerné(e) (mécanique, comme tous les filtres existants du fichier) plutôt que
+   via un Proxy global sur `db` : `db` sert aussi à l'écriture (saveDB() doit toujours voir la
+   collection complète, jamais une vue filtrée, sous peine de supprimer silencieusement du contenu
+   non marqué au prochain enregistrement) — un filtre à l'affichage seulement, jamais sur `db`
+   lui-même, élimine ce risque par construction. */
+let gmCreatedOnly = false;
+function filterGmCreated(list){ return gmCreatedOnly ? list.filter(o=>o.gmCreated) : list; }
 /* Statut d'avancement d'un point crawl (c.status), demandé par Tristan pour s'y retrouver entre
    plusieurs chantiers en parallèle — champ facultatif, "" ou absent = non catégorisé (aucune
    migration : un point crawl existant sans statut reste juste non filtré/sans badge). */
@@ -490,11 +501,13 @@ function eventGrid(list){
   return `<div class="grid" style="margin-bottom:1.4rem">${list.map(eventCard).join("")}</div>`;
 }
 function listEvents(){
-  const items = db.events;
+  const itemsAll = db.events;
+  const items = filterGmCreated(itemsAll);
   const themes = eventThemes();
   const head = pageHead("Événements", `${items.length} module(s) d'événement`, "Nouvel événement");
 
-  if(!items.length){ app.innerHTML = head + emptyState("📖","Aucun événement. Créez votre premier module."); return; }
+  if(!itemsAll.length){ app.innerHTML = head + emptyState("📖","Aucun événement. Créez votre premier module."); return; }
+  if(!items.length){ app.innerHTML = head + emptyState("🖋","Aucune création marquée « MJ » dans cet onglet."); return; }
 
   // Filtre par thème (visible seulement dès qu'au moins un thème existe)
   const filter = themes.length ? `<div style="margin-bottom:1.1rem">
@@ -584,11 +597,13 @@ function tableCard(t){
 }
 function tableGrid(list){ return `<div class="grid" style="margin-bottom:1.4rem">${list.map(tableCard).join("")}</div>`; }
 function listTables(){
-  const items = db.tables;
+  const itemsAll = db.tables;
+  const items = filterGmCreated(itemsAll);
   const cats = tableCategories();
   const head = pageHead("Tables aléatoires", `${items.length} table(s)`, "Nouvelle table", xmlToolbarHTML("table"));
 
-  if(!items.length){ app.innerHTML = head + emptyState("🎲","Aucune table. Créez une table aléatoire."); return; }
+  if(!itemsAll.length){ app.innerHTML = head + emptyState("🎲","Aucune table. Créez une table aléatoire."); return; }
+  if(!items.length){ app.innerHTML = head + emptyState("🖋","Aucune création marquée « MJ » dans cet onglet."); return; }
 
   const filter = cats.length ? `<div style="margin-bottom:1.1rem">
       <label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.5rem">Catégorie :</label>
@@ -656,7 +671,8 @@ function creatureCard(c){
 }
 function creatureGrid(list){ return `<div class="grid" style="margin-bottom:1.4rem">${sortCreatures(list).map(creatureCard).join("")}</div>`; }
 function listCreatures(){
-  const items = db.creatures;
+  const itemsAll = db.creatures;
+  const items = filterGmCreated(itemsAll);
   const cats = creatureCategories();
   const bar = `<div class="page-head">
       <div><h1>Créatures</h1><div class="sub">${items.length} créature(s)</div></div>
@@ -669,7 +685,8 @@ function listCreatures(){
         <button class="btn" data-new="1">✦ Nouvelle créature</button>
       </div>
     </div>`;
-  if(!items.length){ app.innerHTML = bar + emptyState("🐲","Aucune créature. Créez-en une ou importez un fichier XML."); return; }
+  if(!itemsAll.length){ app.innerHTML = bar + emptyState("🐲","Aucune créature. Créez-en une ou importez un fichier XML."); return; }
+  if(!items.length){ app.innerHTML = bar + emptyState("🖋","Aucune création marquée « MJ » dans cet onglet."); return; }
 
   const sortSel = `<label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.4rem">Trier :</label>
     <select data-crea-sort style="width:auto;display:inline-block;min-width:130px;margin-right:1rem">
@@ -712,6 +729,7 @@ function listSessions(){
   const isGM = effectiveRole()==="gm";
   let items = [...db.sessions].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   if(!isGM) items = items.filter(s=>(s.entries||[]).some(e=>e.visible));
+  else items = filterGmCreated(items);
   app.innerHTML = pageHead("Carnet de route", `${items.length} session(s) de jeu`, "Nouvelle session") +
     (items.length ? `<div class="grid">${items.map(s=>{
       const visibleEntries = (s.entries||[]).filter(e=>e.visible);
@@ -807,7 +825,7 @@ function generateRandomNPC(){
   render();
 }
 function listNPCs(){
-  const items = db.npcs;
+  const items = filterGmCreated(db.npcs);
   const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-npc="1">🎲 Générer un PNJ aléatoire</button>
     <button class="btn ghost sm" data-print-npc-cards="1">🖨 Exporter en cartes</button>` : "";
   app.innerHTML = pageHead("PNJ", `${items.length} personnage(s) non-joueur(s)`, "Nouveau PNJ", xmlToolbarHTML("npc")+genBtn) +
@@ -2098,7 +2116,7 @@ function generateRandomPC(){
 }
 
 function listPCs(){
-  const items = db.pcs;
+  const items = filterGmCreated(db.pcs);
   const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
     <button class="btn ghost sm" data-print-pcs="1">🖨 Imprimer des fiches</button>` : "";
   app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ", genBtn) +
@@ -2271,9 +2289,11 @@ function treasureCard(t){
   </div>`;
 }
 function listTreasures(){
-  const items = db.treasures;
+  const itemsAll = db.treasures;
+  const items = filterGmCreated(itemsAll);
   const head = pageHead("Trésor", `${items.length} objet(s)`, "Nouvel objet", xmlToolbarHTML("treasure"));
-  if(!items.length){ app.innerHTML = head + emptyState("💎","Aucun trésor. Répertoriez trouvailles, reliques et régalia."); return; }
+  if(!itemsAll.length){ app.innerHTML = head + emptyState("💎","Aucun trésor. Répertoriez trouvailles, reliques et régalia."); return; }
+  if(!items.length){ app.innerHTML = head + emptyState("🖋","Aucune création marquée « MJ » dans cet onglet."); return; }
   const allKeys = TREASURE_CATS.map(([k])=>"treasures:"+k).filter(key=>items.some(t=>(t.category||"trouvaille")===key.split(":")[1]));
   const allOpen = allKeys.length && allKeys.every(k=>expandedGroups.has(k));
   const toggleBar = `<div style="margin-bottom:.8rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button></div>`;
@@ -2370,9 +2390,11 @@ function spellCard(s){
   </div>`;
 }
 function listSpells(){
-  const items = db.spells;
+  const itemsAll = db.spells;
+  const items = filterGmCreated(itemsAll);
   const head = pageHead("Sorts", `${items.length} sort(s)`, "Nouveau sort", xmlToolbarHTML("spell"));
-  if(!items.length){ app.innerHTML = head + emptyState("✨","Aucun sort. Répertoriez les sorts de Prêtre et de Magicien."); return; }
+  if(!itemsAll.length){ app.innerHTML = head + emptyState("✨","Aucun sort. Répertoriez les sorts de Prêtre et de Magicien."); return; }
+  if(!items.length){ app.innerHTML = head + emptyState("🖋","Aucune création marquée « MJ » dans cet onglet."); return; }
   const allKeys = SPELL_CLASSES.map(([k])=>"spells:"+k).filter(key=>items.some(s=>(s.class||"wizard")===key.split(":")[1]));
   const allOpen = allKeys.length && allKeys.every(k=>expandedGroups.has(k));
   const toggleBar = `<div style="margin-bottom:.8rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button></div>`;
@@ -3368,6 +3390,11 @@ function applyRoleUI(){
   // pouvoir en sortir) — il teste donc le vrai myRole, jamais effectiveRole().
   const pbtn = document.getElementById("btn-player-preview");
   if(pbtn){ pbtn.classList.toggle("hidden", myRole!=="gm"); pbtn.classList.toggle("active-mode", previewAsPlayer); }
+  // Filtre "mes créations" : outil de curation MJ, comme export/import/liens — masqué en mode
+  // aperçu joueur (contrairement au bouton d'aperçu lui-même), pas de raison de le garder visible
+  // en simulant ce que voit un joueur.
+  const gcbtn = document.getElementById("btn-gm-created-filter");
+  if(gcbtn){ gcbtn.classList.toggle("hidden", effectiveRole()!=="gm"); gcbtn.classList.toggle("active-mode", gmCreatedOnly); }
 }
 
 /* Bascule le mode aperçu joueur global : simulation d'affichage uniquement, ne touche jamais à
@@ -3462,6 +3489,14 @@ $("#auth-password").addEventListener("keydown", e=>{ if(e.key==="Enter") $("#aut
 document.getElementById("btn-logout").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
 document.getElementById("btn-player-preview").addEventListener("click", togglePlayerPreview);
 document.getElementById("btn-exit-preview").addEventListener("click", togglePlayerPreview);
+document.getElementById("btn-gm-created-filter").addEventListener("click", ()=>{
+  // render() (pas renderList() directement) : respecte le mode courant (liste/détail/formulaire)
+  // plutôt que de forcer une navigation — même principe que togglePlayerPreview(), jamais de saut
+  // de vue imposé par un simple bouton de filtre.
+  gmCreatedOnly = !gmCreatedOnly;
+  applyRoleUI();
+  render();
+});
 
 // Marge d'onglets repliable (tapoter pour ouvrir/fermer)
 // Desktop/tablette (≥641px) : colonne fixe, ouverte par défaut, état mémorisé.

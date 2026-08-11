@@ -77,7 +77,8 @@ function viewDungeonMaps(){
 }
 
 function listDungeonMaps(){
-  const items = db.dungeonmaps;
+  const itemsAll = db.dungeonmaps;
+  const items = filterGmCreated(itemsAll);
   app.innerHTML = pageHead("Cartes de donjon", `${items.length} carte(s)`, "Nouvelle carte") +
     (items.length ? `<div class="grid">${items.map(m=>{
       const total = (m.strokes||[]).length, hidden = (m.strokes||[]).filter(s=>s.hidden).length;
@@ -87,7 +88,9 @@ function listDungeonMaps(){
         <div class="meta"><span class="tag">${total} zone${total>1?"s":""}</span>${total?`<span class="tag gold">${hidden} cachée${hidden>1?"s":""}</span>`:""}</div>
       </div>`;
     }).join("")}</div>`
-    : emptyState("🗺️","Aucune carte de donjon pour l'instant. Prépares-en une pour tes joueurs."));
+    : (gmCreatedOnly && itemsAll.length
+        ? emptyState("🖋","Aucune création marquée « MJ » dans cet onglet.")
+        : emptyState("🗺️","Aucune carte de donjon pour l'instant. Prépares-en une pour tes joueurs.")));
 }
 
 function playerDungeonMapView(){

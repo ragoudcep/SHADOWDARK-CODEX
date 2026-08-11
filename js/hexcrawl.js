@@ -111,7 +111,8 @@ let hexPaintingOverlay = false;
 let hexPaintOverlayValue = "";
 
 function listHexmaps(){
-  const items = db.hexmaps;
+  const itemsAll = db.hexmaps;
+  const items = effectiveRole()==="gm" ? filterGmCreated(itemsAll) : itemsAll;
   const extra = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-hex-import-new="1">⭱ Importer JSON</button>` : "";
   app.innerHTML = pageHead("Hexcrawl", `${items.length} carte(s)`, "Nouvelle carte", extra) +
     (items.length ? `<div class="grid">${items.map(m=>{
@@ -122,7 +123,9 @@ function listHexmaps(){
         <div class="meta"><span class="tag">${total} hexagone(s)</span>${effectiveRole()==="gm"&&total?`<span class="tag gold">${revealed} révélé(s)</span>`:""}</div>
       </div>`;
     }).join("")}</div>`
-    : emptyState("🗺","Aucune carte. Importe un fichier JSON exporté depuis ton outil hexcrawl."));
+    : (effectiveRole()==="gm" && gmCreatedOnly && itemsAll.length
+        ? emptyState("🖋","Aucune création marquée « MJ » dans cet onglet.")
+        : emptyState("🗺","Aucune carte. Importe un fichier JSON exporté depuis ton outil hexcrawl.")));
 }
 
 function formHexmap(){

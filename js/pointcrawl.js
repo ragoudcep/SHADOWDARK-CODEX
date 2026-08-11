@@ -24,10 +24,11 @@ function listCrawls(){
       <option value="__none__" ${crawlStatusFilter==="__none__"?"selected":""}>(Sans statut)</option>
     </select>`;
   const toolbar = `<div style="margin-bottom:1.1rem;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${statusSel}</div>`;
-  const items = crawlStatusFilter==="__all__" ? all
+  const itemsByStatus = crawlStatusFilter==="__all__" ? all
     : crawlStatusFilter==="__none__" ? all.filter(c=>!c.status)
     : !crawlStatusFilter ? crawlFocusItems(all)
     : all.filter(c=>c.status===crawlStatusFilter);
+  const items = filterGmCreated(itemsByStatus);
   const body = items.length ? `<div class="grid">${items.map(c=>{
       const nodes = c.nodes||[];
       const noDesc = nodes.filter(n=>{ const ev=getEntity("event",n.eventId); return !ev || !(ev.description&&ev.description.trim()); }).length;
@@ -41,7 +42,9 @@ function listCrawls(){
         </div>
       </div>`;
     }).join("")}</div>`
-    : (!crawlStatusFilter
+    : (gmCreatedOnly && itemsByStatus.length
+        ? emptyState("🖋","Aucune création marquée « MJ » dans cette sélection.")
+        : !crawlStatusFilter
         ? `<div class="empty"><span class="big">🎯</span>Rien « en cours » ni « à visiter » pour l'instant.<br><button class="btn ghost sm" style="margin-top:.8rem" data-crawl-status-show-all="1">Afficher tous les point crawls</button></div>`
         : emptyState("🗺","Aucun point crawl avec ce statut."));
   app.innerHTML = bar + toolbar + body;

@@ -887,6 +887,33 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   ce marqueur pour filtrer les listes — voir `docs/TODO.md`. Le marqueur seul suffit pour l'instant à
   ce que Tristan puisse commencer à qualifier son contenu existant et nouveau au fil de l'eau ; le
   filtre pourra être ajouté a posteriori sans migration puisque la donnée sera déjà là.
+- **Filtre "mes créations" (2026-08-11, même soirée que le marqueur `gmCreated`)** : Tristan a
+  précisé juste après avoir demandé le marqueur qu'il voulait bien l'appliquer tout de suite, pas
+  seulement le préparer pour plus tard. Bouton `🖋 Mes créations` dans l'en-tête (à côté du bouton
+  d'aperçu joueur), GM-only, masqué en mode aperçu joueur (outil de curation MJ, contrairement au
+  bouton d'aperçu lui-même qui doit rester accessible pendant l'aperçu). Variable globale
+  `gmCreatedOnly` + fonction partagée `filterGmCreated(list)` appliquée explicitement dans les 11
+  `list*()` qui portent le marqueur (mêmes onglets que `detailActions()` : événements, tables,
+  créatures, sessions, PNJ, PJ, trésors, sorts, point crawls, cartes hexcrawl, cartes de donjon —
+  initiative et roue exclus, ce ne sont pas des "créations" individuelles au même sens).
+  **Décision de conception importante** : filtrage appliqué au niveau de l'affichage dans chaque
+  fonction de liste (comme tous les filtres par onglet déjà existants — `creatureCatFilter`,
+  `crawlStatusFilter`, etc.), PAS via un Proxy global sur `db` qui aurait intercepté tous les accès
+  aux collections d'un coup. `db` sert aussi à l'écriture (`saveDB()` doit toujours voir la
+  collection complète) — un Proxy qui filtre les lectures aurait été plus élégant/central mais
+  risquait de faire fuiter le filtrage jusqu'au chemin de sauvegarde et supprimer silencieusement du
+  contenu non marqué au prochain enregistrement. Le choix mécanique (répéter `filterGmCreated()`
+  dans chaque liste) est plus verbeux mais élimine ce risque par construction — cohérent avec la
+  façon dont tous les autres filtres du fichier fonctionnent déjà.
+  Message d'état vide dédié (« Aucune création marquée « MJ » dans cet onglet. ») distinct du
+  message "aucun contenu du tout", pour ne jamais laisser croire à tort que l'onglet est
+  vide alors que c'est juste le filtre qui ne trouve rien.
+  Vérifié dans le navigateur : activer le filtre sur Créatures/Trésors ne garde que les entrées
+  marquées, le désactiver restaure la liste complète ; combiné avec le filtre de statut du Point
+  Crawl (les deux se cumulent correctement) ; message d'état vide dédié affiché sur Sorts avec le
+  filtre actif et aucune création marquée ; bouton absent pour un vrai compte joueur et pendant le
+  mode aperçu joueur. Aucune erreur console (hors artefacts de test habituels de cette session —
+  écritures RLS refusées faute de vraie authentification, IDs de test non-UUID).
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
