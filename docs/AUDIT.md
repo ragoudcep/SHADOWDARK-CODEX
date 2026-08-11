@@ -944,6 +944,31 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   l'étoile bascule l'état SANS ouvrir la fiche (confirme l'ordre du dispatcher), le filtre par onglet
   cache/affiche correctement et le compteur d'en-tête suit, étoile absente en mode aperçu joueur.
   `outils/audit-check.sh` : syntaxe JS OK sur les 8 blocs `<script>`.
+- **Retrait du champ icône sur les Trésors (2026-08-11)** : une autre session avait ajouté un champ
+  `o.icon` sur les objets du Trésor (commit `965a5d3`), réutilisant le picker POI de l'Hexcrawl
+  (`POI_ICON_LIST`/`icons.svg`) pour afficher un petit badge SVG à côté du nom sur la carte et en
+  fiche détail. Tristan pensait que la bibliothèque d'icônes était beaucoup plus large et variée
+  (« des centaines et des centaines d'images », de quoi illustrer précisément chaque objet en
+  portrait) — en réalité c'est le même petit set de pictogrammes de terrain/PDI utilisé pour
+  l'Hexcrawl (déjà signalé plus tôt cette session comme mal adapté à de l'équipement, voir plus haut
+  dans ce journal). Une fois vu en usage réel (petite icône collée à côté du nom, pas une
+  illustration), jugé sans intérêt : retiré intégralement.
+  **Retiré** : `treasureIconHTML()`, `treasureIconPickerHTML()`, `formTreasureIcon`, le champ
+  `Icône` du formulaire, `o.icon` dans `saveTreasure()`, l'affichage du badge dans `treasureCard()`
+  et `detailTreasure()`, le handler `data-treasure-icon` du dispatcher de clics, et les règles CSS
+  `.treasure-icon`/`.treasure-icon svg`.
+  **Conservé** : les classes CSS `.icon-picker`/`.icon-pick` sont partagées avec le picker de POI de
+  l'Hexcrawl (`js/hexcrawl.js`, `POI_ICON_LIST`) — vérifié qu'aucune règle propre au Trésor n'a été
+  supprimée par erreur de ce côté-là (`POI_ICON_LIST.length` toujours 90 après coup).
+  Purge des données : 11 trésors homebrew avaient déjà une icône assignée en base (Potion de
+  Reniflage, Dictionnaire des Vérités, Écu Chelou, Surin Spectral, Pelardon Ostensible, Œil de Verre
+  ambré, Un roi des rats, L'Anneau d'Immolation Partagée, Tibia Aller-Retour, La Masse de
+  Compassion, Parchemin de Rentabilité) — champ `icon` supprimé de ces 11 objets directement en
+  Supabase (`db`/`saveDB()` sur le site live), vérifié par un `fetchRemoteDB()` derrière (0 trésor
+  avec `icon` restant).
+  Vérifié dans le navigateur (bac à sable) : formulaire Trésor (Description → Bonus directement,
+  plus de champ Icône), carte de liste et fiche détail sans badge résiduel. `outils/audit-check.sh` :
+  syntaxe JS OK.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables
