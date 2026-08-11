@@ -1382,3 +1382,34 @@ toujours `git diff` ligne par ligne avant de committer plutôt que de faire
 confiance à un `git add` global, et en cas de doute sur une ligne inattendue,
 vérifier si une fonctionnalité en cours l'utilise déjà ailleurs dans le
 fichier avant de la retirer.
+
+## Feature — Couleur par nœud dans le Point Crawl (2026-08-11)
+
+Demande de Tristan : pouvoir colorer un nœud de point crawl pour
+visualiser en un coup d'œil ce qu'un groupe a déjà visité (ou tout autre
+repère perso), directement sur le schéma.
+
+Aucun champ de statut/couleur par nœud n'existait déjà (`crawlFocusItems`
+et `CRAWL_STATUSES`/`c.status` portent sur le point crawl entier, pas sur
+ses nœuds individuels) — nouveau champ `n.color` ajouté plutôt qu'une
+extension d'un mécanisme existant.
+
+- `NODE_COLORS` (palette fixe de 6 couleurs + « Aucune », réutilise les
+  teintes déjà utilisées ailleurs dans l'appli pour rester cohérent) et
+  `nodeColorMeta()` dans `index.html`, près de `CRAWL_STATUSES`.
+- `js/pointcrawl.js` : `drawCrawl()` applique la couleur du nœud en style
+  inline (bordure + liseré intérieur) sur `.crawl-node` ; `openNodeInfo()`
+  (modale ouverte au clic sur un nœud) affiche la palette de pastilles ;
+  `setNodeColor()` persiste (`saveDB()`) et redessine.
+- Handler délégué `data-set-node-color` ajouté dans `index.html` (même
+  pattern que `data-remove-node`).
+- CSS `.node-color-picker`/`.node-color-swatch` dans `style.css`.
+
+Vérifié sans connexion (les identifiants Supabase de Tristan ne sont pas
+accessibles à cette session — copier son jeton de session depuis Chrome
+aurait été un contournement d'auth, refusé) : `node --check` sur les JS
+modifiés, puis rendu isolé (page statique locale chargeant `style.css` en
+vrai) des nœuds colorés et de la palette de pastilles, styles calculés
+vérifiés via `getComputedStyle` — bordures/liserés et couleurs de pastille
+conformes à `NODE_COLORS`. Pas de test end-to-end via l'appli réelle (login
+requis) ; à confirmer par Tristan sur un point crawl existant.

@@ -255,6 +255,20 @@ const CRAWL_STATUSES = [
 ];
 function crawlStatusMeta(v){ return CRAWL_STATUSES.find(s=>s.value===v) || null; }
 
+/* Couleur libre par nœud d'un point crawl (n.color), demandée par Tristan pour marquer visuellement
+   sur le schéma lui-même quels points un groupe a déjà visités (ou tout autre repère perso) — palette
+   restreinte plutôt qu'un picker RGB complet. "" ou absent = pas de couleur (rendu par défaut du nœud). */
+const NODE_COLORS = [
+  { value:"",       label:"Aucune",        hex:null,      border:null },
+  { value:"vert",   label:"Vert (visité)", hex:"#7fe06a",  border:"#3a7a37" },
+  { value:"bleu",   label:"Bleu",          hex:"#6fd0f5",  border:"#2a6a8a" },
+  { value:"violet", label:"Violet",        hex:"#c9a3f7",  border:"#6a4a8f" },
+  { value:"orange", label:"Orange",        hex:"#ffb454",  border:"#8a6a2a" },
+  { value:"rouge",  label:"Rouge",         hex:"#ff6b6b",  border:"#8f3a3a" },
+  { value:"gris",   label:"Gris-bleu",     hex:"#8aa0c9",  border:"#3e5c78" }
+];
+function nodeColorMeta(v){ return NODE_COLORS.find(c=>c.value===v) || null; }
+
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", hexmap:"Hexcrawl", spell:"Sort" };
 const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel","gmnotes"];
 const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel", gmnotes:"gmnote" };
@@ -3067,6 +3081,7 @@ $("#modal").addEventListener("click", e=>{
   if((el=e.target.closest("[data-goto-event]"))){ closeModal(); goto("event", el.dataset.gotoEvent); return; }
   if((el=e.target.closest("[data-edit-event]"))){ closeModal(); editReturnTo={tab:"pointcrawls", id:crawlState.id}; view={tab:"events",mode:"edit",id:el.dataset.editEvent}; render(); return; }
   if((el=e.target.closest("[data-remove-node]"))){ const c=getEntity("pointcrawl",crawlState.id); if(c) removeNode(c, el.dataset.removeNode); closeModal(); return; }
+  if((el=e.target.closest("[data-set-node-color]"))){ const c=getEntity("pointcrawl",crawlState.id); const n=c&&(c.nodes||[]).find(x=>x.id===el.dataset.setNodeColor); if(c&&n) setNodeColor(c, n, el.dataset.color); return; }
   if((el=e.target.closest("[data-pick-event]"))){ const c=getEntity("pointcrawl",crawlState.id); if(c) addNodeForEvent(c, el.dataset.pickEvent); closeModal(); return; }
   if(e.target.closest("[data-create-event-save]")){ const c=getEntity("pointcrawl",crawlState.id); if(c) createEventFromModal(c); return; }
   if((el=e.target.closest("[data-pick-init-pc]"))){ addInitiativeFromPC(el.dataset.pickInitPc); closeModal(); return; }

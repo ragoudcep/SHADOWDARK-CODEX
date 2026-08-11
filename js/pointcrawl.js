@@ -124,7 +124,9 @@ function drawCrawl(c){
     const ev = getEntity("event", n.eventId);
     const title = ev ? ev.title : "(événement supprimé)";
     const cls = `crawl-node ${ev?"":"missing"} ${crawlState.linkMode?"linkmode":""} ${crawlState.linkFrom===n.id?"linkfrom":""}`;
-    return `<div class="${cls}" data-node="${n.id}" style="left:${n.x||0}px;top:${n.y||0}px"><span class="nt">${i+1}</span>${esc(truncate(title,40))}</div>`;
+    const colorMeta = crawlState.linkFrom!==n.id ? nodeColorMeta(n.color) : null;
+    const colorStyle = colorMeta && colorMeta.hex ? `border-color:${colorMeta.border};box-shadow:inset 0 0 0 2px ${colorMeta.hex},0 3px 10px rgba(0,0,0,.45);` : "";
+    return `<div class="${cls}" data-node="${n.id}" style="left:${n.x||0}px;top:${n.y||0}px;${colorStyle}"><span class="nt">${i+1}</span>${esc(truncate(title,40))}</div>`;
   }).join("");
   const edgesHtml = (c.edges||[]).map(e=>
     `<line data-edge="${e.id}" x1="0" y1="0" x2="0" y2="0"></line>${e.label?`<text data-edgelabel="${e.id}">${esc(e.label)}</text>`:""}`
@@ -203,6 +205,12 @@ function openNodeInfo(c, node){
   openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
       <h2 style="margin:0;color:var(--gold2)">${esc(ev.title)}</h2>
       <button class="icon-btn" data-modal-close="1">✕</button></div>
+    <div class="field" style="margin:.6rem 0 1rem">
+      <label>Couleur du point</label>
+      <div class="node-color-picker">
+        ${NODE_COLORS.map(nc=>`<button type="button" class="node-color-swatch${(node.color||"")===nc.value?" active":""}${nc.hex?"":" none"}" data-set-node-color="${node.id}" data-color="${nc.value}" title="${esc(nc.label)}" style="${nc.hex?`--sw:${nc.hex}`:""}">${nc.hex?"":"✕"}</button>`).join("")}
+      </div>
+    </div>
     ${eventSectionsHTML(ev, {short:true})}
     <div class="form-actions">
       <button class="btn" data-goto-event="${ev.id}">📖 Ouvrir la fiche complète</button>
@@ -210,6 +218,12 @@ function openNodeInfo(c, node){
       <button class="btn danger" data-remove-node="${node.id}">Retirer du plan</button>
       <button class="btn ghost" data-modal-close="1">Fermer</button>
     </div>`);
+}
+
+function setNodeColor(c, node, color){
+  node.color = color;
+  saveDB(); drawCrawl(c);
+  openNodeInfo(c, node);
 }
 
 function removeNode(c, nodeId){
