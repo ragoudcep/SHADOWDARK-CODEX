@@ -1348,3 +1348,37 @@ persistance réelle côté Supabase (nécessite une session MJ authentifiée,
 indisponible dans ce bac à sable — le compte GM de Tristan est déjà connecté
 sur le site déployé via Chrome, à confirmer par lui après déploiement en
 cochant une étoile puis en rechargeant la page).
+
+### Bug — ledger `emptyDB()`/`TABS`/`TYPE_OF_TAB` désynchronisé de la
+fonctionnalité To-do MJ (2026-08-11)
+
+Introduit par moi en committant le champ icône du Trésor (entrée plus haut,
+« Fonctionnalité ajoutée — icône pour les objets du Trésor ») **pendant que**
+Tristan/Dual développait en parallèle, dans le même dépôt de travail, la
+fonctionnalité To-do MJ (`gmnotes`, commit `96da256`). Un `git add` lancé
+au milieu de leur édition en cours a capturé un état intermédiaire de
+`index.html` — trois déclarations (`emptyDB()`, `TABS`, `TYPE_OF_TAB`)
+avaient déjà `gmnotes` au moment du `git add`, mais je ne les avais pas
+identifiées comme faisant partie de mon changement. En croyant « nettoyer »
+une pollution accidentelle avant de push, je les ai reverties par erreur —
+alors que le reste de la fonctionnalité (bouton de nav, `TAB_OF`,
+`collectionOf`, dispatch de `renderList()`, `<script src="js/gmnotes.js">`,
+`DB_COLS` dans `js/importexport.js`, gestionnaires d'événements) avait déjà
+été committé complet par Tristan/Dual juste après. Résultat : l'onglet
+« To-do MJ » plantait (`db.gmnotes` undefined) pour toute session partant
+d'un DB vide, publié en production le temps d'un aller-retour de déploiement.
+
+**Fix** (commit `305d1d0`, isolé avec `git hash-object`/`update-index` pour
+ne toucher que ces 3 lignes sans interférer avec le travail en cours de
+Tristan/Dual sur d'autres fichiers) : réintégré `gmnotes:[]` dans
+`emptyDB()`, `"gmnotes"` dans `TABS`, `gmnotes:"gmnote"` dans `TYPE_OF_TAB`.
+Vérifié après coup : `outils/audit-check.sh` (syntaxe JS OK), grep de toutes
+les occurrences `gmnote(s)` dans `index.html` pour confirmer la cohérence du
+ledger, et rechargement du site déployé (`db.gmnotes` bien initialisé).
+
+**Leçon retenue** : dans ce dépôt, `index.html` peut être modifié en direct
+par un autre agent (Dual) pendant qu'une session Claude Code y travaille —
+toujours `git diff` ligne par ligne avant de committer plutôt que de faire
+confiance à un `git add` global, et en cas de doute sur une ligne inattendue,
+vérifier si une fonctionnalité en cours l'utilise déjà ailleurs dans le
+fichier avant de la retirer.
