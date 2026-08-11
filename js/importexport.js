@@ -6,7 +6,7 @@ function exportJSON(){
   downloadBlob(blob, `grimoire-shadowdark-${new Date().toISOString().slice(0,10)}.json`);
   toast("Données exportées. Le fichier est téléchargé sur votre appareil, généralement dans votre dossier Téléchargements.");
 }
-const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","hexmaps","spells","initiative","wheel","dungeonmaps"];
+const DB_COLS = ["sessions","events","creatures","tables","npcs","pointcrawls","pcs","treasures","hexmaps","spells","initiative","wheel","dungeonmaps","gmnotes"];
 function countItems(d){ return DB_COLS.reduce((n,c)=>n+((d[c]||[]).length),0); }
 function mergeDB(data){
   let added = 0;

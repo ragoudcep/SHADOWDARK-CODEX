@@ -1178,3 +1178,61 @@ Le champ « créé par le MJ » (`gmCreated`, ajouté le 2026-08-11 — voir plu
 haut) existait déjà et n'a pas eu besoin de changement de code : coché
 manuellement sur chacun des 9 objets lors de leur création en base (contenu
 de campagne, donc en Supabase — voir entrée « Contenu ajouté » suivante).
+
+### Onglet ajouté — 2026-08-11 : « To-do MJ »
+
+Demande de Tristan : un endroit dans la partie MJ pour noter une liste de
+choses à faire (pense-bête de préparation, pas le `docs/TODO.md` du dépôt qui
+est le backlog de dev). Nouvel onglet **strictement réservé au MJ**, présent
+dans les 6 emplacements du ledger de collections (`TABS`, `DB_COLS` — dans
+`js/importexport.js` —, `TAB_OF`, `TYPE_OF_TAB`, `collectionOf()`,
+`emptyDB()`) sous la clé `gmnotes`/type `gmnote`, **volontairement absent de
+`PLAYER_VISIBLE_TABS`** — le seul filtre qui compte, `applyRoleUI()` (masque
+le bouton d'onglet) et le garde-fou dans `render()` (affiche « Cet onglet
+n'est pas visible aux joueurs » si on force la navigation dessus) en héritent
+automatiquement.
+
+**Modèle de données volontairement minimal** (demande explicite de Tristan,
+pas de catégories/priorités/dates) : `db.gmnotes[]`, chaque entrée
+`{id, text, done}`. Pas de page liste/détail/formulaire dédiée — tout se
+passe en place dans un seul écran, sur le modèle d'Initiative/Roue (aucune de
+ces deux entités n'a de mode `edit`/`new` séparé non plus) : nouveau fichier
+`js/gmnotes.js` (`listGmNotes()`, `addGmNote()`/`toggleGmNote()`/
+`editGmNote()`/`removeGmNote()`), câblé dans le dispatcher `renderList()`
+(`index.html`) et dans les délégations de clic/change existantes
+(`data-gmnote-add` ouvre `promptModal()` pour la saisie du texte,
+`data-gmnote-toggle` sur la case à cocher passe par le handler `change`
+comme `data-init-manual-input`, `data-gmnote-edit`/`data-gmnote-del`
+réutilisent `promptModal()`/`deleteEntity("gmnote", id)`). Suppression sans
+confirmation, comme `removeInitiativeEntry()` — cohérent avec l'esprit
+« pense-bête à usage rapide », pas un gestionnaire de projet. Notes non
+faites affichées en premier (insertion en tête de liste, note la plus
+récente en haut), notes faites regroupées sous un label « Faites » en bas de
+la même liste (texte barré) plutôt que masquées, pour rester consultables.
+CSS ajouté à `style.css` (`.gmnote-row`/`.gmnote-check`/`.gmnote-text`/
+`.gmnote-controls`) sur le même gabarit que `.init-card`.
+
+**Table Supabase à créer** : script fourni dans
+`outils/supabase_gmnotes_setup.sql` — **différent de toutes les autres
+tables de l'appli** : policy MJ CRUD standard, mais **aucune policy de
+lecture joueur** (contrairement à `hexmaps`/`spells`/`initiative`/`wheel`/
+`dungeonmaps` qui ont toutes une `_player_read`), puisque cet onglet ne doit
+jamais être lisible par un compte joueur, même par erreur de RLS côté
+client — à exécuter par Tristan dans l'éditeur SQL Supabase, à confirmer et
+à reporter dans le ledger Supabase une fois fait.
+
+**Vérifié dans le navigateur** (fichier ouvert directement, `myRole="gm"`
+et `saveDB()` stubbé en mémoire pour ce test à cause de l'absence de session
+Supabase réelle dans cette session — mêmes fonctions que la production,
+appelées via les vrais gestionnaires d'événements, pas des appels directs
+maquillés) : l'onglet apparaît dans la nav et s'ouvre pour le MJ, état vide
+correct, création de 3 notes (la plus récente bien en tête), case à cocher
+réelle cliquée → note déplacée sous « Faites » + compteur mis à jour,
+modale d'édition pré-remplie avec le texte actuel → « Valider » persiste le
+changement, suppression réelle enlève l'entrée. **Mode aperçu joueur**
+(`togglePlayerPreview()`) activé : bouton d'onglet masqué dans la nav,
+contenu remplacé par l'état « non visible aux joueurs » sans changer
+d'onglet ; désactivé : onglet et notes réapparaissent à l'identique, aucune
+perte d'état. `outils/audit-check.sh` relancé après coup (syntaxe JS OK sur
+tous les blocs, accolades CSS équilibrées — vérifié à la main, l'étape
+Python du script n'est pas disponible dans cet environnement).

@@ -77,6 +77,7 @@
     <button data-tab="dungeonmaps">Cartes de donjon</button>
     <button data-tab="initiative">Initiative</button>
     <button data-tab="wheel">Roue</button>
+    <button data-tab="gmnotes">To-do MJ</button>
   </nav>
   <div id="nav-backdrop"></div>
 </header>
@@ -123,7 +124,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[], gmnotes:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -255,8 +256,8 @@ const CRAWL_STATUSES = [
 function crawlStatusMeta(v){ return CRAWL_STATUSES.find(s=>s.value===v) || null; }
 
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", hexmap:"Hexcrawl", spell:"Sort" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel","gmnotes"];
-const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel", gmnotes:"gmnote" };
+const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel"];
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
@@ -285,7 +286,7 @@ function findByName(name){
   for(const sp of db.spells)      if((sp.name||"").toLowerCase()===n) return {type:"spell", id:sp.id};
   return null;
 }
-const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", hexmap:"hexmaps", dungeonmap:"dungeonmaps", spell:"spells", initiative:"initiative", wheel:"wheel" };
+const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"sessions", npc:"npcs", pointcrawl:"pointcrawls", pc:"pcs", treasure:"treasures", hexmap:"hexmaps", dungeonmap:"dungeonmaps", spell:"spells", initiative:"initiative", wheel:"wheel", gmnote:"gmnotes" };
 // Hoisté hors de applyRoleUI() pour être réutilisable ailleurs (ex. wheelRefViewable() : le bouton
 // "Voir" d'un bonus gagné à la roue ne doit être proposé à un joueur que pour un type d'entité
 // déjà public via cette même liste — une seule règle de visibilité, pas une inventée en double).
@@ -405,7 +406,7 @@ function backlinksTo(targetType, targetId){
 }
 
 /* ------------------------------- CRUD ------------------------------------ */
-function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, hexmap:db.hexmaps, dungeonmap:db.dungeonmaps, spell:db.spells, initiative:db.initiative, wheel:db.wheel }[type]; }
+function collectionOf(type){ return { creature:db.creatures, event:db.events, table:db.tables, session:db.sessions, npc:db.npcs, pointcrawl:db.pointcrawls, pc:db.pcs, treasure:db.treasures, hexmap:db.hexmaps, dungeonmap:db.dungeonmaps, spell:db.spells, initiative:db.initiative, wheel:db.wheel, gmnote:db.gmnotes }[type]; }
 function getEntity(type,id){ return collectionOf(type).find(o=>o.id===id); }
 function deleteEntity(type,id){
   const c = collectionOf(type); const i = c.findIndex(o=>o.id===id);
@@ -479,6 +480,7 @@ function renderList(){
   if(view.tab==="dungeonmaps") return viewDungeonMaps();
   if(view.tab==="initiative") return listInitiative();
   if(view.tab==="wheel")      return viewWheel();
+  if(view.tab==="gmnotes")    return listGmNotes();
 }
 </script>
 <script src="js/initiative.js"></script>
@@ -486,6 +488,7 @@ function renderList(){
 
 </script>
 <script src="js/wheel.js"></script>
+<script src="js/gmnotes.js"></script>
 <script>
 
 function pageHead(title, sub, newLabel, extra){
@@ -2733,6 +2736,7 @@ app.addEventListener("change", e=>{
   else if(e.target.matches("[data-table-filter]")){ tableCatFilter = e.target.value; renderList(); }
   else if(e.target.matches("[data-crawl-status-filter]")){ crawlStatusFilter = e.target.value; renderList(); }
   else if(e.target.matches("[data-init-manual-input]")){ setInitiativeManual(e.target.dataset.initManualInput, e.target.value); renderList(); }
+  else if(e.target.matches("[data-gmnote-toggle]")){ toggleGmNote(e.target.dataset.gmnoteToggle); }
   else if(e.target.matches("#f-kind")){
     const dyn = e.target.value==="dynamic";
     const srcWrap = document.getElementById("dynamic-source-wrap"), rowsSec = document.getElementById("rows-section");
@@ -2906,6 +2910,10 @@ app.addEventListener("click", e=>{
   // Roue
   if(closest("data-wheel-spin")){ spinWheel(); return; }
   if(closest("data-wheel-edit")){ openWheelEditModal(); return; }
+  // To-do MJ
+  if(closest("data-gmnote-add")){ promptModal("Nouvelle note :", "", text=>addGmNote(text)); return; }
+  if((el=closest("data-gmnote-edit"))){ editGmNote(el.dataset.gmnoteEdit); return; }
+  if((el=closest("data-gmnote-del"))){ removeGmNote(el.dataset.gmnoteDel); return; }
 });
 
 function applyRowCount(){

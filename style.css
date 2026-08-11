@@ -376,6 +376,17 @@
     .init-controls{width:100%; justify-content:flex-end; margin-top:.3rem}
   }
 
+  /* to-do MJ — pense-bête, liste plate de notes cochables */
+  .gmnote-list{display:flex; flex-direction:column; gap:.5rem}
+  .gmnote-row{display:flex; align-items:center; gap:.7rem;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));
+    border:1px solid var(--border); border-radius:var(--radius); padding:.55rem .7rem}
+  .gmnote-check{flex:0 0 auto; width:1.15rem; height:1.15rem; margin:0}
+  .gmnote-text{flex:1 1 auto; min-width:0; font-family:var(--ui); font-size:.9rem; color:var(--text);
+    overflow-wrap:anywhere; cursor:pointer}
+  .gmnote-row-done .gmnote-text{color:var(--faint); text-decoration:line-through}
+  .gmnote-controls{flex:0 0 auto; display:flex; align-items:center; gap:.3rem}
+
   /* modal */
   #modal{position:fixed; inset:0; background:rgba(0,0,0,.72); display:flex; align-items:center; justify-content:center; z-index:150; padding:1rem}
   #modal .modal-box{background:var(--panel2); border:1px solid var(--border2); border-radius:var(--radius);
