@@ -1145,3 +1145,36 @@ temporaire de la fonction en mémoire avant de l'appliquer au fichier) : les
 liens vers « Fael N'adal, le Rat-Sorcier » et « Mage Royal Nath'ri »
 passent de `wl bad` à `wl npc` correctement résolu, apostrophe affichée
 normalement. `outils/audit-check.sh` relancé après coup (syntaxe JS OK).
+
+### Fonctionnalité ajoutée — 2026-08-11 : icône pour les objets du Trésor
+
+Demande de Tristan : illustrer 9 objets magiques homebrew avec une icône du
+set game-icons.net déjà intégré au site (les 90 icônes `icons.svg` utilisées
+pour les marqueurs POI de l'Hexcrawl, `POI_ICON_LIST` dans `js/hexcrawl.js`).
+Le Trésor n'avait pas de champ icône — mécanisme ajouté par analogie avec le
+picker POI existant (`poiIconPickerHTML`) plutôt que d'en inventer un
+nouveau :
+
+- Nouveau champ `icon` sur l'entité trésor (id d'`icons.svg`, ex.
+  `icon-ghost`), facultatif.
+- `treasureIconPickerHTML()` (index.html, juste avant `formTreasure()`) :
+  même grille `.icon-picker`/`.icon-pick` que le picker POI, réutilise
+  `POI_ICON_LIST` et `icons.svg`, mais attribut `data-treasure-icon` (pas
+  `data-icon`) pour ne pas entrer en collision avec le handler dédié du
+  picker POI (câblé à la main dans `openHexPointModal`, hors délégation
+  globale) — géré ici via la délégation de clic globale existante
+  (`data-save`, `data-remove-img`, etc.), avec un état temporaire
+  `formTreasureIcon` sur le même modèle que `formPortrait`/`formImages`.
+- Icône affichée en petit badge (`treasureIconHTML()`, classe `.treasure-icon`
+  ajoutée à `style.css`) à côté du tag de catégorie, sur la fiche détail et
+  sur la carte liste.
+- Vérifié en local (serveur statique `outils/launch.json`, fonctions
+  appelées directement en console faute de session Supabase locale) :
+  rendu du picker, sélection, sauvegarde, affichage carte + détail — voir
+  captures de la session. `outils/audit-check.sh` relancé après coup
+  (syntaxe JS OK sur les 8 blocs `<script>`, accolades CSS équilibrées).
+
+Le champ « créé par le MJ » (`gmCreated`, ajouté le 2026-08-11 — voir plus
+haut) existait déjà et n'a pas eu besoin de changement de code : coché
+manuellement sur chacun des 9 objets lors de leur création en base (contenu
+de campagne, donc en Supabase — voir entrée « Contenu ajouté » suivante).

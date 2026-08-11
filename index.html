@@ -123,7 +123,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[], gmnotes:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -206,6 +206,7 @@ let formImages = []; // état temporaire des images pendant l'édition d'une cr�
 let PORTRAITS_MANIFEST = []; // catalogue portraits/manifest.json (bibliothèque partagée PJ/PNJ)
 let portraitsReady = false;
 let formPortrait = ""; // portrait sélectionné pendant l'édition d'un PJ/PNJ
+let formTreasureIcon = ""; // icône (game-icons.net, même set que les POI hexcrawl) pendant l'édition d'un trésor
 let formMapImage = ""; // data URL temporaire pendant l'édition d'une carte de donjon
 let crawlState = { id:null, linkMode:false, linkFrom:null }; // état de l'éditeur de point crawl
 let editReturnTo = null; // {tab,id} — si défini, où revenir après l'édition d'un événement ouvert depuis un point crawl
@@ -254,8 +255,8 @@ const CRAWL_STATUSES = [
 function crawlStatusMeta(v){ return CRAWL_STATUSES.find(s=>s.value===v) || null; }
 
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", hexmap:"Hexcrawl", spell:"Sort" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel"];
-const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel" };
+const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel","gmnotes"];
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel", gmnotes:"gmnote" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
@@ -2300,11 +2301,14 @@ function rangeContains(range, n){
 /* =========================================================================
    TRÉSOR — objets, classés en 3 catégories (Trouvaille < Relique < Régalia)
    ========================================================================= */
+function treasureIconHTML(icon){
+  return icon ? `<span class="treasure-icon" title="${esc(icon)}"><svg viewBox="0 0 32 32"><use href="icons.svg#${esc(icon)}"></use></svg></span>` : "";
+}
 function treasureCard(t){
   return `<div class="card" data-open="treasure:${t.id}">
     ${favStarHTML("treasure",t.id,t.favorite)}
     ${(t.images&&t.images.length)?`<img class="thumb" src="${t.images[0].data}" alt="">`:""}
-    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span></div>
+    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${treasureIconHTML(t.icon)}</div>
     <h3 style="margin-top:.5rem">${esc(t.name||"Sans nom")}</h3>
     <p>${esc(firstLine(t.description)||"Pas de description")}</p>
   </div>`;
@@ -2328,9 +2332,18 @@ function listTreasures(){
   }).join("");
   app.innerHTML = head + toggleBar + sections;
 }
+function treasureIconPickerHTML(selected){
+  const tiles = [`<button type="button" class="icon-pick${!selected?' active':''}" data-treasure-icon="" title="Aucune">✕</button>`]
+    .concat(POI_ICON_LIST.map(id=>
+      `<button type="button" class="icon-pick${selected===id?' active':''}" data-treasure-icon="${id}" title="${id}">
+         <svg viewBox="0 0 32 32"><use href="icons.svg#${id}"></use></svg>
+       </button>`));
+  return `<div class="icon-picker" id="treasure-icon-picker">${tiles.join("")}</div>`;
+}
 function formTreasure(){
-  const t = view.mode==="edit" ? getEntity("treasure",view.id) : {name:"",category:"trouvaille",description:"",bonus:"",boon:"",curse:"",personality:""};
+  const t = view.mode==="edit" ? getEntity("treasure",view.id) : {name:"",category:"trouvaille",description:"",bonus:"",boon:"",curse:"",personality:"",icon:""};
   formImages = (t.images||[]).slice();
+  formTreasureIcon = t.icon || "";
   const catOpt = TREASURE_CATS.map(([k,lbl])=>`<option value="${k}" ${t.category===k?"selected":""}>${lbl}</option>`).join("");
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
@@ -2341,6 +2354,7 @@ function formTreasure(){
     </div>
     <div class="field"><label>Description <span class="hint">(aspect, historique ; une ligne par effet ; liens [[…]] possibles)</span></label>
       <textarea id="f-description" placeholder="Une bouteille de verre contenant un liquide gazeux...">${esc(t.description)}</textarea></div>
+    <div class="field"><label>Icône <span class="hint">(facultatif)</span></label>${treasureIconPickerHTML(formTreasureIcon)}</div>
     <div class="field"><label>Bonus <span class="hint">(facultatif — ex : « Épée longue +1 »)</span></label>
       <textarea id="f-bonus" style="min-height:60px" placeholder="Armure de plates +1">${esc(t.bonus||"")}</textarea></div>
     <div class="field"><label>Atout <span class="hint">(facultatif — propriété magique principale)</span></label>
@@ -2369,6 +2383,7 @@ function saveTreasure(){
   o.curse = $("#f-curse").value;
   o.personality = $("#f-personality").value;
   o.images = formImages.slice();
+  o.icon = formTreasureIcon;
   if(!o.name){ toast("Le nom est requis."); return; }
   if(view.mode==="new") db.treasures.push(o);
   const _n = maybePropagate(_old, o.name);
@@ -2377,7 +2392,7 @@ function saveTreasure(){
 function detailTreasure(t){
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Trésor</button>
-    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span></div>
+    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${treasureIconHTML(t.icon)}</div>
     <h1>${esc(t.name||"Sans nom")}</h1>
     ${detailActions("treasure",t.id)}
     ${(t.description&&t.description.trim())
@@ -2838,6 +2853,12 @@ app.addEventListener("click", e=>{
   // Images (formulaire créature) + agrandissement
   if(closest("data-add-img")){ $("#file-img").click(); return; }
   if((el=closest("data-remove-img"))){ formImages.splice(+el.dataset.removeImg,1); renderImageThumbs(); return; }
+  // Icône (formulaire trésor)
+  if((el=closest("data-treasure-icon"))){
+    formTreasureIcon = el.dataset.treasureIcon;
+    document.querySelectorAll("#treasure-icon-picker .icon-pick").forEach(b=>b.classList.toggle("active", b===el));
+    return;
+  }
   // Portraits (bibliothèque partagée PJ/PNJ)
   if(closest("data-open-portrait-picker")){ openPortraitPickerModal(); return; }
   if(closest("data-clear-portrait")){ formPortrait=""; refreshPortraitPickWidget(); return; }
