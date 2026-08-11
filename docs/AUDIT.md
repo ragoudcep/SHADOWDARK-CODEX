@@ -914,6 +914,36 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   filtre actif et aucune création marquée ; bouton absent pour un vrai compte joueur et pendant le
   mode aperçu joueur. Aucune erreur console (hors artefacts de test habituels de cette session —
   écritures RLS refusées faute de vraie authentification, IDs de test non-UUID).
+- **Favoris (2026-08-11, même soirée que `gmCreated`/`gmCreatedOnly`)** : Tristan a demandé de
+  pouvoir marquer PJ / PNJ / Créatures / Trésor / Sorts d'une petite étoile, avec un filtre "favoris
+  uniquement" **par onglet** (contrairement au filtre `gmCreatedOnly`, unique et global dans
+  l'en-tête — ici Tristan a explicitement décrit "quand je viens dans un onglet, je peux décider de
+  n'afficher que mes favoris", un sous-ensemble indépendant par liste). Nouveau champ jsonb
+  `o.favorite` (booléen, pas de migration), cinq variables globales indépendantes (`pcFavOnly`,
+  `npcFavOnly`, `creatureFavOnly`, `treasureFavOnly`, `spellFavOnly` — même principe que
+  `creatureCatFilter`/`tableCatFilter`), fonction partagée `filterFavorites(list, only)` appliquée
+  après `filterGmCreated()` dans les 5 `list*()` concernées.
+  Étoile directement sur la carte (`favStarHTML()`, coin haut-droit, `position:absolute` sur `.card`
+  qui a déjà `position:relative`) — pas seulement en fiche détail, pour un bascule rapide en
+  parcourant la liste, conformément à "les cocher [avec] une petite étoile". Bouton de filtre par
+  onglet (`favFilterBtnHTML()`) placé dans la barre d'outils de chaque liste, à côté du tri/de la
+  catégorie pour Créatures, à côté de "Tout ouvrir/fermer" pour Trésor/Sorts, à côté du bouton
+  générateur pour PJ/PNJ.
+  **Réservé au MJ** comme `gmCreated` : `favStarHTML()` retourne une chaîne vide si
+  `effectiveRole()!=="gm"`, et les boutons de filtre ne sont insérés que côté MJ — pas de notion
+  d'utilisateur/préférence individuelle dans le modèle de données actuel, un favori est un marqueur
+  partagé sur la fiche, donc masqué en aperçu joueur et pour un vrai compte joueur (y compris sur PJ
+  et Sorts, qui sont pourtant des onglets visibles aux joueurs) pour éviter toute confusion sur ce
+  qu'un joueur voit.
+  **Point d'attention ordre du dispatcher de clics** : l'étoile est imbriquée dans une carte qui
+  porte elle-même `data-open` (ouvrir la fiche) — `data-toggle-fav` est donc vérifié AVANT
+  `data-open` dans `app.addEventListener("click", ...)`, exactement comme `data-toggle-gm-created`
+  avait déjà établi ce principe (ordre des tests plutôt que `stopPropagation()`).
+  Vérifié dans le navigateur (état de test injecté en console, pas de vraie authentification
+  Supabase disponible en sandbox) sur les 5 onglets : étoile pleine/vide selon `o.favorite`, clic sur
+  l'étoile bascule l'état SANS ouvrir la fiche (confirme l'ordre du dispatcher), le filtre par onglet
+  cache/affiche correctement et le compteur d'en-tête suit, étoile absente en mode aperçu joueur.
+  `outils/audit-check.sh` : syntaxe JS OK sur les 8 blocs `<script>`.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

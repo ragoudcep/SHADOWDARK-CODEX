@@ -226,6 +226,22 @@ let crawlStatusFilter = ""; // filtre de statut des point crawls ("" = tous)
    lui-même, élimine ce risque par construction. */
 let gmCreatedOnly = false;
 function filterGmCreated(list){ return gmCreatedOnly ? list.filter(o=>o.gmCreated) : list; }
+/* Favoris (2026-08-11), demandé par Tristan : une petite étoile à cocher sur PJ / PNJ / Créatures /
+   Trésor / Sorts, avec un filtre "favoris uniquement" PAR ONGLET (contrairement à gmCreatedOnly,
+   qui est un seul bouton global dans l'en-tête) — Tristan veut pouvoir n'afficher que ses favoris
+   dans un onglet donné indépendamment des autres, même principe que creatureCatFilter/tableCatFilter.
+   Réservé au MJ (comme le marqueur gmCreated) : pas de notion d'utilisateur/préférence individuelle
+   dans le modèle de données actuel, donc un favori est un marqueur partagé sur la fiche elle-même —
+   masqué en aperçu joueur et pour un vrai compte joueur pour éviter toute confusion. */
+let pcFavOnly = false, npcFavOnly = false, creatureFavOnly = false, treasureFavOnly = false, spellFavOnly = false;
+function filterFavorites(list, only){ return only ? list.filter(o=>o.favorite) : list; }
+function favStarHTML(type,id,fav){
+  if(effectiveRole()!=="gm") return "";
+  return `<button class="fav-star${fav?" fav-star-on":""}" data-toggle-fav="${type}:${id}" title="${fav?"Retirer des favoris":"Ajouter aux favoris"}">${fav?"★":"☆"}</button>`;
+}
+function favFilterBtnHTML(type,only){
+  return `<button class="btn ghost sm${only?" active-mode":""}" data-toggle-fav-filter="${type}" title="N'afficher que les favoris de cet onglet">${only?"★ Favoris uniquement":"☆ Tous"}</button>`;
+}
 /* Statut d'avancement d'un point crawl (c.status), demandé par Tristan pour s'y retrouver entre
    plusieurs chantiers en parallèle — champ facultatif, "" ou absent = non catégorisé (aucune
    migration : un point crawl existant sans statut reste juste non filtré/sans badge). */
@@ -660,6 +676,7 @@ function sortCreatures(list){
 }
 function creatureCard(c){
   return `<div class="card" data-open="creature:${c.id}">
+    ${favStarHTML("creature",c.id,c.favorite)}
     ${(c.images&&c.images.length)?`<img class="thumb" src="${c.images[0].data}" alt="">`:""}
     <div class="meta"><span class="tag ${c.alignment||'neutre'}">${esc(cap(c.alignment)||'—')}</span>
       <span class="tag gold">Niv. ${esc(c.level||'?')}</span>
@@ -672,7 +689,7 @@ function creatureCard(c){
 function creatureGrid(list){ return `<div class="grid" style="margin-bottom:1.4rem">${sortCreatures(list).map(creatureCard).join("")}</div>`; }
 function listCreatures(){
   const itemsAll = db.creatures;
-  const items = filterGmCreated(itemsAll);
+  const items = filterFavorites(filterGmCreated(itemsAll), creatureFavOnly);
   const cats = creatureCategories();
   const bar = `<div class="page-head">
       <div><h1>Créatures</h1><div class="sub">${items.length} créature(s)</div></div>
@@ -686,7 +703,7 @@ function listCreatures(){
       </div>
     </div>`;
   if(!itemsAll.length){ app.innerHTML = bar + emptyState("🐲","Aucune créature. Créez-en une ou importez un fichier XML."); return; }
-  if(!items.length){ app.innerHTML = bar + emptyState("🖋","Aucune création marquée « MJ » dans cet onglet."); return; }
+  if(!items.length){ app.innerHTML = bar + (effectiveRole()==="gm"?`<div style="margin-bottom:1rem">${favFilterBtnHTML("creature",creatureFavOnly)}</div>`:"") + emptyState("🖋",creatureFavOnly?"Aucun favori dans cet onglet.":"Aucune création marquée « MJ » dans cet onglet."); return; }
 
   const sortSel = `<label style="font-family:var(--ui);font-size:.8rem;color:var(--muted);margin-right:.4rem">Trier :</label>
     <select data-crea-sort style="width:auto;display:inline-block;min-width:130px;margin-right:1rem">
@@ -700,7 +717,8 @@ function listCreatures(){
       ${cats.map(t=>`<option value="${esc(t)}" ${creatureCatFilter===t?"selected":""}>${esc(t)}</option>`).join("")}
       <option value="__none__" ${creatureCatFilter==="__none__"?"selected":""}>(Sans catégorie)</option>
     </select>` : "";
-  const toolbar = `<div style="margin-bottom:1.1rem;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${sortSel}${catSel}</div>`;
+  const favBtn = effectiveRole()==="gm" ? favFilterBtnHTML("creature",creatureFavOnly) : "";
+  const toolbar = `<div style="margin-bottom:1.1rem;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${sortSel}${catSel}${favBtn}</div>`;
 
   let body;
   if(!cats.length){
@@ -825,12 +843,13 @@ function generateRandomNPC(){
   render();
 }
 function listNPCs(){
-  const items = filterGmCreated(db.npcs);
+  const items = filterFavorites(filterGmCreated(db.npcs), npcFavOnly);
   const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-npc="1">🎲 Générer un PNJ aléatoire</button>
-    <button class="btn ghost sm" data-print-npc-cards="1">🖨 Exporter en cartes</button>` : "";
+    <button class="btn ghost sm" data-print-npc-cards="1">🖨 Exporter en cartes</button>${favFilterBtnHTML("npc",npcFavOnly)}` : "";
   app.innerHTML = pageHead("PNJ", `${items.length} personnage(s) non-joueur(s)`, "Nouveau PNJ", xmlToolbarHTML("npc")+genBtn) +
     (items.length ? `<div class="grid">${items.map(n=>`
       <div class="card" data-open="npc:${n.id}">
+        ${favStarHTML("npc",n.id,n.favorite)}
         ${n.portrait?`<img class="thumb portrait-gray" src="portraits/${esc(n.portrait)}" alt="">`:(n.images&&n.images.length)?`<img class="thumb" src="${n.images[0].data}" alt="">`:""}
         <h3>${esc(n.name||"Sans nom")}</h3>
         <p>${esc(n.description||firstLine(n.objectif)||"Pas de description")}</p>
@@ -2116,12 +2135,13 @@ function generateRandomPC(){
 }
 
 function listPCs(){
-  const items = filterGmCreated(db.pcs);
+  const items = filterFavorites(filterGmCreated(db.pcs), pcFavOnly);
   const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
-    <button class="btn ghost sm" data-print-pcs="1">🖨 Imprimer des fiches</button>` : "";
+    <button class="btn ghost sm" data-print-pcs="1">🖨 Imprimer des fiches</button>${favFilterBtnHTML("pc",pcFavOnly)}` : "";
   app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ", genBtn) +
     (items.length ? `<div class="grid">${items.map(p=>`
       <div class="card" data-open="pc:${p.id}">
+        ${favStarHTML("pc",p.id,p.favorite)}
         ${p.portrait?`<img class="thumb portrait-gray" src="portraits/${esc(p.portrait)}" alt="">`:(p.images&&p.images.length)?`<img class="thumb" src="${p.images[0].data}" alt="">`:""}
         <h3>${esc(p.name||"Sans nom")}</h3>
         <p>${esc([p.ancestry,p.cls].filter(Boolean).join(" · ")||"—")}</p>
@@ -2282,6 +2302,7 @@ function rangeContains(range, n){
    ========================================================================= */
 function treasureCard(t){
   return `<div class="card" data-open="treasure:${t.id}">
+    ${favStarHTML("treasure",t.id,t.favorite)}
     ${(t.images&&t.images.length)?`<img class="thumb" src="${t.images[0].data}" alt="">`:""}
     <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span></div>
     <h3 style="margin-top:.5rem">${esc(t.name||"Sans nom")}</h3>
@@ -2290,13 +2311,14 @@ function treasureCard(t){
 }
 function listTreasures(){
   const itemsAll = db.treasures;
-  const items = filterGmCreated(itemsAll);
+  const items = filterFavorites(filterGmCreated(itemsAll), treasureFavOnly);
   const head = pageHead("Trésor", `${items.length} objet(s)`, "Nouvel objet", xmlToolbarHTML("treasure"));
   if(!itemsAll.length){ app.innerHTML = head + emptyState("💎","Aucun trésor. Répertoriez trouvailles, reliques et régalia."); return; }
-  if(!items.length){ app.innerHTML = head + emptyState("🖋","Aucune création marquée « MJ » dans cet onglet."); return; }
+  if(!items.length){ app.innerHTML = head + (effectiveRole()==="gm"?`<div style="margin-bottom:1rem">${favFilterBtnHTML("treasure",treasureFavOnly)}</div>`:"") + emptyState("🖋",treasureFavOnly?"Aucun favori dans cet onglet.":"Aucune création marquée « MJ » dans cet onglet."); return; }
   const allKeys = TREASURE_CATS.map(([k])=>"treasures:"+k).filter(key=>items.some(t=>(t.category||"trouvaille")===key.split(":")[1]));
   const allOpen = allKeys.length && allKeys.every(k=>expandedGroups.has(k));
-  const toggleBar = `<div style="margin-bottom:.8rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button></div>`;
+  const favBtn = effectiveRole()==="gm" ? favFilterBtnHTML("treasure",treasureFavOnly) : "";
+  const toggleBar = `<div style="margin-bottom:.8rem;display:flex;align-items:center;flex-wrap:wrap;gap:.4rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button>${favBtn}</div>`;
   const sections = TREASURE_CATS.map(([k,lbl])=>{
     const list = items.filter(t=>(t.category||"trouvaille")===k);
     if(!list.length) return "";
@@ -2384,6 +2406,7 @@ function spellCastDC(tier){ return 10 + (parseInt(tier)||1)*2; }
 function sortSpellList(list){ return [...list].sort((a,b)=>(parseInt(a.tier)||0)-(parseInt(b.tier)||0) || (a.name||"").localeCompare(b.name||"")); }
 function spellCard(s){
   return `<div class="card" data-open="spell:${s.id}">
+    ${favStarHTML("spell",s.id,s.favorite)}
     <div class="meta"><span class="tag ${s.class||'wizard'}">${esc(spellClassLabel(s.class))}</span><span class="tag gold">Rang ${esc(s.tier||'?')}</span></div>
     <h3 style="margin-top:.5rem">${esc(s.name||"Sans nom")}</h3>
     <p>${esc(firstLine(s.effect)||"Pas d'effet renseigné")}</p>
@@ -2391,13 +2414,14 @@ function spellCard(s){
 }
 function listSpells(){
   const itemsAll = db.spells;
-  const items = filterGmCreated(itemsAll);
+  const items = filterFavorites(filterGmCreated(itemsAll), spellFavOnly);
   const head = pageHead("Sorts", `${items.length} sort(s)`, "Nouveau sort", xmlToolbarHTML("spell"));
   if(!itemsAll.length){ app.innerHTML = head + emptyState("✨","Aucun sort. Répertoriez les sorts de Prêtre et de Magicien."); return; }
-  if(!items.length){ app.innerHTML = head + emptyState("🖋","Aucune création marquée « MJ » dans cet onglet."); return; }
+  if(!items.length){ app.innerHTML = head + (effectiveRole()==="gm"?`<div style="margin-bottom:1rem">${favFilterBtnHTML("spell",spellFavOnly)}</div>`:"") + emptyState("🖋",spellFavOnly?"Aucun favori dans cet onglet.":"Aucune création marquée « MJ » dans cet onglet."); return; }
   const allKeys = SPELL_CLASSES.map(([k])=>"spells:"+k).filter(key=>items.some(s=>(s.class||"wizard")===key.split(":")[1]));
   const allOpen = allKeys.length && allKeys.every(k=>expandedGroups.has(k));
-  const toggleBar = `<div style="margin-bottom:.8rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button></div>`;
+  const favBtn = effectiveRole()==="gm" ? favFilterBtnHTML("spell",spellFavOnly) : "";
+  const toggleBar = `<div style="margin-bottom:.8rem;display:flex;align-items:center;flex-wrap:wrap;gap:.4rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button>${favBtn}</div>`;
   const sections = SPELL_CLASSES.map(([k,lbl])=>{
     const list = sortSpellList(items.filter(s=>(s.class||"wizard")===k));
     if(!list.length) return "";
@@ -2714,6 +2738,26 @@ app.addEventListener("click", e=>{
   if((el=closest("data-toggle-group"))){ const k=el.dataset.toggleGroup; expandedGroups.has(k)?expandedGroups.delete(k):expandedGroups.add(k); renderList(); return; }
   if((el=closest("data-toggle-all"))){ const keys=(el.dataset.toggleAllKeys||"").split("|").filter(Boolean); if(el.dataset.toggleAll==="open") keys.forEach(k=>expandedGroups.add(k)); else keys.forEach(k=>expandedGroups.delete(k)); renderList(); return; }
   if((el=closest("data-toggle-reading"))){ readingMode=!readingMode; render(); return; }
+  // Doit être vérifié AVANT data-open : l'étoile de favori est imbriquée dans une carte qui porte
+  // elle-même data-open (ouvrir la fiche) — l'ordre des tests (et non un stopPropagation()) est ce
+  // qui évite qu'un clic sur l'étoile déclenche aussi la navigation vers la fiche.
+  if((el=closest("data-toggle-fav"))){
+    const [ty,id]=el.dataset.toggleFav.split(":");
+    const o=getEntity(ty,id); if(!o) return;
+    o.favorite = !o.favorite;
+    saveDB(); renderList();
+    return;
+  }
+  if((el=closest("data-toggle-fav-filter"))){
+    const ty = el.dataset.toggleFavFilter;
+    if(ty==="pc") pcFavOnly=!pcFavOnly;
+    else if(ty==="npc") npcFavOnly=!npcFavOnly;
+    else if(ty==="creature") creatureFavOnly=!creatureFavOnly;
+    else if(ty==="treasure") treasureFavOnly=!treasureFavOnly;
+    else if(ty==="spell") spellFavOnly=!spellFavOnly;
+    renderList();
+    return;
+  }
   if((el=closest("data-open"))){ const [ty,id]=el.dataset.open.split(":"); goto(ty,id); return; }
   if((el=closest("data-goto"))){ const [ty,id]=el.dataset.goto.split(":"); goto(ty,id); return; }
   if((el=t.closest("[data-create]"))){ toast(`« ${el.dataset.create} » n'existe pas encore — créez cette entité pour activer le lien.`); return; }
