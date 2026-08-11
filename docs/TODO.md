@@ -29,3 +29,23 @@ un résultat composé final, plutôt que de tirer chaque table séparément.
 Implique probablement une notion de « groupe de tables liées » ou de
 « recette de génération » qui n'existe pas encore dans le modèle de
 données actuel — à concevoir.
+
+## PJ — édition de classe a posteriori
+
+**Note de backlog, pas encore un chantier lancé.** Tristan a créé des PJ
+avant que les catégories de classe (magicien, voleur, guerrier, prêtre)
+n'existent dans l'appli. Ces PJ n'ont donc pas de classe associée, ce qui
+laisse des cases vides dans leur table de talents à certains niveaux
+(évolutions de talents qui dépendent de la classe, jamais renseignées
+puisque la classe n'était pas connue au moment de la création).
+
+Envie exprimée : pouvoir revenir sur un PJ existant et lui (ré)assigner
+une classe après coup (ex : un guerrier requalifié en magicien, ou
+l'inverse), et que ce changement mette à jour automatiquement sa table de
+talents selon les règles de la classe choisie, telles que décrites dans
+[`docs/REGLES-CREATION-PERSONNAGE.md`](REGLES-CREATION-PERSONNAGE.md)
+(section « Classes », jets de talents 2d6 par classe).
+
+À concevoir : l'édition de classe d'un PJ déjà créé (aujourd'hui la classe
+n'est probablement fixée qu'à la création), et la logique de
+recalcul/complétion de la table de talents quand la classe change.
