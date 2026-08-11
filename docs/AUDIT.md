@@ -80,18 +80,34 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
 
 ## Points d'attention structurels (contexte pour les audits futurs)
 
-- **Structure du dépôt (depuis le 6/08/2026)** : `index.html`, `README.md`,
-  `.gitignore` et `portraits/` restent à la racine (chemins référencés en dur
-  dans le code ou convention GitHub). `docs/` (documentation interne),
-  `outils/` (scripts) et `sources/` (PDF/XML/JSON déjà intégrés à l'appli,
-  brouillons non nécessaires en prod) regroupent le reste. Les assets du
-  Hexcrawl (`*-foundation_*.png`, `deadlands/`, `drylands/`, `greenlands/`,
-  `icelands/`, `sandlands/`, `Neutre/` et leurs PNG de prévisualisation à la
-  racine) sont **volontairement laissés à plat** : ils sont référencés par
-  chemin relatif littéral dans le code (pas de dossier `assets/`), et cette
-  zone appartient au chantier « peinture de biomes » actuellement en pause
-  côté Dual — les déplacer casserait ses chemins et risquerait un conflit
-  avec son travail en cours.
+- **Structure du dépôt (depuis le 6/08/2026, réorganisé le 11/08/2026)** :
+  `index.html`, `README.md`, `.gitignore` et `portraits/` restent à la
+  racine (chemins référencés en dur dans le code ou convention GitHub).
+  `docs/` (documentation interne), `outils/` (scripts) et `sources/`
+  (PDF/XML/JSON déjà intégrés à l'appli, brouillons non nécessaires en prod)
+  regroupent le reste.
+  **Assets Hexcrawl → `Hextiles/` (2026-08-11)** : Tristan a rangé en local
+  tous les PNG du Hexcrawl (jusque-là éparpillés à la racine) dans un seul
+  dossier `Hextiles/`, en conservant leur arborescence interne à l'identique
+  (déplacement pur, aucun fichier renommé ni modifié — vérifié par hash).
+  Contenu de `Hextiles/` : les 27 `N-foundation_*.png` (overlays de terrain,
+  indépendants du biome), les 5 PNG agrégats `deadlands.png`/`drylands.png`/
+  `greenlands.png`/`icelands.png`/`sandlands.png` (vignettes + fond de tuile
+  réellement utilisés par le code), et trois chantiers non utilisés par le
+  code actuel mais conservés tels quels : `drylands/`, `greenlands/`,
+  `icelands/` (variantes teintées par biome de l'ancien overlay, abandonnées
+  au profit du set neutre `foundation_*` — voir commentaire au-dessus de
+  `hexBiomeImageSVG` dans `js/hexcrawl.js`) et `Neutre/` (idem). Code mis à
+  jour en conséquence dans `js/hexcrawl.js` : les deux endroits qui
+  construisent un chemin d'image (`biomePickerHTML`/`overlayPickerHTML` pour
+  les `<img src>` des pickers, `hexTerrainLayerSVG` pour le rendu réel des
+  tuiles) préfixent désormais `Hextiles/`. **Les valeurs stockées en base
+  (`h.biome`, `h.overlay`, `OVERLAY_LIST[].file`) restent des noms de
+  fichier nus, sans le préfixe** — seul le point de rendu ajoute
+  `Hextiles/`, pour ne pas invalider les cartes hexcrawl déjà enregistrées
+  dans Supabase avant ce changement. Prochaine session qui range de
+  nouvelles images du même type : les mettre dans `Hextiles/` (racine du
+  dossier pour les fichiers réellement utilisés, cf. liste ci-dessus).
 - **Onglet « Initiative » (implémenté le 6/08/2026)** : timeline de combat
   (`db.initiative`), désormais présent dans les 6 emplacements du ledger de
   collections (`TABS`, `DB_COLS`, `TAB_OF`, `TYPE_OF_TAB`, `collectionOf`,

@@ -25,7 +25,7 @@ function biomeLabel(id){ const b=BIOME_LIST.find(x=>x.id===id); return b?b.label
 function biomePickerHTML(selected){
   const tiles = BIOME_LIST.map(b=>
     `<button type="button" class="overlay-pick${selected===b.id?' active':''}" data-biome="${b.id}" title="${esc(b.label)}">
-       <img src="${b.id}.png" alt="${esc(b.label)}">
+       <img src="Hextiles/${b.id}.png" alt="${esc(b.label)}">
      </button>`);
   return `<div class="overlay-picker biome-picker" id="hex-biome-picker">${tiles.join("")}</div>`;
 }
@@ -67,7 +67,7 @@ function overlayPickerHTML(selected){
   const tiles = [`<button type="button" class="overlay-pick${!selected?' active':''}" data-overlay="" title="Aucun overlay">✕</button>`]
     .concat(OVERLAY_LIST.map(o=>
       `<button type="button" class="overlay-pick${selected===o.file?' active':''}" data-overlay="${esc(o.file)}" title="${esc(o.label)}">
-         <img src="${esc(o.file)}" alt="${esc(o.label)}">
+         <img src="Hextiles/${esc(o.file)}" alt="${esc(o.label)}">
        </button>`));
   return `<div class="overlay-picker" id="hex-overlay-picker">${tiles.join("")}</div>`;
 }
@@ -192,8 +192,8 @@ function hexTerrainLayerSVG(h, c, size){
     return `<polygon points="${pts}" fill="${info.color}"></polygon><text x="${c.x.toFixed(1)}" y="${(c.y+5).toFixed(1)}" text-anchor="middle" class="hex-icon">${info.icon}</text>`;
   }
   let out = `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>`;
-  if(h.biome) out += hexBiomeImageSVG(h.biome+".png", c, size).tag("hex-biome-img");
-  if(h.overlay) out += hexBiomeImageSVG(h.overlay, c, size).tag("hex-overlay-img");
+  if(h.biome) out += hexBiomeImageSVG("Hextiles/"+h.biome+".png", c, size).tag("hex-biome-img");
+  if(h.overlay) out += hexBiomeImageSVG("Hextiles/"+h.overlay, c, size).tag("hex-overlay-img");
   return out;
 }
 function buildHexSVG(m){
