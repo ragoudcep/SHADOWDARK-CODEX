@@ -101,6 +101,122 @@ Talents 2d6 : 2 → objet magique aléatoire · 3-7 → +2 INT ou +1 incantation
 avantage pour lancer un sort connu · 10-11 → sort supplémentaire d'un rang maîtrisé ·
 12 → talent ou +2 à répartir.
 
+## Classes additionnelles — Cursed Scroll #1 (2026-08-12, implémentées)
+
+Trouvées dans le supplément **Cursed Scroll #1** (thème « diablerie », VF) fourni par
+Tristan. Les 3 classes ci-dessous sont maintenant dans `CLASSES_DATA`/`PC_CLASSES`/
+`TITRES`, testées en bac à sable (classe assignable, section Classe calculée en direct,
+génération aléatoire, fiche imprimable) — même mécanique que les 4 classes de base.
+
+### Chevalier de Saint Ydris — dé de vie 1d6 (Cursed Scroll #1, p.10)
+Armes : toutes les armes de corps à corps, arbalète. Armures : toutes + boucliers.
+Langues : diabolique.
+Capacités : *Possession démoniaque* (3/jour, +1 dégâts pendant 3 rounds + moitié niveau) ;
+*Incantation* de sorts de sorcière (via Charisme, DD = 10 + rang×2 — même formule que
+l'appli) qui s'ajoutent à mesure des niveaux ; un échec au test d'incantation bloque le
+sort jusqu'au repos complet, un 1 naturel déclenche une Catastrophe diabolique (voir plus
+bas).
+
+Talents 2d6 : 2 → +1 au bonus de possession démoniaque · 3-6 → +1 attaques dist./corps à
+corps · 7-9 → +2 FOR/DEX/CON · 10-11 → +2 CHA ou +1 incantation sorcière · 12 → talent ou
++2 à répartir.
+
+### Ensorceleur — dé de vie 1d6 (Cursed Scroll #1, p.12)
+Armes : gourdin, arbalète, dague, masse d'armes, épée longue. Armures : cuir, mithral +
+boucliers. Langues : céleste, diabolique, draconique, originel ou sylvestre (au choix).
+Capacités : *Mentor* — choisit un patron (voir section Mentors ci-dessous) qui est la
+**seule** source de ses pouvoirs ; le mentor peut accorder ou retirer ses bienfaits à tout
+moment (le personnage peut donc perdre des capacités en jeu, pas juste en gagner).
+
+Talents 2d6 : 2 → tire un Bienfait de mentor d'un autre mentor que le sien · 3-6 → +1 à
+deux caractéristiques différentes · 7-9 → +1 attaques dist./corps à corps · 10-11 → tire
+deux Bienfaits de mentor et garde celui qu'il préfère · 12 → talent ou +2 à répartir.
+**Contrairement aux 3 autres classes, la case « 1er niveau » de cette table n'est pas un
+talent fixe : c'est directement un Bienfait de mentor** (voir plus bas). Le générateur
+aléatoire ne peut pas demander au joueur, donc il **tire le mentor au hasard** parmi les 6
+(`p.mentor`) ; modifiable ensuite via un menu déroulant sur la fiche. La section Classe de
+la fiche affiche la table de Talents d'ensorceleur **et** la table de Bienfaits du mentor
+choisi, l'une sous l'autre.
+
+### Sorcière — dé de vie 1d4 (Cursed Scroll #1, p.14)
+Armes : dague, bâton. Armure : cuir. Langues : diabolique, originel, sylvestre.
+Capacités : *Familier* (petit animal parlant, source des sorts — la portée se calcule
+depuis lui ; s'il meurt, on peut le ranimer en sacrifiant définitivement 1d4 PV) ;
+*Incantation* (3 sorts de rang 1 connus, via Charisme, DD = 10 + rang×2, même mécanique
+d'échec/Catastrophe diabolique que le Chevalier de Saint Ydris).
+
+Talents 2d6 : 2 → téléportation 1/jour jusqu'au familier (à la place du déplacement) ·
+3-7 → +2 CHA ou +1 incantation sorcière · 8-9 → avantage pour lancer un sort connu ·
+10-11 → sort supplémentaire d'un rang maîtrisé · 12 → talent ou +2 à répartir.
+
+### Titres (Cursed Scroll #1)
+
+| Niveau | Chevalier de Saint Ydris (L / C / N) | Ensorceleur (L / C / N) | Sorcière (L / C / N) |
+|---|---|---|---|
+| 1-2 | Arbitre / Traître / Frère-Sœur | Favorisé / Marqué / Élu | Voyante / Chuchoteuse / Chamane |
+| 3-4 | Exécuteur / Déchu / Exorciste | Héraut / Zélote / Incantateur | Augure / Malfaisante / Conjuratrice |
+| 5-6 | Chevalier Maréchal / Parjure / Révérend Chevalier | Éminence / Occultiste / Annoncé | Prophète / Guenaude-Ancien / Devineresse |
+| 7-8 | Juge / Garde Noir / Inquisiteur | Exalté / Champion / Transcendant | Sagace / Mégère-Oncle / Médiatrice |
+| 9-10 | Pourvoyeur de justice / Seigneur démon / Grand Inquisiteur | Incarnation / Annonciateur / Avatar | Baba (identique aux 3 alignements) |
+
+### Mentors (Cursed Scroll #1, p.17-19)
+
+Système propre à l'Ensorceleur (obligatoire) — les autres classes n'y touchent pas dans
+le texte lu. 6 mentors, chacun avec sa **propre** table de Bienfaits 2d6 (2 / 3-7 / 8-9 /
+10-11 / 12, la case 12 étant toujours « choisissez une option ou +2 à répartir ») :
+
+- **Almazzat** — archidémon à tête de loup. Thème corps-à-corps/Force.
+- **Kytheros** — Seigneur du Temps. Thème prémonition/Sagesse (peut forcer une relance du MJ).
+- **Mugdulblub** — « l'Antique Vase ». Thème transformation/résistance aux éléments.
+- **Shune l'Infâme** — déesse des secrets (déjà une divinité connue de l'appli, alignement
+  chaotique). Thème savoir/Intelligence, apprend un sort de magicien.
+- **Titania** — reine des fées. Thème charme/Charisme, hypnose.
+- **L'Homme-Saule** — être des forêts embrumées. Thème peur/téléportation courte.
+
+Implémenté en constante `MENTORS` (nom, description, table de 5 lignes 2d6) dans
+`index.html`, plus le champ `p.mentor` sur le PJ.
+
+**Écart volontaire par rapport à l'idée initiale de Tristan** (« les tables de mentor
+seront peut-être dans les tables aléatoires ») : ne PAS les seeder dans l'onglet Tables
+aléatoires — ce modèle générique affiche un badge `d{nombre de lignes}` (donc « d5 » ici),
+ce qui serait faux (les tranches sont 2d6 irrégulières : 2/3-7/8-9/10-11/12, pas un d5
+uniforme) et pourrait induire en erreur en jeu. Les 6 tables restent donc uniquement dans
+`MENTORS`, affichées sur la fiche du PJ concerné selon son `p.mentor` — **à confirmer avec
+Tristan le matin : ça lui va, ou il veut quand même un accès depuis Tables aléatoires
+(auquel cas il faudra un affichage dédié, pas le composant Table générique) ?**
+
+### Catastrophes diaboliques (Cursed Scroll #1, p.22-23)
+
+Déclenchées par un **1 naturel** au test d'incantation d'un sort de sorcière (Chevalier de
+Saint Ydris, Ensorceleur via Bienfait, Sorcière). Deux tables **d12**, une par tranche de
+rang :
+
+- **Rangs 1-3** : effets mineurs (dégâts par rang de sort, transformation temporaire en
+  salamandre, incapacité de relancer ce sort une semaine, perte d'un objet...).
+- **Rangs 4-5** : effets sévères (dégâts plus lourds, invocation hostile de l'Homme-Saule,
+  paralysie, catatonie 1h, ou un « ennemi juré » qui naît quelque part...).
+
+Un résultat de 1 sur l'une ou l'autre table dit de tirer deux fois et de combiner les
+effets. Table complète dans le PDF si besoin de la recopier mot à mot.
+
+### Origines diaboliques (d20, Cursed Scroll #1, p.20)
+
+Variante thématique de la table Origines existante (Ermite, Paria, Né dans les bois,
+Amnésique, Hanté, Fugitif, Touché par les fées, Sang de sorcière, Cueilleur, Rédempteur,
+Marqué, Sacrifice, Naufragé, Déchu, Attiré, Ascète, Enfant-loup, Guérisseur, Élu, Rejeton
+de démon) — à ajouter comme table alternative, pas un remplacement de la table Origines
+de base.
+
+### Sorts de sorcière (liste seule lue, pas encore importés)
+
+46 sorts (rang 1 : 10, rang 2 : 10, rang 3 : 10, rang 4 : 8, rang 5 : 8), texte complet
+p.26+ du PDF. **Bonne nouvelle** : `SPELL_CLASSES` dans `index.html` a déjà une entrée
+`witch` (libellée « Sorcier ») jamais utilisée — importer ces sorts avec `class:"witch"`
+fonctionnerait sans aucune modification de code, exactement comme l'import des reliques
+du Trésor cette session. Reste à faire : décider si on renomme le libellé en « Sorcière »
+avant import, et faire la passe d'import (contenu de campagne, donc en Supabase via
+Claude in Chrome, pas dans ce dépôt — même workflow que les reliques).
+
 ## Sorts connus au 1er niveau
 
 | Classe | Rang 1 connus |

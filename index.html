@@ -350,7 +350,7 @@ function entityText(type, o){
   if(type==="session")  return [o.title,(o.entries||[]).map(e=>e.label+" "+e.notes).join(" \n ")].join(" \n ");
   if(type==="npc")      return [o.name,o.description,o.physique,o.age,o.possessions,o.objectif,o.moyens,o.comportement].join(" \n ");
   if(type==="pointcrawl") return [o.title,o.description,(o.nodes||[]).map(nd=>{const ev=getEntity("event",nd.eventId);return ev?ev.title:"";}).join(" ")].join(" \n ");
-  if(type==="pc")       return [o.name,o.ancestry,o.cls,o.info,o.skills,o.spells,o.inventory,o.languages,o.deity,o.masteredWeapon].join(" \n ");
+  if(type==="pc")       return [o.name,o.ancestry,o.cls,o.info,o.skills,o.spells,o.inventory,o.languages,o.deity,o.masteredWeapon,o.mentor].join(" \n ");
   if(type==="treasure") return [o.name,treasureCatLabel(o.category),o.description,o.bonus,o.boon,o.curse,o.personality].join(" \n ");
   if(type==="spell")    return [o.name,spellClassLabel(o.class),o.tier?"rang "+o.tier:"",o.range,o.duration,o.effect].join(" \n ");
   return "";
@@ -1699,19 +1699,30 @@ function printClassBlock(p){
   if(!cd) return "";
   let spellLine = "";
   if(cd.spellClass){
-    const dc = [1,2,3,4,5].map(r=>`Rang ${r} : DD ${spellCastDC(r)}`).join(" · ");
-    spellLine = `<p>Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${p.cls==="Prêtre"?" (+ Renvoi des morts-vivants, offert)":""}<br>Difficulté d'incantation — ${dc}</p>`;
+    if(cd.spellsKnownLvl1>0){
+      const dc = [1,2,3,4,5].map(r=>`Rang ${r} : DD ${spellCastDC(r)}`).join(" · ");
+      spellLine = `<p>Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${p.cls==="Prêtre"?" (+ Renvoi des morts-vivants, offert)":""}<br>Difficulté d'incantation — ${dc}</p>`;
+    } else if(cd.spellsFromLevel){
+      spellLine = `<p>Aucun sort connu au 1er niveau — incantation à partir du niveau ${cd.spellsFromLevel}.</p>`;
+    }
   }
   let weaponLine = "";
   if(p.masteredWeapon && p.masteredWeapon.trim()){
     const bonus = 1 + Math.floor((parseInt(p.level)||1)/2);
     weaponLine = `<p>Arme maîtrisée : ${esc(p.masteredWeapon)} (+${bonus} attaque/dégâts)</p>`;
   }
+  let mentorLine = "";
+  if(cd.usesMentor && p.mentor && MENTORS[p.mentor]){
+    const men = MENTORS[p.mentor];
+    mentorLine = `<p>Mentor : ${esc(p.mentor)}</p>
+      <table class="pp-tal"><tbody>${men.benefits.map(b=>`<tr><td>${esc(b.roll)}</td><td>${renderTextPrint(b.text)}</td></tr>`).join("")}</tbody></table>`;
+  }
   return `<div class="pp-sec"><h4>Classe — ${esc(p.cls)}</h4>
     <p>Dé de vie d${cd.hitDie} · Armes : ${esc(cd.weapons)} · Armures : ${esc(cd.armor)}</p>
     <p>${esc(cd.feature)}</p>
     ${weaponLine}${spellLine}
     <table class="pp-tal"><tbody>${cd.talents.map(t=>`<tr><td>${esc(t.roll)}</td><td>${renderTextPrint(t.text)}</td></tr>`).join("")}</tbody></table>
+    ${mentorLine}
   </div>`;
 }
 function printPCSheet(p){
@@ -1923,7 +1934,7 @@ function openPrintNPCCardsModal(){
 /* =========================================================================
    PJ — fiches de personnages-joueurs (stat bloc + inventaire + talents 2d6)
    ========================================================================= */
-const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien"];
+const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien","Chevalier de Saint Ydris","Ensorceleur","Sorcière"];
 
 /* =========================================================================
    GÉNÉRATION ALÉATOIRE DE PJ — règles de création de personnage tirées du
@@ -1984,6 +1995,75 @@ function ascendanceTraitText(ancestryName, cls){
   }
   return asc.trait;
 }
+/* Mentors (2026-08-12, Cursed Scroll #1 p.17-19) : système propre à l'Ensorceleur — son
+   unique source de pouvoirs, choisi (ou tiré au hasard à la génération, cf. generateRandomPC)
+   parmi ces 6 patrons occultes. Chaque mentor a sa propre table de Bienfaits 2d6, affichée sur
+   la fiche PJ à la place/en plus de la table de talents standard quand p.mentor est renseigné
+   (voir pcClassSectionHTML). Pas seedé dans l'onglet Tables aléatoires : ces tables sont sur
+   des tranches 2d6 irrégulières (2/3-7/8-9/10-11/12), pas un dé uniforme d-N comme le modèle de
+   table générique de l'appli — les y mettre afficherait un faux badge "d5". */
+const MENTORS = {
+  "Almazzat": {
+    desc:"Archidémon à tête de loup doté de six yeux et de six cornes. Cherche à arracher les Sables du Temps à son père Kytheros.",
+    benefits: [
+      {roll:"2", text:"1/jour, avantage aux attaques de corps à corps pendant 3 rounds."},
+      {roll:"3-7", text:"Apprenez à manier 1 arme de corps à corps supplémentaire, ou obtenez +1 aux attaques de corps à corps."},
+      {roll:"8-9", text:"+2 à votre valeur de Force ou de Constitution, ou +1 aux dégâts de corps à corps."},
+      {roll:"10-11", text:"Avantage aux jets d'initiative (relancez si vous obtenez ce bienfait deux fois)."},
+      {roll:"12", text:"Choisissez une option ci-dessus ou 2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Kytheros": {
+    desc:"Seigneur du Temps qui voit tous les futurs possibles. Cherche à réaliser tous les destins tels qu'ils ont été prévus.",
+    benefits: [
+      {roll:"2", text:"1/jour, forcez le MJ à relancer les dés après un jet."},
+      {roll:"3-7", text:"Bonus de +1 à la CA grâce à vos prémonitions surnaturelles."},
+      {roll:"8-9", text:"+2 à votre valeur de Force, de Dextérité ou de Sagesse."},
+      {roll:"10-11", text:"3/jour, ajoutez votre bonus de Sagesse à n'importe quel jet de dés (relancez si vous obtenez ce bienfait deux fois)."},
+      {roll:"12", text:"Choisissez une option ci-dessus ou 2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Mugdulblub": {
+    desc:"L'Antique Vase qui suinte entre les brèches du souvenir et de l'obscurité séparant les étoiles. Cherche à dissoudre toute forme physique.",
+    benefits: [
+      {roll:"2", text:"1/jour, transformez-vous en flaque de vase ambulante pendant 3 rounds."},
+      {roll:"3-7", text:"Obtenez le maximum à deux jets de dés de vie (déjà lancés ou à venir)."},
+      {roll:"8-9", text:"+2 à votre valeur de Dextérité ou de Constitution."},
+      {roll:"10-11", text:"Devenez immunisé contre 1 élément au choix (acide, froid ou poison — relancez si vous êtes à court d'options)."},
+      {roll:"12", text:"Choisissez une option ci-dessus ou 2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Shune l'Infâme": {
+    desc:"Déesse, Mère Sorcière qui parle à ses enfants à la lumière vacillante des bougies. Recherche les secrets cachés et le savoir perdu.",
+    benefits: [
+      {roll:"2", text:"1/jour, lisez l'esprit d'une créature que vous touchez, pendant 3 rounds."},
+      {roll:"3-7", text:"Apprenez un sort de magicien dont le rang est égal à la moitié de votre niveau (arrondi à l'entier inférieur). Vous le lancez avec Intelligence."},
+      {roll:"8-9", text:"+2 à votre valeur de Dextérité ou d'Intelligence."},
+      {roll:"10-11", text:"+1 PX chaque fois que vous apprenez un secret précieux ou important."},
+      {roll:"12", text:"Choisissez une option ci-dessus ou 2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Titania": {
+    desc:"La capricieuse reine des fées, qui considère l'existence comme un songe fantasque. Recherche la facétie, la beauté et le talent artistique.",
+    benefits: [
+      {roll:"2", text:"1/jour, hypnotisez une créature de niveau 5 ou moins pendant 3 rounds."},
+      {roll:"3-7", text:"Apprenez à manier un arc long, ou obtenez un bonus de +1 aux attaques à distance."},
+      {roll:"8-9", text:"+2 à votre valeur de Dextérité ou de Charisme."},
+      {roll:"10-11", text:"Les sorts hostiles qui vous prennent pour cible sont toujours difficiles à lancer."},
+      {roll:"12", text:"Choisissez une option ci-dessus ou 2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "L'Homme-Saule": {
+    desc:"Un grand être aux membres allongés qui rôde parmi les forêts embrumées, à l'orée des cauchemars. Recherche la peur.",
+    benefits: [
+      {roll:"2", text:"1/jour, à la place de votre déplacement, téléportez-vous jusqu'à un point à portée longue que vous voyez."},
+      {roll:"3-7", text:"+1 aux attaques de corps à corps ou à distance."},
+      {roll:"8-9", text:"+2 à votre valeur de Force ou de Dextérité."},
+      {roll:"10-11", text:"1/jour, forcez un être à portée courte à effectuer un test de moral même s'il y est immunisé."},
+      {roll:"12", text:"Choisissez une option ci-dessus ou 2 points à répartir parmi vos caractéristiques."}
+    ]
+  }
+};
 const CLASSES_DATA = {
   "Guerrier": {
     hitDie:8, weapons:"Toutes.", armor:"Toutes les armures, tous les boucliers.",
@@ -2030,13 +2110,57 @@ const CLASSES_DATA = {
       {roll:"10-11", text:"Apprenez un sort supplémentaire d'un rang maîtrisé."},
       {roll:"12", text:"Un talent ou +2 points à répartir parmi vos caractéristiques."}
     ]
+  },
+  /* 2026-08-12, Cursed Scroll #1 (thème diablerie, VF) — les 3 classes ci-dessous, même
+     structure que les 4 de base. Sorts de sorcière lancés au Charisme (l'appli ne modélise
+     pas encore l'attribut d'incantation par classe, juste le DD = 10 + rang×2, identique à
+     Prêtre/Magicien) — spellClass:"witch" réutilise l'entrée déjà présente dans SPELL_CLASSES
+     (onglet Sorts) mais jamais utilisée avant ce soir. */
+  "Chevalier de Saint Ydris": {
+    hitDie:6, weapons:"Toutes les armes de corps à corps, arbalète.", armor:"Toutes les armures, tous les boucliers.",
+    feature:"Possession démoniaque (3/jour, bonus de +1 aux dégâts pendant 3 rounds, plus la moitié du niveau arrondie à l'entier inférieur) ; Incantation de sorts de sorcière à partir du niveau 3 (aucun sort connu avant), lancés au Charisme, DD = 10 + rang du sort. Un échec au test d'incantation bloque le sort jusqu'au prochain repos complet ; un 1 naturel déclenche une Catastrophe diabolique (cf. Cursed Scroll #1 p.22-23, non modélisée dans l'appli).",
+    spellClass:"witch", spellsKnownLvl1:0, spellsFromLevel:3,
+    talents: [
+      {roll:"2", text:"Votre bonus de possession démoniaque augmente de 1."},
+      {roll:"3-6", text:"+1 aux attaques à distance et de corps à corps."},
+      {roll:"7-9", text:"+2 à votre valeur de Force, de Dextérité ou de Constitution."},
+      {roll:"10-11", text:"+2 à votre valeur de Charisme, ou +1 aux tests d'incantation des sorts de sorcière."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Ensorceleur": {
+    hitDie:6, weapons:"Gourdin, arbalète, dague, masse d'armes, épée longue.", armor:"Armure de cuir, cotte de mailles en mithral, boucliers.",
+    feature:"Mentor (vous choisissez un patron occulte — cf. MENTORS — qui est l'unique source de vos pouvoirs surnaturels ; il peut vous accorder ou retirer ses bienfaits à tout moment). Au 1er niveau, vous recevez un Bienfait de mentor (table de votre mentor, pas la table de talents ci-dessous). À chaque jet de talent ultérieur, vous choisissez de tirer sur la table de Talents d'ensorceleur ou sur celle des Bienfaits de votre mentor.",
+    usesMentor:true,
+    talents: [
+      {roll:"2", text:"Tirez un Bienfait de mentor de n'importe quel autre mentor que le vôtre, qui vous en fait inexplicablement don."},
+      {roll:"3-6", text:"Ajoutez 1 point à deux valeurs de caractéristiques différentes."},
+      {roll:"7-9", text:"+1 aux attaques à distance ou de corps à corps."},
+      {roll:"10-11", text:"Tirez deux Bienfaits de mentor et choisissez celui que vous gardez."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
+  },
+  "Sorcière": {
+    hitDie:4, weapons:"Dague, bâton.", armor:"Armure de cuir.",
+    feature:"Familier (petit animal parlant, source de vos sorts — la portée se calcule depuis lui ; s'il meurt, vous pouvez le ranimer en sacrifiant définitivement 1d4 PV) ; Incantation (vous lancez les sorts de sorcière que vous connaissez, au Charisme, DD = 10 + rang du sort). Un échec au test d'incantation bloque le sort jusqu'au prochain repos complet ; un 1 naturel déclenche une Catastrophe diabolique (cf. Cursed Scroll #1 p.22-23, non modélisée dans l'appli).",
+    spellClass:"witch", spellsKnownLvl1:3,
+    talents: [
+      {roll:"2", text:"Une fois par jour, téléportez-vous à l'endroit où se trouve votre familier, à la place de votre déplacement."},
+      {roll:"3-7", text:"+2 à votre valeur de Charisme, ou +1 aux tests d'incantation des sorts de sorcière."},
+      {roll:"8-9", text:"Vous êtes avantagé pour lancer un sort que vous connaissez."},
+      {roll:"10-11", text:"Vous apprenez un sortilège de sorcière supplémentaire parmi les rangs que vous pouvez lancer."},
+      {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
+    ]
   }
 };
 const TITRES = {
   "Guerrier": {loyal:["Écuyer","Cavalier","Chevalier","Thane","Seigneur/Dame"], chaos:["Canaille","Bandit","Massacreur","Maraudeur","Seigneur de guerre"], neutre:["Combattant","Barbare","Berserker","Chef de guerre","Grand chef"]},
   "Prêtre": {loyal:["Acolyte","Croisé","Templier","Champion","Paladin"], chaos:["Initié","Zélote","Sectateur","Fléau","Chevalier du Chaos"], neutre:["Cheminant","Invocateur","Aruspice","Mystique","Oracle"]},
   "Voleur": {loyal:["Voleur de grand chemin","Cambrioleur","Escroc","Nervi","Parrain"], chaos:["Malfrat","Égorgeur","Ombre","Assassin","Spectre"], neutre:["Cagoulard","Hors-la-loi","Roublard","Renégat","Roi/Reine des bandits"]},
-  "Magicien": {loyal:["Apprenti","Conjurateur","Arcaniste","Mage","Archimage"], chaos:["Adepte","Envoûteur","Sorcière/Sorcier","Diaboliste","Ensorceleur"], neutre:["Chaman","Augure","Gardien","Sage","Druide"]}
+  "Magicien": {loyal:["Apprenti","Conjurateur","Arcaniste","Mage","Archimage"], chaos:["Adepte","Envoûteur","Sorcière/Sorcier","Diaboliste","Ensorceleur"], neutre:["Chaman","Augure","Gardien","Sage","Druide"]},
+  "Chevalier de Saint Ydris": {loyal:["Arbitre","Exécuteur","Chevalier Maréchal","Juge","Pourvoyeur de justice"], chaos:["Traître","Déchu","Parjure","Garde Noir","Seigneur démon"], neutre:["Frère/Sœur","Exorciste","Révérend Chevalier","Inquisiteur","Grand Inquisiteur"]},
+  "Ensorceleur": {loyal:["Favorisé","Héraut","Éminence","Exalté","Incarnation"], chaos:["Marqué","Zélote","Occultiste","Champion","Annonciateur"], neutre:["Élu","Incantateur","Annoncé","Transcendant","Avatar"]},
+  "Sorcière": {loyal:["Voyante","Augure","Prophète","Sagace","Baba"], chaos:["Chuchoteuse","Malfaisante","Guenaude/Ancien","Mégère/Oncle","Baba"], neutre:["Chamane","Conjuratrice","Devineresse","Médiatrice","Baba"]}
 };
 function titleFor(cls, alignment, level){
   const t = TITRES[cls]; if(!t) return "";
@@ -2153,14 +2277,17 @@ function generateRandomPC(){
     const candidates = DIVINITES.filter(d=>d.align===alignment);
     deity = (candidates.length ? pick(candidates) : pick(DIVINITES)).name;
   }
+  // Mentor (2026-08-12, Ensorceleur) : choix obligatoire pour la classe, tiré au hasard à la
+  // génération faute de pouvoir demander au joueur — modifiable ensuite via le formulaire.
+  const mentor = cd.usesMentor ? pick(Object.keys(MENTORS)) : "";
 
   let spellLines = [];
-  if(cd.spellClass){
+  if(cd.spellClass && cd.spellsKnownLvl1>0){
     const pool = db.spells.filter(s=>s.class===cd.spellClass && String(s.tier)==="1");
     const chosen = pickN(pool, cd.spellsKnownLvl1);
     spellLines = chosen.map(s=>`[[${s.name}]]`);
     if(cls==="Prêtre") spellLines.unshift("[[Renvoi des morts-vivants]] (bonus, ne compte pas dans les sorts connus)");
-    if(!pool.length) spellLines.push(`(Importe d'abord les sorts de ${cls==="Prêtre"?"prêtre":"magicien"} dans l'onglet Sorts pour un tirage automatique.)`);
+    if(!pool.length) spellLines.push(`(Importe d'abord les sorts de ${spellClassLabel(cd.spellClass).toLowerCase()} dans l'onglet Sorts pour un tirage automatique.)`);
   }
 
   const gold = rollDice(2,6)*5;
@@ -2182,6 +2309,7 @@ function generateRandomPC(){
     languages: languages.join(", "),
     deity: deity,
     masteredWeapon: "",
+    mentor: mentor,
     // Titre, langues (déjà stockées à part), armes/armures/capacités de classe et talents ne
     // sont plus figés ici : ils sont recalculés en direct depuis p.cls/p.ascendance à
     // l'affichage (voir detailPC/printPCSheet) — seul le jet de talent initial (un événement
@@ -2219,7 +2347,7 @@ function listPCs(){
 
 function formPC(){
   const p = view.mode==="edit" ? getEntity("pc",view.id)
-    : {name:"",ancestry:"",cls:"",level:"1",alignment:"neutre",ac:"",hp:"",hpCurrent:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",skills:"",spells:"",inventory:"",invSlots:"",info:"",languages:"",deity:"",masteredWeapon:""};
+    : {name:"",ancestry:"",cls:"",level:"1",alignment:"neutre",ac:"",hp:"",hpCurrent:"",str:"",dex:"",con:"",int:"",wis:"",cha:"",skills:"",spells:"",inventory:"",invSlots:"",info:"",languages:"",deity:"",masteredWeapon:"",mentor:""};
   formImages = (p.images||[]).slice();
   formPortrait = p.portrait || "";
   const alignOpt = ["loyal","neutre","chaos"].map(v=>`<option value="${v}" ${p.alignment===v?"selected":""}>${cap(v)}</option>`).join("");
@@ -2253,6 +2381,7 @@ function formPC(){
       <div class="field"><label>Langues <span class="hint">(commune + tirages/choix)</span></label><input type="text" id="f-languages" value="${esc(p.languages||"")}" placeholder="Langue commune, Elfique…"></div>
       <div class="field"><label>Divinité <span class="hint">(surtout pour un Prêtre)</span></label><input type="text" id="f-deity" list="pc-deities" value="${esc(p.deity||"")}" placeholder="Sainte Terragnis…"><datalist id="pc-deities">${DIVINITES.map(d=>`<option value="${esc(d.name)}"></option>`).join("")}</datalist></div>
       <div class="field"><label>Arme maîtrisée <span class="hint">(surtout pour un Guerrier)</span></label><input type="text" id="f-masteredWeapon" value="${esc(p.masteredWeapon||"")}" placeholder="Épée longue…"></div>
+      <div class="field"><label>Mentor <span class="hint">(pour un Ensorceleur)</span></label><select id="f-mentor"><option value="">— Aucun —</option>${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${p.mentor===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
     </div>
     <div class="field"><label>Compétences <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
     <div class="field"><label>Sortilèges <span class="hint">(un par ligne)</span></label><textarea id="f-spells" placeholder="Lumière…&#10;Projectile magique…">${esc(p.spells)}</textarea></div>
@@ -2291,6 +2420,7 @@ function savePC(){
   o.languages = $("#f-languages").value.trim();
   o.deity = $("#f-deity").value.trim();
   o.masteredWeapon = $("#f-masteredWeapon").value.trim();
+  o.mentor = $("#f-mentor").value;
   o.images = formImages.slice();
   o.portrait = formPortrait || "";
   if(!o.name){ toast("Le nom est requis."); return; }
@@ -2308,16 +2438,29 @@ function pcClassSectionHTML(p){
   if(!cd) return "";
   let spellBlock = "";
   if(cd.spellClass){
-    const dcTags = [1,2,3,4,5].map(r=>`<span class="tag">Rang ${r} : DD ${spellCastDC(r)}</span>`).join(" ");
-    spellBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0">
-      <b>Sorts connus (rang 1)</b> : ${cd.spellsKnownLvl1}${p.cls==="Prêtre" ? " (+ Renvoi des morts-vivants, offert)" : ""}<br>
-      <b>Difficulté (DD) d'incantation</b> : 10 + (rang du sort × 2) — ${dcTags}
-    </p>`;
+    if(cd.spellsKnownLvl1>0){
+      const dcTags = [1,2,3,4,5].map(r=>`<span class="tag">Rang ${r} : DD ${spellCastDC(r)}</span>`).join(" ");
+      spellBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0">
+        <b>Sorts connus (rang 1)</b> : ${cd.spellsKnownLvl1}${p.cls==="Prêtre" ? " (+ Renvoi des morts-vivants, offert)" : ""}<br>
+        <b>Difficulté (DD) d'incantation</b> : 10 + (rang du sort × 2) — ${dcTags}
+      </p>`;
+    } else if(cd.spellsFromLevel){
+      spellBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0"><b>Incantation</b> : aucun sort connu au 1er niveau — vous gagnez l'incantation à partir du niveau ${cd.spellsFromLevel}.</p>`;
+    }
   }
   let weaponBlock = "";
   if(p.masteredWeapon && p.masteredWeapon.trim()){
     const bonus = 1 + Math.floor((parseInt(p.level)||1)/2);
     weaponBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0"><b>Arme maîtrisée</b> : ${esc(p.masteredWeapon)} (+${bonus} aux jets d'attaque et de dégâts avec cette arme)</p>`;
+  }
+  let mentorBlock = "";
+  if(cd.usesMentor && p.mentor && MENTORS[p.mentor]){
+    const men = MENTORS[p.mentor];
+    mentorBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.7rem 0 .3rem"><b>Mentor</b> : ${esc(p.mentor)} — ${esc(men.desc)}</p>
+      <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Bienfait de ${esc(p.mentor)}</th></tr></thead>
+        <tbody>${men.benefits.map(b=>`<tr><td class="idx" style="text-align:center">${esc(b.roll)}</td><td>${renderText(b.text)}</td></tr>`).join("")}</tbody></table>`;
+  } else if(cd.usesMentor){
+    mentorBlock = `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.5rem 0">Aucun mentor choisi — sélectionnez-en un dans la fiche pour voir sa table de Bienfaits.</p>`;
   }
   return `<div class="section"><h2>🛡 Classe — ${esc(p.cls)}</h2>
     <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0"><b>Dé de vie</b> d${cd.hitDie} &nbsp;·&nbsp; <b>Armes</b> ${esc(cd.weapons)} &nbsp;·&nbsp; <b>Armures</b> ${esc(cd.armor)}</p>
@@ -2327,6 +2470,7 @@ function pcClassSectionHTML(p){
     <div style="margin:.6rem 0 .5rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6 (talent)</button> <span id="talent-roll-out" class="roll-result"></span></div>
     <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Talent / évolution</th></tr></thead>
       <tbody id="talents-body">${cd.talents.map(t=>`<tr data-roll-range="${esc(t.roll)}"><td class="idx" style="text-align:center">${esc(t.roll)}</td><td>${renderText(t.text)}</td></tr>`).join("")}</tbody></table>
+    ${mentorBlock}
   </div>`;
 }
 function detailPC(p){
@@ -2343,7 +2487,7 @@ function detailPC(p){
       ${favStarHTML("pc",p.id,p.favorite,true)}
     </div>
     <p class="muted" style="font-family:var(--ui)">${esc([p.ancestry,p.cls,titre].filter(Boolean).join(" · "))}${p.alignment?` · ${esc(cap(p.alignment))}`:""}</p>
-    ${(p.languages||p.deity)?`<p class="muted" style="font-family:var(--ui);font-size:.85rem">${p.languages?`Langues : ${esc(p.languages)}`:""}${p.languages&&p.deity?" · ":""}${p.deity?`Divinité : ${esc(p.deity)}`:""}</p>`:""}
+    ${(p.languages||p.deity||p.mentor)?`<p class="muted" style="font-family:var(--ui);font-size:.85rem">${[p.languages?`Langues : ${esc(p.languages)}`:"", p.deity?`Divinité : ${esc(p.deity)}`:"", p.mentor?`Mentor : ${esc(p.mentor)}`:""].filter(Boolean).join(" · ")}</p>`:""}
     ${detailActions("pc",p.id)}
     <div style="margin:.2rem 0 .8rem"><button class="btn ghost sm" data-print-pc="${p.id}">🖨 Imprimer cette fiche (PDF)</button></div>
     <div class="statblock">

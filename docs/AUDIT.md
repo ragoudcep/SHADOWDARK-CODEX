@@ -1529,3 +1529,46 @@ cette session.
   `favStarHTML("spell",s.id,s.favorite,true)`, mêmes wrapper flex que Trésor/PNJ/PJ. Vérifié :
   `node --check` OK sur les 8 blocs `<script>`, page de connexion s'affiche sans erreur console
   (pas de compte de test disponible dans ce contexte pour aller plus loin dans le bac à sable).
+
+## Session de nuit (2026-08-12) — Classes de Cursed Scroll #1, en autonomie
+
+Tristan a fourni plusieurs PDF "Cursed Scroll" (suppléments Shadowdark tiers) contenant des
+classes de PJ absentes de l'appli, et est allé se coucher avec une consigne claire :
+implémenter tout ce qui est faisable, mettre les valeurs ambiguës au hasard plutôt que de
+bloquer, et laisser une liste de points à trancher au réveil (voir `docs/TODO.md`).
+
+**Chevalier de Saint Ydris / Ensorceleur / Sorcière** (Cursed Scroll #1, thème diablerie,
+VF) ajoutées à `CLASSES_DATA`/`PC_CLASSES`/`TITRES`, même format que les 4 classes de base
+— extraction du PDF via `pdftotext -enc UTF-8` (même méthode que les reliques du Trésor
+cette session), contenu lu intégralement avant implémentation, détail dans
+`docs/REGLES-CREATION-PERSONNAGE.md`.
+
+- Sorcière et Chevalier de Saint Ydris utilisent `spellClass:"witch"`, qui réutilisait déjà
+  une entrée de `SPELL_CLASSES` (onglet Sorts) jamais exploitée jusqu'ici.
+- Chevalier de Saint Ydris a `spellsKnownLvl1:0` + nouveau champ `spellsFromLevel:3` (aucun
+  sort avant le niveau 3) — a nécessité de garder `pcClassSectionHTML()`/`printClassBlock()`
+  de afficher un "0 sorts connus" trompeur : nouvelle branche qui affiche plutôt "aucun sort
+  connu au 1er niveau, incantation à partir du niveau N".
+- **Système de Mentors** (nouvelle constante `MENTORS`, 6 patrons avec leur propre table de
+  Bienfaits 2d6) pour l'Ensorceleur, dont c'est l'unique source de pouvoir. Nouveau champ
+  `p.mentor` : tiré au hasard à la génération (`generateRandomPC`, le générateur ne peut pas
+  demander au joueur), modifiable ensuite via un `<select>` sur la fiche (`formPC`). La
+  section Classe (`pcClassSectionHTML`) affiche la table de Talents d'ensorceleur **et** la
+  table de Bienfaits du mentor choisi l'une sous l'autre, calculées en direct comme le reste
+  du système de classes (aucune donnée de mentor figée sur le PJ à part le nom choisi).
+  **Écart volontaire par rapport à la suggestion initiale de Tristan** (mettre les tables de
+  mentor dans l'onglet Tables aléatoires) : le composant de table générique affiche un badge
+  `d{nombre de lignes}`, qui serait faux ici (tranches 2d6 irrégulières, pas un dé uniforme)
+  — laissé uniquement dans `MENTORS`/la fiche PJ. Noté dans `docs/TODO.md` pour confirmation
+  le lendemain.
+- Catastrophes diaboliques, Origines diaboliques et la liste de 46 sorts de sorcière (lus
+  dans le PDF, documentés dans `docs/REGLES-CREATION-PERSONNAGE.md`) **pas implémentés** —
+  hors scope de cette nuit, laissés en note pour plus tard.
+
+Vérifié en bac à sable avant commit : les 3 classes assignables et affichent la bonne
+section Classe (armes/armures/capacités/talents, DD d'incantation le cas échéant) ; titre
+calculé correctement pour les 3 nouvelles classes à tous les paliers d'alignement testés ;
+12 générations aléatoires successives couvrant les 7 classes désormais possibles, mentor
+assigné uniquement pour les Ensorceleur générés ; fiche imprimable (`printPCSheet`) génère
+sans erreur pour un Ensorceleur avec mentor. `outils/audit-check.sh` : syntaxe JS OK sur
+les 8 blocs `<script>`.

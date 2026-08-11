@@ -30,22 +30,20 @@ Implique probablement une notion de « groupe de tables liées » ou de
 « recette de génération » qui n'existe pas encore dans le modèle de
 données actuel — à concevoir.
 
-## PJ — édition de classe a posteriori
+## Nuit du 2026-08-12 — classes de Cursed Scroll, à valider au réveil
 
-**Note de backlog, pas encore un chantier lancé.** Tristan a créé des PJ
-avant que les catégories de classe (magicien, voleur, guerrier, prêtre)
-n'existent dans l'appli. Ces PJ n'ont donc pas de classe associée, ce qui
-laisse des cases vides dans leur table de talents à certains niveaux
-(évolutions de talents qui dépendent de la classe, jamais renseignées
-puisque la classe n'était pas connue au moment de la création).
+Tristan a demandé d'implémenter en autonomie tout ce qui est faisable depuis les PDF
+"Cursed Scroll" fournis, en mettant du hasard partout où un choix n'était pas clair plutôt
+que de bloquer. Liste de ce qu'il faut relire/trancher (détail technique dans
+`docs/AUDIT.md`, section « Session de nuit ») :
 
-Envie exprimée : pouvoir revenir sur un PJ existant et lui (ré)assigner
-une classe après coup (ex : un guerrier requalifié en magicien, ou
-l'inverse), et que ce changement mette à jour automatiquement sa table de
-talents selon les règles de la classe choisie, telles que décrites dans
-[`docs/REGLES-CREATION-PERSONNAGE.md`](REGLES-CREATION-PERSONNAGE.md)
-(section « Classes », jets de talents 2d6 par classe).
-
-À concevoir : l'édition de classe d'un PJ déjà créé (aujourd'hui la classe
-n'est probablement fixée qu'à la création), et la logique de
-recalcul/complétion de la table de talents quand la classe change.
+- **Tables de Mentor (Ensorceleur) pas dans l'onglet Tables aléatoires**, contrairement à
+  l'idée que Tristan avait évoquée — le composant de table générique afficherait un badge
+  « d5 » trompeur (tranches 2d6 irrégulières, pas un dé uniforme). Laissées uniquement dans
+  la fiche du PJ concerné. À confirmer : ce choix convient, ou il faut un affichage dédié
+  dans Tables aléatoires malgré tout ?
+- **Catastrophes diaboliques**, **Origines diaboliques** et les **46 sorts de sorcière**
+  (Cursed Scroll #1) sont documentés dans `docs/REGLES-CREATION-PERSONNAGE.md` mais **pas
+  implémentés** cette nuit (hors scope initial : juste les 3 classes + mentors).
+- (Cette section sera complétée au fil de la nuit avec ce qui est trouvé dans Cursed Scroll
+  #2 à #6 — classes ajoutées, valeurs mises au hasard faute de certitude, etc.)
