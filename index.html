@@ -124,7 +124,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[], gmnotes:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -256,8 +256,8 @@ const CRAWL_STATUSES = [
 function crawlStatusMeta(v){ return CRAWL_STATUSES.find(s=>s.value===v) || null; }
 
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", hexmap:"Hexcrawl", spell:"Sort" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel"];
-const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel" };
+const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel","gmnotes"];
+const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel", gmnotes:"gmnote" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
