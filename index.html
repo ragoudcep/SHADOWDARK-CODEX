@@ -2943,9 +2943,16 @@ $("#modal").addEventListener("click", e=>{
   if(e.target.closest("[data-wheel-save-segments]")){ saveWheelSegments(); return; }
   if((el=e.target.closest("[data-wheel-preset]"))){ applyWheelPreset(el.dataset.wheelPreset); return; }
   if(e.target.closest("[data-wheel-save-preset]")){
+    // Champ inline plutôt qu'un promptModal() séparé : l'ancien flux remplaçait tout le contenu de
+    // la modale d'édition de la roue le temps de saisir un nom (même conteneur #modal réutilisé),
+    // ce qui donnait l'impression trompeuse que l'action faisait "autre chose" que simplement
+    // ajouter un préréglage à la liste juste au-dessus — signalé par Tristan (2026-08-11).
+    const nameInput = document.getElementById("wheel-preset-name");
+    const name = nameInput ? nameInput.value.trim() : "";
+    if(!name){ toast("Donne un nom au préréglage avant de l'enregistrer."); if(nameInput) nameInput.focus(); return; }
     const vals = wheelReadRows();
     if(vals.length < 2){ toast("Remplis au moins deux bonus avant d'enregistrer un préréglage."); return; }
-    promptModal("Nom du préréglage :", "", name=>wheelSaveCurrentAsPreset(name));
+    wheelSaveCurrentAsPreset(name);
     return;
   }
   if((el=e.target.closest("[data-wheel-custom-preset]"))){ wheelApplyCustomPreset(el.dataset.wheelCustomPreset); return; }

@@ -797,6 +797,40 @@ un `git pull` + rechargement de la page. Je te le rappellerai explicitement
   avant Objectif/Comportement, un PNJ purement social (sans CA/PV/arme/caractéristiques) les omet
   proprement sans laisser de lignes vides visibles. Mêmes limites/réserves que les Créatures (recto/
   verso non dupliqués en miroir pour un duplex automatique, non vérifié en impression physique réelle).
+- **Roue — refonte du coffre + préréglages personnalisés multiples (2026-08-11)**, deux retours de
+  Tristan après usage réel.
+  **Coffre** : deuxième passe sur le mode « chest » (`style.css`), la première (même journal,
+  section Roue plus haut) restait trop proche géométriquement du cadeau. Cette fois : lattes de
+  bois visibles (`repeating-linear-gradient`) sur le corps ET le couvercle, couvercle en vrai
+  dôme (`border-radius` elliptique prononcé plutôt que des coins arrondis), deux cerclages dorés
+  qui s'alignent à la jointure une fois fermé, fermoir central. Animation d'ouverture dédiée
+  (`wheel-chest-lid-open`, propre au coffre — la règle partagée `.reveal-box.open .reveal-lid` a
+  été scindée en `.gift.open`/`.chest.open`) : le couvercle pivote depuis sa base
+  (`transform-origin:50% 100%`) vers l'arrière, pas le « pop » en diagonale du ruban de cadeau qui
+  ne convenait pas à un coffre. Réglage de l'angle (`-70deg`) et du décalage (`translateY(-18px)`)
+  ajustés après plusieurs essais visuels dans le navigateur — un angle trop grand (`-112deg`,
+  premier essai) faisait ressortir un éclat du couvercle sous la caisse, geste peu naturel.
+  **Préréglages personnalisés** : le bouton « Enregistrer la liste actuelle comme préréglage »
+  ouvrait un `promptModal()` séparé qui remplaçait temporairement tout le contenu de la modale
+  d'édition de la roue (même conteneur `#modal` réutilisé) — Tristan a compris ce va-et-vient comme
+  "ça ne fait pas ce que j'attends" plutôt que comme un simple ajout à la liste. Remplacé par un
+  champ de nom + bouton **inline**, directement dans la section « Mes préréglages » — enregistrer
+  ajoute désormais visiblement un nouveau chip à la liste juste au-dessus, sans faire disparaître le
+  reste de l'éditeur. Raccourci Entrée ajouté sur le champ (même schéma que l'ancien
+  `promptModal()`). **Le mécanisme de sauvegarde lui-même n'avait pas de bug** : `w.presets` était
+  déjà un tableau qui accumule (jamais un remplacement) — vérifié en enregistrant coup sur coup
+  plusieurs préréglages différents avant même de toucher au code, les deux apparaissaient
+  correctement. Le problème était uniquement la clarté du geste, pas la donnée.
+  **Aléa de test rencontré** : le navigateur de cette session met en cache `style.css` et les
+  fichiers `js/*.js` chargés en `<link>`/`<script src>` de façon plus agressive que prévu — un
+  `navigate` avec `force:true` sur `index.html`, même avec une chaîne de requête différente, ne
+  rechargeait pas ces sous-ressources. Contournement utilisé pour vérifier réellement chaque
+  changement : retirer puis recréer dynamiquement la balise `<link>`/`<script>` concernée avec un
+  paramètre `?bust=` unique (fonctionne pour le CSS ; pour un fichier JS avec des `let`/`const` de
+  premier niveau, réexécuter tout le fichier une seconde fois provoque un `SyntaxError` de
+  redéclaration — contourné en extrayant et ré-évaluant uniquement la fonction modifiée). Aucun
+  rapport avec un vrai comportement utilisateur : un vrai rechargement de page (F5) n'exécute
+  chaque script qu'une fois, ce problème n'existe que dans ce sandbox de test.
 - **Deux systèmes d'import XML coexistent** : les créatures utilisent un
   import dédié historique (`importXML`, déclenché via
   `_xmlImportTarget==="creature"`), toutes les autres entités importables

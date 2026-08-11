@@ -566,19 +566,26 @@ function openWheelEditModal(){
       </div>
     </div>
     <div class="field" style="margin-bottom:.9rem">
-      <label>Mes préréglages <span class="hint">(tes propres listes sauvegardées, réutilisables à tout moment)</span></label>
+      <label>Mes préréglages <span class="hint">(tes propres listes sauvegardées — chaque enregistrement AJOUTE un nouveau préréglage à la liste ci-dessous, il n'en remplace jamais un existant ; donne des noms différents pour en garder plusieurs)</span></label>
       <div style="display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.5rem">
         ${(w.presets||[]).length ? (w.presets||[]).map(p=>`<span style="display:inline-flex; align-items:stretch; border:1px solid var(--border); border-radius:8px; overflow:hidden">
             <button type="button" class="btn ghost sm" style="border:none; border-radius:0" data-wheel-custom-preset="${esc(p.id)}">${esc(p.name)}</button>
             <button type="button" class="icon-btn" style="border-left:1px solid var(--border); border-radius:0" data-wheel-delete-preset="${esc(p.id)}" title="Supprimer ce préréglage">✕</button>
           </span>`).join("") : `<span class="faint" style="font-family:var(--ui);font-size:.82rem">Aucun pour l'instant.</span>`}
       </div>
-      <button type="button" class="btn ghost sm" data-wheel-save-preset="1">💾 Enregistrer la liste actuelle comme préréglage</button>
+      <div style="display:flex; gap:.4rem; flex-wrap:wrap">
+        <input type="text" id="wheel-preset-name" placeholder="Nom du nouveau préréglage" autocomplete="off" style="flex:1 1 220px; min-width:0">
+        <button type="button" class="btn ghost sm" data-wheel-save-preset="1" style="flex:0 0 auto">💾 Enregistrer comme nouveau préréglage</button>
+      </div>
     </div>
     <p class="wheel-seg-hint">Un bonus par ligne, texte court conseillé. Tirage à chances égales entre toutes les lignes non vides.</p>
     <div id="wheel-seg-wrap">${segs.map(wheelRowHTML).join("")}</div>
     <button class="btn ghost sm" data-wheel-add-seg="1">+ Ajouter un bonus</button>
     <div class="form-actions" style="margin-top:1rem"><button class="btn" data-wheel-save-segments="1">✓ Enregistrer</button><button class="btn ghost" data-modal-close="1">Annuler</button></div>`);
+  const presetNameInput = document.getElementById("wheel-preset-name");
+  if(presetNameInput) presetNameInput.addEventListener("keydown", ev=>{
+    if(ev.key==="Enter"){ ev.preventDefault(); document.querySelector("[data-wheel-save-preset]").click(); }
+  });
 }
 /* Lit l'état actuel des lignes de l'éditeur en {text,ref}[] — partagé entre saveWheelSegments()
    et l'enregistrement d'un préréglage personnalisé, pour ne pas dupliquer la logique de rupture

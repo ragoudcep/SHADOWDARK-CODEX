@@ -32,7 +32,6 @@ données actuel — à concevoir.
 
 ## Roue
 
-L'animation du coffre (mode « coffre » de la révélation de bonus) ne
-ressemble pas encore assez à un vrai coffre visuellement — apparence à
-retravailler à l'occasion (pas urgent). Le mécanisme fonctionnel (tirage,
-easter egg) n'est pas en cause, seulement le rendu visuel de l'animation.
+**Coffre redessiné et préréglages personnalisés clarifiés (2026-08-11).** Voir `docs/AUDIT.md`
+pour le détail. À confirmer par Tristan à l'usage — si le coffre ne convainc toujours pas, ce
+sera un troisième réglage plutôt qu'un problème nouveau.
