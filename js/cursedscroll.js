@@ -421,7 +421,7 @@ function classDocHTML(clsName){
   </div>`;
 }
 function mentorsDocHTML(){
-  return `<div class="section"><h2>🕯 Mentors (Ensorceleur)</h2>
+  return `<div class="section"><h2>Mentors (Ensorceleur)</h2>
     ${Object.entries(MENTORS).map(([name,men])=>`<div style="margin-bottom:1.2rem">
       <h3 style="color:var(--gold2);margin:.2rem 0 .3rem">${esc(name)}</h3>
       <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .5rem">${esc(men.desc)}</p>
@@ -435,12 +435,12 @@ function mentorsDocHTML(){
    doc plutôt que rédigé à la main, pour ne jamais désynchroniser du contenu réel. */
 function cursedScrollSommaireHTML(doc){
   const items = [];
-  if(doc.classNames && doc.classNames.length) items.push(`⚔ Classes (${doc.classNames.length}) — ${doc.classNames.join(", ")}`);
-  if(doc.mentors) items.push(`🕯 Mentors (Ensorceleur)`);
-  if(doc.origines && doc.origines.length) items.push(`📖 ${doc.originesLabel || "Origines"} (${doc.origines.length})`);
-  if(doc.catastrophes) items.push(`💀 Catastrophes diaboliques`);
-  if(doc.spells && doc.spells.length) items.push(`✨ ${doc.spellsLabel || "Sorts"} (${doc.spells.length})`);
-  if(doc.treasures && doc.treasures.rows && doc.treasures.rows.length) items.push(`💰 ${doc.treasures.label} (${doc.treasures.rows.length})`);
+  if(doc.classNames && doc.classNames.length) items.push(`Classes (${doc.classNames.length}) — ${doc.classNames.join(", ")}`);
+  if(doc.mentors) items.push(`Mentors (Ensorceleur)`);
+  if(doc.origines && doc.origines.length) items.push(`${doc.originesLabel || "Origines"} (${doc.origines.length})`);
+  if(doc.catastrophes) items.push(`Catastrophes diaboliques`);
+  if(doc.spells && doc.spells.length) items.push(`${doc.spellsLabel || "Sorts"} (${doc.spells.length})`);
+  if(doc.treasures && doc.treasures.rows && doc.treasures.rows.length) items.push(`${doc.treasures.label} (${doc.treasures.rows.length})`);
   if(!items.length) return "";
   return `<div class="section" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:.5rem;padding:.6rem 1rem;margin-bottom:1.2rem">
     <div style="font-family:var(--ui);font-size:.8rem;font-weight:700;color:var(--gold2);letter-spacing:.02em;text-transform:uppercase;margin-bottom:.35rem">Au sommaire</div>
@@ -449,21 +449,21 @@ function cursedScrollSommaireHTML(doc){
 }
 function cursedScrollDocHTML(n){
   const doc = CURSED_SCROLL_DOCS[n];
-  if(!doc) return emptyState("📜", `Cursed Scroll #${n} pas encore compilé — dis-moi si le format du #1 te convient.`);
+  if(!doc) return emptyState("", `Cursed Scroll #${n} pas encore compilé — dis-moi si le format du #1 te convient.`);
   const sommaireHTML = cursedScrollSommaireHTML(doc);
   const classesHTML = doc.classNames && doc.classNames.length
-    ? `<div class="section"><h2>⚔ Classes</h2>${doc.classNames.map(classDocHTML).join("")}</div>` : "";
+    ? `<div class="section"><h2>Classes</h2>${doc.classNames.map(classDocHTML).join("")}</div>` : "";
   const mentorsHTML = doc.mentors ? mentorsDocHTML() : "";
   const originesHTML = doc.origines
-    ? `<div class="section"><h2>📖 ${esc(doc.originesLabel || "Origines")} (d${doc.origines.length})</h2>
+    ? `<div class="section"><h2>${esc(doc.originesLabel || "Origines")} (d${doc.origines.length})</h2>
         <table class="tbl"><tbody>${doc.origines.map((o,i)=>`<tr><td class="idx" style="text-align:center">${i+1}</td><td>${renderText(o)}</td></tr>`).join("")}</tbody></table></div>` : "";
   const catastrophesHTML = doc.catastrophes
-    ? `<div class="section"><h2>💀 Catastrophes diaboliques</h2>
+    ? `<div class="section"><h2>Catastrophes diaboliques</h2>
         ${doc.catastrophes.map(c=>`<h3 style="color:var(--gold2);margin:.6rem 0 .3rem">${esc(c.label)}</h3>
           <table class="tbl"><tbody>${c.rows.map((r,i)=>`<tr><td class="idx" style="text-align:center">${i+1}</td><td>${renderText(r)}</td></tr>`).join("")}</tbody></table>`).join("")}
       </div>` : "";
   const spellsHTML = doc.spells && doc.spells.length
-    ? `<div class="section"><h2>✨ ${esc(doc.spellsLabel || "Sorts")} (${doc.spells.length})</h2>
+    ? `<div class="section"><h2>${esc(doc.spellsLabel || "Sorts")} (${doc.spells.length})</h2>
         ${doc.spellsIntro ? `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .8rem">${esc(doc.spellsIntro)}</p>` : ""}
         ${[1,2,3,4,5].map(r=>{
           const list = doc.spells.filter(s=>s.tier===r);
@@ -477,7 +477,7 @@ function cursedScrollDocHTML(n){
         }).join("")}
       </div>` : "";
   const treasuresHTML = doc.treasures && doc.treasures.rows && doc.treasures.rows.length
-    ? `<div class="section"><h2>💰 ${esc(doc.treasures.label)} (d${doc.treasures.rows.length})</h2>
+    ? `<div class="section"><h2>${esc(doc.treasures.label)} (d${doc.treasures.rows.length})</h2>
         <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .8rem">Objets/trésors de ce numéro — contenu de référence uniquement (spoiler MJ), pas encore attribués à un PJ. Une fois un objet remis en jeu, crée-le normalement dans l'onglet Trésor.</p>
         <table class="tbl"><tbody>${doc.treasures.rows.map((r,i)=>`<tr><td class="idx" style="text-align:center">${i+1}</td><td>${renderText(r)}</td></tr>`).join("")}</tbody></table></div>` : "";
   const noteHTML = doc.note ? `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.3rem 0 1rem">${esc(doc.note)}</p>` : "";
@@ -513,7 +513,7 @@ function viewCursedScroll(){
   seedCursedScrollTables();
   const subNav = [1,2,3,4,5,6].map(n=>`<button class="btn ghost sm${cursedScrollSub===n?' active-mode':''}" data-cs-sub="${n}">#${n}</button>`).join("");
   app.innerHTML = `<div class="detail">
-    <h1 style="margin-bottom:.3rem">📜 Cursed Scroll</h1>
+    <h1 style="margin-bottom:.3rem">Cursed Scroll</h1>
     <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:0 0 1rem">Doc de référence MJ, création de personnage uniquement (pas les scénarios) — suppléments tiers.</p>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.2rem">${subNav}</div>
     ${cursedScrollDocHTML(cursedScrollSub)}
