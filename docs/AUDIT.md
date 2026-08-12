@@ -1820,3 +1820,77 @@ groupés par rang) sans erreur console ; le #2 affiche l'état vide attendu.
 **Reste à faire, explicitement pas commencé** : compiler les Cursed Scroll #2 à #6 dans ce
 même système — Tristan a été clair, ça attend sa validation du #1 d'abord.
 `outils/audit-check.sh` : syntaxe JS OK.
+
+### Liens hypertexte vers les tables aléatoires + compilation des #2 à #6 (2026-08-12, suite)
+
+Tristan a validé le #1 et demandé (a) de repasser dessus pour transformer toute référence
+textuelle/parenthétique à une table aléatoire en vrai lien `[[Nom]]` (sauf les tables de
+talents, qu'il préfère garder écrites en clair), (b) de compiler les 5 numéros restants, (c)
+d'ajouter un sommaire en tête de chaque numéro, et (d) d'intégrer les tables d'objets/trésors
+de chaque numéro si le zine en contient.
+
+**Références trouvées dans le #1** (grep sur `\(cf\.|table de |la table |sur la table` dans
+tout `index.html`+`cursedscroll.js`) : seulement 3 occurrences concernaient vraiment le
+contenu Cursed Scroll — les 2 mentions identiques de « Catastrophe diabolique » (Incantation
+de Chevalier de Saint Ydris et de Sorcière) et la mention « table de votre mentor » (Bienfait
+de mentor de l'Ensorceleur). Les autres candidats (Lotus noir p.15 du #2, Corruption p.12 du
+#5) sont des tables de talents → exclues du lien par consigne explicite, laissées telles
+quelles.
+
+- « Catastrophe diabolique » → lien `[[Catastrophes diaboliques]]`, une seule table combinant
+  les deux paliers (rang 1-3 et rang 4-5, préfixés dans les lignes).
+- « table de votre mentor » (générique, dépend du mentor choisi) → remplacé par les 6 liens
+  concrets `[[Almazzat]]`, `[[Kytheros]]`, `[[Mugdulblub]]`, `[[Shune l'Infâme]]`, `[[Titania]]`,
+  `[[L'Homme-Saule]]` plutôt qu'un lien générique impossible à cibler.
+
+Ces 7 tables n'existaient pas encore dans la collection Supabase « Tables aléatoires » : ajout
+de `seedCursedScrollTables()` dans `cursedscroll.js`, même pattern idempotent que
+`seedCharGenTables()`/`seedNpcGenTables()` déjà dans `index.html` (`ensure()` : ne recrée pas
+un titre déjà présent), appelée en tête de `viewCursedScroll()`, avec un `saveDB()` forcé si
+du contenu a été ajouté (pour que les liens soient utilisables dès la première ouverture par
+n'importe quel MJ, pas seulement au prochain enregistrement fortuit).
+
+**Compilation des #2 à #6** : le contenu source n'était pas dans le dépôt sous forme de texte,
+mais les PDF originaux des 6 zines étaient présents non trackés dans le répertoire de travail
+(`1046376657-Shadowdark-VF-Cursed-Scroll-1.pdf`, `1020701537-shd04-cursedscroll2.pdf`,
+`1020701740-shd05-cursedscroll3.pdf`, `975179750-Cursed-Scroll-4-River-of-Night-V1-4.pdf`,
+`1026949710-Cursed-Scroll-5-Dwellers-in-the-Deep-V1-1.pdf`,
+`975179835-Cursed-Scroll-6-City-of-Masks-V1-1.pdf`) — extraction texte via `pypdf`, puis
+lecture ciblée des pages pertinentes (tables des matières identifiées d'abord pour cibler les
+bonnes pages, plutôt que de tout lire). Les classes de PJ des #2-6 étaient déjà dans
+`CLASSES_DATA` depuis la session « 11 classes de Cursed Scroll #2 à #6 » (2026-08-12,
+`059aeff`) — réutilisées telles quelles, pas re-extraites. Ce qui manquait et a été ajouté à
+`cursedscroll.js` : origines nordiques (#3, d20), listes de sorts complètes (#3 Augure — seule
+liste de sorts jouable de cette classe dans toute l'appli pour l'instant ; #4/#5/#6 : chacun de
+ces 3 numéros VO contient en réalité une extension de sorts de **Magicien** réservée à un
+alignement donné — Neutre/#4, Chaotique/#5, Loyal/#6 — pas des sorts liés aux nouvelles
+classes du numéro, point à ne pas confondre), et une table d'objets/trésors par numéro (#2 à
+#6, toutes en d20).
+
+**Où vivent les tables d'objets/trésors** : gardées en contenu statique dans
+`CURSED_SCROLL_DOCS[n].treasures` (nouvelle section rendue dans `cursedScrollDocHTML()`),
+**pas** poussées dans la collection Supabase Trésor. Choix délibéré : (1) `cursedscroll.js` est
+explicitement documenté comme doc statique non-CRUD, y ajouter des entités Supabase aurait
+cassé cette invariant ; (2) mélanger un catalogue de loot « pas encore trouvé par les PJ » avec
+la collection Trésor qui sert à suivre ce que les PJ possèdent réellement aurait été confus, et
+aurait nécessité d'inventer un flag « importé »/« pas encore attribué » qui n'existe pas
+aujourd'hui ; (3) l'onglet Trésor n'est de toute façon pas dans `PLAYER_VISIBLE_TABS`, donc le
+argument spoiler ne poussait pas non plus vers Supabase — les deux options étaient sûres
+niveau confidentialité, celle qui respecte le mieux l'architecture existante a été retenue.
+
+**Sommaire** : `cursedScrollSommaireHTML(doc)` génère la liste depuis les champs déjà remplis du
+doc (classes/mentors/origines/catastrophes/sorts/trésors), affichée en tête de chaque numéro —
+jamais rédigée à la main, donc ne peut pas se désynchroniser du contenu réel.
+
+**Limite de test rencontrée ce soir** : impossible de me connecter en MJ (ni côté site déployé
+`ragoudcep.github.io`, session expirée/absente malgré la note en mémoire ; ni en local, l'outil
+de navigation ne sait pas ouvrir une URL `file://`) — donc pas de clic réel sur un lien pour
+vérifier la navigation. Vérifié à la place : `node --check` sur chaque bloc `<script>` +
+`js/cursedscroll.js`, `outils/audit-check.sh` (0 déclaration dupliquée, accolades CSS
+équilibrées), et un chargement de `CURSED_SCROLL_DOCS` dans une sandbox Node pour confirmer les
+comptes (classes/origines/sorts/trésors) par numéro. Le mécanisme `[[Nom]]`/`renderText()`
+lui-même n'a pas été modifié — c'est celui déjà utilisé partout ailleurs dans l'appli. **À
+vérifier par Tristan ou Dual** à la prochaine ouverture de l'onglet Cursed Scroll en tant que
+MJ : les 7 nouvelles tables doivent apparaître dans « Tables aléatoires » (catégorie « Cursed
+Scroll »), et les liens dans les fiches de classe Sorcière/Chevalier de Saint Ydris/Ensorceleur
+doivent pointer dessus au lieu d'afficher un lien rouge « bad ».
