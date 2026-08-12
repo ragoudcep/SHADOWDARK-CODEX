@@ -497,6 +497,7 @@ function render(){
 
   if(view.mode==="detail") return renderDetail();
   if(view.mode==="edit" || view.mode==="new") return renderForm();
+  if(view.mode==="wizard") return renderPCWizard();
   return renderList();
 }
 
@@ -2502,11 +2503,100 @@ function ascendanceTableRawFor(name){
   if(!rows) return "";
   return rows.find(r=>extractLeadName(r)===name) || "";
 }
+/* =========================================================================
+   MOTEUR DE TIRAGE PAR CHAMP (2026-08-12, audit docs/TODO.md « PJ — création
+   scriptée ») — chaque fonction fait UN seul tirage indépendant, rappelable
+   seule. Extrait de l'ancien corps monolithique de generateRandomPC() pour
+   être partagé entre : le bouton instantané generateRandomPC() (inchangé
+   dans son comportement), l'assistant pas-à-pas (pcWizard*, plus bas) et les
+   boutons de relance champ par champ sur une fiche PJ existante (formPC()).
+   ========================================================================= */
+/* Ascendance (d12) — pioche dans la table live "Ascendances" si elle existe,
+   sinon dans la constante ASCENDANCES. Un nom qui ne correspond à aucune
+   entrée connue de ASCENDANCES (ascendance personnalisée ajoutée par le MJ)
+   reste piochable mais `unmatched:true` — pas de bonus mécanique automatique,
+   à avertir à l'appelant (toast ou texte). */
+function rollAscendance(){
+  const entries = appTableEntries("Ascendances");
+  const name = (entries && entries.length) ? pick(entries).name : pick(Object.keys(ASCENDANCES));
+  return { name, unmatched: !ASCENDANCES[name] };
+}
+function rollClass(){ return pick(Object.keys(CLASSES_DATA)); }
+function rollAlignment(){ return pick(["loyal","neutre","chaos"]); }
+/* Caractéristiques 3d6 dans l'ordre, avec la règle p.15 : relance globale de
+   toute la série si aucune n'est ≥ 14. */
+function rollAbilityScores(){
+  const rollSet = ()=> ["str","dex","con","int","wis","cha"].reduce((o,k)=>{ o[k]=rollDice(3,6); return o; },{});
+  let scores = rollSet();
+  if(!Object.values(scores).some(v=>v>=14)) scores = rollSet();
+  return scores;
+}
+function rollHP(cd, conMod, robust){
+  return robust
+    ? Math.max(1, Math.max(rollDice(1,cd.hitDie), rollDice(1,cd.hitDie)) + conMod) + 2
+    : Math.max(1, rollDice(1,cd.hitDie) + conMod);
+}
+function rollTalent(cd){
+  const total = rollDice(2,6);
+  const row = cd.talents.find(t=>rangeContains(t.roll,total));
+  return { total, text: row?row.text:"" };
+}
+function rollOrigin(){ return rollOnAppTable("Origines") || pick(ORIGINES_ROWS); }
+function rollName(){ return rollOnAppTable("Noms de personnages") || pick(NOMS_ROWS); }
+/* Langues : commune + 1 courante au hasard, + bonus de classe (ex. Magicien :
+   +2 courantes, +2 rares) par-dessus. Pioche dans les tables live si elles
+   existent (repli sur les constantes JS sinon). */
+function rollLanguages(cd){
+  const commonLangPool = appTableRows("Langues courantes") || LANGUES_COURANTES;
+  const rareLangPool = appTableRows("Langues rares") || LANGUES_RARES;
+  let languages = ["Langue commune", pick(commonLangPool)];
+  if(cd.extraCommonLanguages) languages.push(...pickN(commonLangPool, cd.extraCommonLanguages));
+  if(cd.extraRareLanguages) languages.push(...pickN(rareLangPool, cd.extraRareLanguages));
+  return [...new Set(languages)];
+}
+/* Divinité (Prêtre) : pioche dans la table live "Divinités" en filtrant par
+   alignement (reconstitué depuis le "(Aligné)" de la ligne, format
+   DIVINITES_ROWS) — repli sur la constante DIVINITES si la table est
+   absente/vide ou si aucune ligne ne correspond à l'alignement. */
+function rollDeity(alignment){
+  const divEntries = appTableEntries("Divinités");
+  if(divEntries && divEntries.length){
+    const withAlign = divEntries.map(e=>{
+      const m = e.raw.match(/\(([^)]*)\)/);
+      return { name:e.name, align: m ? m[1].trim().toLowerCase() : null };
+    });
+    const candidates = withAlign.filter(e=>e.align===alignment);
+    return (candidates.length ? pick(candidates) : pick(withAlign)).name;
+  }
+  const candidates = DIVINITES.filter(d=>d.align===alignment);
+  return (candidates.length ? pick(candidates) : pick(DIVINITES)).name;
+}
+function rollMentor(){ return pick(Object.keys(MENTORS)); }
+/* Sorts connus de rang 1, piochés dans db.spells (importés dans l'onglet
+   Sorts). clsName sert uniquement à ajouter la ligne "Renvoi des
+   morts-vivants" offerte au Prêtre (ne compte pas dans les sorts connus). */
+function rollSpellsKnown(cd, clsName){
+  const pool = db.spells.filter(s=>s.class===cd.spellClass && String(s.tier)==="1");
+  const chosen = pickN(pool, cd.spellsKnownLvl1);
+  let spellLines = chosen.map(s=>`[[${s.name}]]`);
+  if(clsName==="Prêtre") spellLines.unshift("[[Renvoi des morts-vivants]] (bonus, ne compte pas dans les sorts connus)");
+  if(!pool.length) spellLines.push(`(Importe d'abord les sorts de ${spellClassLabel(cd.spellClass).toLowerCase()} dans l'onglet Sorts pour un tirage automatique.)`);
+  return spellLines;
+}
+function rollGold(){ return rollDice(2,6)*5; }
+function computeAC(dexMod){ return 10 + dexMod; }
+/* Équipement p.13 : emplacements = le plus élevé entre 10 et la
+   caractéristique de Force ; + bonus de Constitution (s'il est positif) pour
+   un Guerrier (talent Bête de somme). */
+function computeInvSlots(cls, strScore, conMod){
+  return Math.max(10, strScore) + (cls==="Guerrier" && conMod>0 ? conMod : 0);
+}
+
 function generateRandomPC(){
   seedCharGenTables();
-  const cls = pick(Object.keys(CLASSES_DATA));
+  const cls = rollClass();
   const cd = CLASSES_DATA[cls];
-  const alignment = pick(["loyal","neutre","chaos"]);
+  const alignment = rollAlignment();
   // 2026-08-13 : pioche désormais dans la table live "Ascendances" (onglet Tables aléatoires),
   // pas dans la constante ASCENDANCES — un ajout/retrait/modification fait par le MJ dans cet
   // onglet est donc pris en compte ici. Contrepartie assumée (accord de Tristan) : si le nom
@@ -2514,93 +2604,39 @@ function generateRandomPC(){
   // ajouté une ascendance personnalisée), elle reste piochable mais perd tout effet mécanique
   // automatique (ex. le bonus de PV de "Robuste" ne s'applique qu'à ce nom exact) — averti par
   // toast ici, et rappelé en continu sur la fiche PJ via ascendanceTraitText()/detailPC().
-  const ascEntries = appTableEntries("Ascendances");
-  let ancestryName;
-  if(ascEntries && ascEntries.length) ancestryName = pick(ascEntries).name;
-  else ancestryName = pick(Object.keys(ASCENDANCES));
-  const ancestryUnmatched = !ASCENDANCES[ancestryName];
+  const { name: ancestryName, unmatched: ancestryUnmatched } = rollAscendance();
   const asc = ASCENDANCES[ancestryName] || { trait: ascendanceTableRawFor(ancestryName) || ancestryName, robust:false };
 
-  const rollSet = ()=> ["str","dex","con","int","wis","cha"].reduce((o,k)=>{ o[k]=rollDice(3,6); return o; },{});
-  let scores = rollSet();
-  if(!Object.values(scores).some(v=>v>=14)) scores = rollSet(); // règle p.15 : relance si aucune caractéristique ≥ 14
+  const scores = rollAbilityScores();
   const mods = {}; Object.keys(scores).forEach(k=> mods[k]=ABILITY_MOD(scores[k]));
 
-  let hp;
-  if(asc.robust){
-    hp = Math.max(1, Math.max(rollDice(1,cd.hitDie), rollDice(1,cd.hitDie)) + mods.con) + 2;
-  } else {
-    hp = Math.max(1, rollDice(1,cd.hitDie) + mods.con);
-  }
+  const hp = rollHP(cd, mods.con, asc.robust);
 
   const level = "1";
 
-  const rollTalent = ()=>{
-    const total = rollDice(2,6);
-    const row = cd.talents.find(t=>rangeContains(t.roll,total));
-    return { total, text: row?row.text:"" };
-  };
-  const talentRolls = [rollTalent()];
-  if(ancestryName==="Ambitieux") talentRolls.push(rollTalent()); // jet de talent supplémentaire
+  const talentRolls = [rollTalent(cd)];
+  if(ancestryName==="Ambitieux") talentRolls.push(rollTalent(cd)); // jet de talent supplémentaire
 
   // Langues (2026-08-11) : plus liées à l'ascendance (supprimée avec les races) — chaque PJ tire
   // 1 langue courante au hasard en plus de la commune ; les bonus de classe (Magicien, etc.)
   // s'ajoutent par-dessus comme avant.
-  // 2026-08-13 : pioche désormais dans la table live "Langues courantes"/"Langues rares" de
-  // l'onglet Tables aléatoires (repli sur la constante JS seulement si la table est absente/vide,
-  // ce qui ne devrait pas arriver puisque seedCharGenTables() vient de tourner juste au-dessus) —
-  // un ajout/retrait fait par le MJ dans cet onglet est donc immédiatement pris en compte ici,
-  // contrairement à avant où seule la constante d'origine était lue.
-  const commonLangPool = appTableRows("Langues courantes") || LANGUES_COURANTES;
-  const rareLangPool = appTableRows("Langues rares") || LANGUES_RARES;
-  let languages = ["Langue commune", pick(commonLangPool)];
-  if(cd.extraCommonLanguages) languages.push(...pickN(commonLangPool, cd.extraCommonLanguages));
-  if(cd.extraRareLanguages) languages.push(...pickN(rareLangPool, cd.extraRareLanguages));
-  languages = [...new Set(languages)];
+  const languages = rollLanguages(cd);
 
-  const origine = rollOnAppTable("Origines") || pick(ORIGINES_ROWS);
-  const nom = rollOnAppTable("Noms de personnages") || pick(NOMS_ROWS);
+  const origine = rollOrigin();
+  const nom = rollName();
 
-  // 2026-08-13 : idem Ascendances, pioche dans la table live "Divinités" — l'alignement de
-  // chaque divinité est reconstitué depuis le "(Aligné)" de la ligne (format DIVINITES_ROWS,
-  // ex. "Sainte Terragnis (Loyal) — ..."). Une divinité personnalisée sans ce format n'est
-  // simplement pas filtrable par alignement (traitée comme "n'importe quel alignement") — pas
-  // de bonus/malus mécanique lié à une divinité dans les règles actuelles, donc pas besoin
-  // d'avertissement comme pour Ascendances : au pire le filtre d'alignement est juste ignoré.
-  let deity = "";
-  if(cls==="Prêtre"){
-    const divEntries = appTableEntries("Divinités");
-    if(divEntries && divEntries.length){
-      const withAlign = divEntries.map(e=>{
-        const m = e.raw.match(/\(([^)]*)\)/);
-        return { name:e.name, align: m ? m[1].trim().toLowerCase() : null };
-      });
-      const candidates = withAlign.filter(e=>e.align===alignment);
-      deity = (candidates.length ? pick(candidates) : pick(withAlign)).name;
-    } else {
-      const candidates = DIVINITES.filter(d=>d.align===alignment);
-      deity = (candidates.length ? pick(candidates) : pick(DIVINITES)).name;
-    }
-  }
+  // 2026-08-13 : idem Ascendances, pioche dans la table live "Divinités" — voir rollDeity().
+  const deity = cls==="Prêtre" ? rollDeity(alignment) : "";
   // Mentor (2026-08-12, Ensorceleur) : choix obligatoire pour la classe, tiré au hasard à la
   // génération faute de pouvoir demander au joueur — modifiable ensuite via le formulaire.
-  const mentor = cd.usesMentor ? pick(Object.keys(MENTORS)) : "";
+  const mentor = cd.usesMentor ? rollMentor() : "";
 
-  let spellLines = [];
-  if(cd.spellClass && cd.spellsKnownLvl1>0){
-    const pool = db.spells.filter(s=>s.class===cd.spellClass && String(s.tier)==="1");
-    const chosen = pickN(pool, cd.spellsKnownLvl1);
-    spellLines = chosen.map(s=>`[[${s.name}]]`);
-    if(cls==="Prêtre") spellLines.unshift("[[Renvoi des morts-vivants]] (bonus, ne compte pas dans les sorts connus)");
-    if(!pool.length) spellLines.push(`(Importe d'abord les sorts de ${spellClassLabel(cd.spellClass).toLowerCase()} dans l'onglet Sorts pour un tirage automatique.)`);
-  }
+  const spellLines = (cd.spellClass && cd.spellsKnownLvl1>0) ? rollSpellsKnown(cd, cls) : [];
 
-  const gold = rollDice(2,6)*5;
-  const ac = 10 + mods.dex;
+  const gold = rollGold();
+  const ac = computeAC(mods.dex);
   const sgn = m => (m>=0?"+":"")+m;
-  // Équipement p.13 : emplacements = le plus élevé entre 10 et la caractéristique de Force ;
-  // + bonus de Constitution (s'il est positif) pour un Guerrier (talent Bête de somme).
-  const invSlots = Math.max(10, scores.str) + (cls==="Guerrier" && mods.con>0 ? mods.con : 0);
+  const invSlots = computeInvSlots(cls, scores.str, mods.con);
 
   const o = {
     id: uid(), name: nom, ancestry: ancestryName, cls: cls, level: level, alignment: alignment,
@@ -2635,7 +2671,8 @@ function generateRandomPC(){
 
 function listPCs(){
   const items = filterFavorites(filterGmCreated(db.pcs), pcFavOnly);
-  const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
+  const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-pc-wizard-start="1">🧭 Créer un personnage</button>
+    <button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
     <button class="btn ghost sm" data-print-pcs="1">🖨 Imprimer des fiches</button>${favFilterBtnHTML("pc",pcFavOnly)}` : "";
   app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ", genBtn) +
     (items.length ? `<div class="grid">${items.map(p=>`
@@ -2647,6 +2684,246 @@ function listPCs(){
         <div class="meta"><span class="tag gold">Niv. ${esc(p.level||'?')}</span><span class="tag">CA ${esc(p.ac||'?')}</span><span class="tag">PV ${esc(p.hpCurrent||'?')}/${esc(p.hp||'?')}</span></div>
       </div>`).join("")}</div>`
     : emptyState("🛡","Aucun personnage-joueur. Créez la fiche de vos aventuriers."));
+}
+
+/* =========================================================================
+   ASSISTANT DE CRÉATION PAS-À-PAS (2026-08-12, audit docs/TODO.md « PJ —
+   création scriptée », validé par Tristan) — coexiste avec le bouton
+   instantané generateRandomPC() (inchangé) et le formulaire manuel formPC()
+   (inchangé, reste le mode d'édition d'une fiche existante). Étapes dans
+   l'ordre officiel Shadowdark (Ascendance → Classe → Caractéristiques →
+   Historique/Talent → Équipement), chacune avec trois choix Garder /
+   Relancer / Saisir moi-même, avant de passer à la suivante. Réutilise le
+   moteur de tirage par champ (rollAscendance() etc., voir plus haut).
+   Aucune sauvegarde tant que "Enregistrer ce personnage" n'a pas été
+   cliqué à la dernière étape (récapitulatif) — cf. décision de Tristan.
+   ========================================================================= */
+let pcWizard = null; // { draft:{...}, stepIndex, value, manual } — null hors assistant
+
+const PC_WIZARD_LABELS = {
+  ancestry:"Ascendance", cls:"Classe", alignment:"Alignement",
+  abilities:"Caractéristiques (3d6 × 6)", hp:"Points de vie",
+  origin:"Origine", talent:"Talent de classe (2d6)", talent2:"Talent supplémentaire (Ambitieux)",
+  name:"Nom", languages:"Langues", deity:"Divinité", mentor:"Mentor",
+  spells:"Sorts connus (rang 1)", gold:"Or de départ", review:"Récapitulatif"
+};
+/* Liste ordonnée des étapes, recalculée à chaque rendu depuis le brouillon en
+   cours — les étapes conditionnelles (talent supplémentaire, divinité,
+   mentor, sorts) n'apparaissent qu'une fois le champ dont elles dépendent
+   (ascendance/classe) confirmé, donc leur présence ne peut plus changer une
+   fois qu'on les a dépassées. */
+function pcWizardStepList(d){
+  const cd = CLASSES_DATA[d.cls];
+  const steps = [
+    {id:"ancestry", group:"Ascendance"},
+    {id:"cls", group:"Classe"},
+    {id:"alignment", group:"Historique"},
+    {id:"abilities", group:"Caractéristiques"},
+    {id:"hp", group:"Caractéristiques"},
+    {id:"origin", group:"Historique"},
+    {id:"talent", group:"Historique"}
+  ];
+  if(d.ancestryName==="Ambitieux") steps.push({id:"talent2", group:"Historique"});
+  steps.push({id:"name", group:"Historique"});
+  steps.push({id:"languages", group:"Historique"});
+  if(d.cls==="Prêtre") steps.push({id:"deity", group:"Historique"});
+  if(cd && cd.usesMentor) steps.push({id:"mentor", group:"Historique"});
+  if(cd && cd.spellClass && cd.spellsKnownLvl1>0) steps.push({id:"spells", group:"Historique"});
+  steps.push({id:"gold", group:"Équipement"});
+  steps.push({id:"review", group:"Équipement"});
+  return steps;
+}
+function pcWizardRoll(id, d){
+  const cd = CLASSES_DATA[d.cls];
+  switch(id){
+    case "ancestry": return rollAscendance();
+    case "cls": return rollClass();
+    case "alignment": return rollAlignment();
+    case "abilities": return rollAbilityScores();
+    case "hp": { const asc=ASCENDANCES[d.ancestryName]; return rollHP(cd, ABILITY_MOD(d.scores.con), !!(asc&&asc.robust)); }
+    case "origin": return rollOrigin();
+    case "talent": case "talent2": return rollTalent(cd);
+    case "name": return rollName();
+    case "languages": return rollLanguages(cd);
+    case "deity": return rollDeity(d.alignment);
+    case "mentor": return rollMentor();
+    case "spells": return rollSpellsKnown(cd, d.cls);
+    case "gold": return rollGold();
+  }
+}
+function pcWizardApply(id, d, value){
+  switch(id){
+    case "ancestry": d.ancestryName=value.name; d.ancestryUnmatched=value.unmatched; break;
+    case "cls": d.cls=value; break;
+    case "alignment": d.alignment=value; break;
+    case "abilities": d.scores=value; break;
+    case "hp": d.hp=value; break;
+    case "origin": d.origin=value; break;
+    case "talent": d.talentRolls[0]=value; break;
+    case "talent2": d.talentRolls[1]=value; break;
+    case "name": d.name=value; break;
+    case "languages": d.languages=value; break;
+    case "deity": d.deity=value; break;
+    case "mentor": d.mentor=value; break;
+    case "spells": d.spellLines=value; break;
+    case "gold": d.gold=value; break;
+  }
+}
+function pcWizardDisplayHTML(id, value, d){
+  const P = s=>`<p style="font-family:var(--ui);font-size:1.05rem;margin:.4rem 0">${s}</p>`;
+  const sgn = m=>(m>=0?"+":"")+m;
+  switch(id){
+    case "ancestry": {
+      const asc = ASCENDANCES[value.name];
+      return P(`<b>${esc(value.name)}</b>`) + `<p class="muted" style="font-family:var(--ui)">${esc(asc?asc.trait:"Ascendance personnalisée — aucun bonus mécanique automatique.")}</p>`;
+    }
+    case "cls": { const c=CLASSES_DATA[value]; return P(`<b>${esc(value)}</b>`) + (c?`<p class="muted" style="font-family:var(--ui)">Dé de vie d${c.hitDie} · Armes : ${esc(c.weapons)}</p>`:""); }
+    case "alignment": return P(`<b>${esc(cap(value))}</b>`);
+    case "abilities": {
+      const stats=[["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+      return `<div class="subgrid">${stats.map(([lbl,k])=>`<div class="field" style="margin:0"><label>${lbl}</label><div style="font-family:var(--ui);font-size:1.1rem">${value[k]} (${sgn(ABILITY_MOD(value[k]))})</div></div>`).join("")}</div>`;
+    }
+    case "hp": return P(`<b>${value} PV</b>`);
+    case "origin": return P(esc(value));
+    case "talent": case "talent2": return P(`2d6 = <b>${esc(String(value.total))}</b> → ${renderText(value.text||"—")}`);
+    case "name": return P(`<b>${esc(value)}</b>`);
+    case "languages": return P(esc(value.join(", ")));
+    case "deity": return P(`<b>${esc(value)}</b>`);
+    case "mentor": { const m=MENTORS[value]; return P(`<b>${esc(value)}</b>`) + (m?`<p class="muted" style="font-family:var(--ui)">${esc(m.desc)}</p>`:""); }
+    case "spells": return value.length ? `<ul class="bullets">${value.map(s=>`<li>${renderText(s)}</li>`).join("")}</ul>` : P("Aucun sort disponible pour l'instant.");
+    case "gold": return P(`<b>${value} po</b>`);
+  }
+}
+function pcWizardManualHTML(id, d, currentValue){
+  switch(id){
+    case "ancestry": {
+      const names = new Set(Object.keys(ASCENDANCES));
+      const entries = appTableEntries("Ascendances"); if(entries) entries.forEach(e=>names.add(e.name));
+      const opts=[...names].map(n=>`<option value="${esc(n)}" ${currentValue&&currentValue.name===n?"selected":""}>${esc(n)}</option>`).join("");
+      return `<div class="field"><label>Ascendance</label><select id="wiz-in">${opts}</select></div>`;
+    }
+    case "cls": return `<div class="field"><label>Classe</label><select id="wiz-in">${PC_CLASSES.map(c=>`<option value="${esc(c)}" ${currentValue===c?"selected":""}>${esc(c)}</option>`).join("")}</select></div>`;
+    case "alignment": return `<div class="field"><label>Alignement</label><select id="wiz-in">${["loyal","neutre","chaos"].map(v=>`<option value="${v}" ${currentValue===v?"selected":""}>${cap(v)}</option>`).join("")}</select></div>`;
+    case "abilities": {
+      const stats=[["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+      const v = currentValue||{str:10,dex:10,con:10,int:10,wis:10,cha:10};
+      return `<div class="subgrid">${stats.map(([lbl,k])=>`<div class="field" style="margin:0"><label>${lbl}</label><input type="number" id="wiz-in-${k}" value="${esc(v[k])}"></div>`).join("")}</div>`;
+    }
+    case "hp": return `<div class="field"><label>PV</label><input type="number" id="wiz-in" value="${esc(currentValue||1)}"></div>`;
+    case "origin": { const rows=appTableRows("Origines")||ORIGINES_ROWS; return `<div class="field"><label>Origine</label><input type="text" id="wiz-in" list="wiz-origins" value="${esc(currentValue||"")}"><datalist id="wiz-origins">${rows.map(r=>`<option value="${esc(r)}">`).join("")}</datalist></div>`; }
+    case "talent": case "talent2": {
+      const cd = CLASSES_DATA[d.cls];
+      const opts = (cd?cd.talents:[]).map(t=>`<option value="${esc(t.roll)}">${esc(t.roll)} — ${esc(firstLine(t.text))}</option>`).join("");
+      return `<div class="field"><label>Ligne de talent</label><select id="wiz-in">${opts}</select></div>`;
+    }
+    case "name": { const rows=appTableRows("Noms de personnages")||NOMS_ROWS; return `<div class="field"><label>Nom</label><input type="text" id="wiz-in" list="wiz-names" value="${esc(currentValue||"")}"><datalist id="wiz-names">${rows.map(r=>`<option value="${esc(r)}">`).join("")}</datalist></div>`; }
+    case "languages": return `<div class="field"><label>Langues <span class="hint">(séparées par des virgules)</span></label><input type="text" id="wiz-in" value="${esc((currentValue||[]).join(", "))}"></div>`;
+    case "deity": return `<div class="field"><label>Divinité</label><input type="text" id="wiz-in" list="wiz-deities" value="${esc(currentValue||"")}"><datalist id="wiz-deities">${DIVINITES.map(dv=>`<option value="${esc(dv.name)}">`).join("")}</datalist></div>`;
+    case "mentor": return `<div class="field"><label>Mentor</label><select id="wiz-in">${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${currentValue===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>`;
+    case "spells": return `<div class="field"><label>Sorts <span class="hint">(un par ligne)</span></label><textarea id="wiz-in">${esc((currentValue||[]).join("\n"))}</textarea></div>`;
+    case "gold": return `<div class="field"><label>Or de départ (po)</label><input type="number" id="wiz-in" value="${esc(currentValue||0)}"></div>`;
+  }
+}
+function pcWizardReadManual(id, d){
+  switch(id){
+    case "ancestry": { const name=$("#wiz-in").value; return { name, unmatched: !ASCENDANCES[name] }; }
+    case "cls": return $("#wiz-in").value;
+    case "alignment": return $("#wiz-in").value;
+    case "abilities": { const o={}; ["str","dex","con","int","wis","cha"].forEach(k=> o[k]=parseInt(document.getElementById("wiz-in-"+k).value)||10); return o; }
+    case "hp": return Math.max(1, parseInt($("#wiz-in").value)||1);
+    case "origin": return $("#wiz-in").value.trim();
+    case "talent": case "talent2": { const cd=CLASSES_DATA[d.cls]; const roll=$("#wiz-in").value; const row=cd&&cd.talents.find(t=>t.roll===roll); return { total:"choisi", text: row?row.text:"" }; }
+    case "name": return $("#wiz-in").value.trim();
+    case "languages": return $("#wiz-in").value.split(",").map(s=>s.trim()).filter(Boolean);
+    case "deity": return $("#wiz-in").value.trim();
+    case "mentor": return $("#wiz-in").value;
+    case "spells": return $("#wiz-in").value.split("\n").map(s=>s.trim()).filter(Boolean);
+    case "gold": return Math.max(0, parseInt($("#wiz-in").value)||0);
+  }
+}
+function startPCWizard(){
+  pcWizard = { draft:{ talentRolls:[] }, stepIndex:0, value:undefined, manual:false };
+  editReturnTo = null;
+  view = {tab:"pcs", mode:"wizard", id:null};
+  render();
+}
+function renderPCWizard(){
+  if(!pcWizard) return startPCWizard();
+  const steps = pcWizardStepList(pcWizard.draft);
+  if(pcWizard.stepIndex>=steps.length) pcWizard.stepIndex = steps.length-1;
+  const step = steps[pcWizard.stepIndex];
+  if(step.id==="review") return renderPCWizardReview(steps);
+  if(pcWizard.value===undefined && !pcWizard.manual) pcWizard.value = pcWizardRoll(step.id, pcWizard.draft);
+  const label = PC_WIZARD_LABELS[step.id];
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler la création</button>
+    <h1>Créer un personnage</h1>
+    <p class="muted" style="font-family:var(--ui)">Étape ${pcWizard.stepIndex+1}/${steps.length} · ${esc(step.group)}</p>
+    <div class="section"><h2>${esc(label)}</h2>
+      ${pcWizard.manual ? pcWizardManualHTML(step.id, pcWizard.draft, pcWizard.value) : pcWizardDisplayHTML(step.id, pcWizard.value, pcWizard.draft)}
+    </div>
+    <div class="form-actions" style="flex-wrap:wrap">
+      ${pcWizard.manual
+        ? `<button class="btn" data-wiz-confirm-manual="1">✓ Valider et continuer</button><button class="btn ghost" data-wiz-cancel-manual="1">Annuler la saisie</button>`
+        : `<button class="btn" data-wiz-keep="1">✓ Garder</button><button class="btn ghost" data-wiz-reroll="1">🎲 Relancer</button><button class="btn ghost" data-wiz-manual="1">✎ Saisir moi-même</button>`}
+    </div>
+  </div>`;
+}
+function renderPCWizardReview(steps){
+  const d = pcWizard.draft;
+  const mods = {}; ["str","dex","con","int","wis","cha"].forEach(k=> mods[k]=ABILITY_MOD(d.scores[k]));
+  const ac = computeAC(mods.dex);
+  const invSlots = computeInvSlots(d.cls, d.scores.str, mods.con);
+  const sgn=m=>(m>=0?"+":"")+m;
+  const summary = `
+    <p style="font-family:var(--ui)"><b>${esc(d.name)}</b> — ${esc(d.ancestryName)} ${esc(d.cls)}, ${esc(cap(d.alignment))}</p>
+    <p style="font-family:var(--ui)">CA ${ac} · PV ${d.hp} · Or ${d.gold} po · ${invSlots} emplacements d'inventaire</p>
+    <div class="subgrid">${["str","dex","con","int","wis","cha"].map(k=>`<div class="field" style="margin:0"><label>${k.toUpperCase()}</label><div style="font-family:var(--ui)">${d.scores[k]} (${sgn(mods[k])})</div></div>`).join("")}</div>
+    <p style="font-family:var(--ui)">Origine : ${esc(d.origin)}</p>
+    <p style="font-family:var(--ui)">Langues : ${esc(d.languages.join(", "))}</p>
+    ${d.deity?`<p style="font-family:var(--ui)">Divinité : ${esc(d.deity)}</p>`:""}
+    ${d.mentor?`<p style="font-family:var(--ui)">Mentor : ${esc(d.mentor)}</p>`:""}
+    ${(d.spellLines&&d.spellLines.length)?`<p style="font-family:var(--ui)">Sorts : ${d.spellLines.join(", ")}</p>`:""}
+    <p style="font-family:var(--ui)">${d.talentRolls.map((r,i)=>`Talent ${i+1} (2d6=${esc(String(r.total))}) : ${r.text||"—"}`).join("<br>")}</p>
+  `;
+  app.innerHTML = `<div class="form">
+    <button class="back" data-back="1">← Annuler la création</button>
+    <h1>Créer un personnage</h1>
+    <p class="muted" style="font-family:var(--ui)">Étape ${steps.length}/${steps.length} · Récapitulatif</p>
+    <div class="section"><h2>${esc(d.name||"Sans nom")}</h2>${summary}</div>
+    <p class="muted" style="font-family:var(--ui);font-size:.85rem">Rien n'est encore enregistré — clique sur « Annuler la création » pour tout abandonner sans rien sauvegarder.</p>
+    <div class="form-actions"><button class="btn" data-wiz-save="1">✓ Enregistrer ce personnage</button><button class="btn ghost" data-back="1">Annuler</button></div>
+  </div>`;
+}
+function finishPCWizard(){
+  const d = pcWizard.draft;
+  const mods = {}; ["str","dex","con","int","wis","cha"].forEach(k=> mods[k]=ABILITY_MOD(d.scores[k]));
+  const sgn=m=>(m>=0?"+":"")+m;
+  const ac = computeAC(mods.dex);
+  const invSlots = computeInvSlots(d.cls, d.scores.str, mods.con);
+  const o = {
+    id: uid(), name: d.name, ancestry: d.ancestryName, cls: d.cls, level:"1", alignment: d.alignment,
+    ac: String(ac), hp: String(d.hp), hpCurrent: String(d.hp),
+    str: `${d.scores.str} (${sgn(mods.str)})`, dex: `${d.scores.dex} (${sgn(mods.dex)})`, con: `${d.scores.con} (${sgn(mods.con)})`,
+    int: `${d.scores.int} (${sgn(mods.int)})`, wis: `${d.scores.wis} (${sgn(mods.wis)})`, cha: `${d.scores.cha} (${sgn(mods.cha)})`,
+    skills: [d.origin, d.cls==="Voleur" ? "Formé (avantage) : Grimper ; Se mouvoir en silence et se cacher ; Adopter des déguisements ; Repérer/désamorcer des pièges ; Tâches délicates (crochetage, pickpocket)." : ""].filter(Boolean).join("\n"),
+    spells: (d.spellLines||[]).join("\n"),
+    invSlots: String(invSlots),
+    inventory: `${d.gold} po pour acheter votre équipement de départ (armes/armure autorisées par la classe — l'appli ne connaît pas encore les prix, à compléter manuellement).`,
+    languages: d.languages.join(", "),
+    deity: d.deity||"",
+    masteredWeapon: "",
+    mentor: d.mentor||"",
+    info: d.talentRolls.map((r,i)=>`Jet de talent initial ${d.talentRolls.length>1?(i+1)+" ":""}(2d6=${r.total}) : ${r.text||"—"}`).join("\n"),
+    images: [],
+    portrait: pickRandomPortrait()
+  };
+  db.pcs.push(o);
+  saveDB();
+  toast(`${o.name} (${o.ancestry} ${o.cls}) créé !${d.ancestryUnmatched ? " Ascendance personnalisée : aucun bonus mécanique automatique." : ""}`);
+  pcWizard = null;
+  view = {tab:"pcs", mode:"detail", id:o.id};
+  render();
 }
 
 function formPC(){
@@ -2661,38 +2938,44 @@ function formPC(){
   const ancestryOpt = `<option value="">— Aucune —</option>` + Object.keys(ASCENDANCES).map(a=>`<option value="${esc(a)}" ${p.ancestry===a?"selected":""}>${esc(a)}</option>`).join("");
   const clsOpt = `<option value="">— Aucune —</option>` + PC_CLASSES.map(c=>`<option value="${esc(c)}" ${p.cls===c?"selected":""}>${esc(c)}</option>`).join("");
   const stats = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+  // Boutons de relance champ par champ (2026-08-12, audit docs/TODO.md « PJ — création scriptée »)
+  // — réutilisent le même moteur de tirage que l'assistant pas-à-pas (rollX(), plus haut). Ne
+  // font QUE remplir le champ dans le formulaire, aucun saveDB() ici : la sauvegarde reste
+  // groupée, déclenchée uniquement par le bouton "Enregistrer" du formulaire (savePC()) — même
+  // logique de sauvegarde différée que l'assistant, décision explicite de Tristan.
+  const rerollBtn = (kind, title="Relancer ce champ")=>`<button type="button" class="icon-btn sm" data-reroll="${kind}" title="${esc(title)}" style="width:1.4rem;height:1.4rem;padding:0;border-radius:50%;vertical-align:middle">🎲</button>`;
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
     <h1>${view.mode==="edit"?"Modifier le":"Nouveau"} personnage-joueur</h1>
-    <div class="field"><label>Nom</label><input type="text" id="f-name" value="${esc(p.name)}" placeholder="Aldric le Vaillant"></div>
+    <div class="field"><label>Nom ${rerollBtn("name","Tirer un nom au hasard (table Noms de personnages)")}</label><input type="text" id="f-name" value="${esc(p.name)}" placeholder="Aldric le Vaillant"></div>
     <div class="row">
-      <div class="field"><label>Ascendance <button type="button" class="icon-btn sm" data-show-ascendances="1" title="Voir ce que fait chaque ascendance" style="width:1.4rem;height:1.4rem;padding:0;border-radius:50%;vertical-align:middle">?</button></label><select id="f-ancestry">${ancestryOpt}</select></div>
-      <div class="field"><label>Classe</label><select id="f-cls">${clsOpt}</select></div>
+      <div class="field"><label>Ascendance <button type="button" class="icon-btn sm" data-show-ascendances="1" title="Voir ce que fait chaque ascendance" style="width:1.4rem;height:1.4rem;padding:0;border-radius:50%;vertical-align:middle">?</button> ${rerollBtn("ancestry")}</label><select id="f-ancestry">${ancestryOpt}</select></div>
+      <div class="field"><label>Classe ${rerollBtn("cls")}</label><select id="f-cls">${clsOpt}</select></div>
       <div class="field" style="flex:0 1 110px"><label>Niveau</label><input type="number" id="f-level" min="1" max="20" value="${esc(p.level)}"></div>
-      <div class="field" style="flex:0 1 140px"><label>Alignement</label><select id="f-align">${alignOpt}</select></div>
+      <div class="field" style="flex:0 1 140px"><label>Alignement ${rerollBtn("alignment")}</label><select id="f-align">${alignOpt}</select></div>
     </div>
     <div class="row">
       <div class="field" style="flex:0 1 140px"><label>Classe d'armure</label><input type="text" id="f-ac" value="${esc(p.ac)}" placeholder="15"></div>
       <div class="field" style="flex:0 1 130px"><label>PV actuels</label><input type="text" id="f-hpCurrent" value="${esc(p.hpCurrent)}" placeholder="8"></div>
-      <div class="field" style="flex:0 1 130px"><label>PV max</label><input type="text" id="f-hp" value="${esc(p.hp)}" placeholder="10"></div>
+      <div class="field" style="flex:0 1 130px"><label>PV max ${rerollBtn("hp","Relancer le dé de vie de la classe + mod. CON")}</label><input type="text" id="f-hp" value="${esc(p.hp)}" placeholder="10"></div>
     </div>
-    <div class="field"><label>Caractéristiques <span class="hint">(score ou modificateur, ex : 14 ou +2)</span></label>
+    <div class="field"><label>Caractéristiques ${rerollBtn("abilities","Relancer les 6 caractéristiques (3d6, relance globale si aucune ≥14)")} <span class="hint">(score ou modificateur, ex : 14 ou +2)</span></label>
       <div class="subgrid">
         ${stats.map(([lbl,k])=>`<div class="field" style="margin:0"><label>${lbl}</label><input type="text" id="f-${k}" value="${esc(p[k])}" placeholder="+0"></div>`).join("")}
       </div>
     </div>
     <div class="row">
-      <div class="field"><label>Langues <span class="hint">(commune + tirages/choix)</span></label><input type="text" id="f-languages" value="${esc(p.languages||"")}" placeholder="Langue commune, Elfique…"></div>
-      <div class="field"><label>Divinité <span class="hint">(surtout pour un Prêtre)</span></label><input type="text" id="f-deity" list="pc-deities" value="${esc(p.deity||"")}" placeholder="Sainte Terragnis…"><datalist id="pc-deities">${DIVINITES.map(d=>`<option value="${esc(d.name)}"></option>`).join("")}</datalist></div>
+      <div class="field"><label>Langues ${rerollBtn("languages")} <span class="hint">(commune + tirages/choix)</span></label><input type="text" id="f-languages" value="${esc(p.languages||"")}" placeholder="Langue commune, Elfique…"></div>
+      <div class="field"><label>Divinité ${rerollBtn("deity")} <span class="hint">(surtout pour un Prêtre)</span></label><input type="text" id="f-deity" list="pc-deities" value="${esc(p.deity||"")}" placeholder="Sainte Terragnis…"><datalist id="pc-deities">${DIVINITES.map(d=>`<option value="${esc(d.name)}"></option>`).join("")}</datalist></div>
       <div class="field"><label>Arme maîtrisée <span class="hint">(surtout pour un Guerrier)</span></label><input type="text" id="f-masteredWeapon" value="${esc(p.masteredWeapon||"")}" placeholder="Épée longue…"></div>
-      <div class="field${(CLASSES_DATA[p.cls]&&CLASSES_DATA[p.cls].usesMentor)?"":" hidden"}" id="mentor-field"><label>Mentor</label><select id="f-mentor"><option value="">— Aucun —</option>${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${p.mentor===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
+      <div class="field${(CLASSES_DATA[p.cls]&&CLASSES_DATA[p.cls].usesMentor)?"":" hidden"}" id="mentor-field"><label>Mentor ${rerollBtn("mentor")}</label><select id="f-mentor"><option value="">— Aucun —</option>${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${p.mentor===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
     </div>
-    <div class="field"><label>Compétences <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
-    <div class="field"><label>Sortilèges <span class="hint">(un par ligne)</span></label><textarea id="f-spells" placeholder="Lumière…&#10;Projectile magique…">${esc(p.spells)}</textarea></div>
+    <div class="field"><label>Compétences ${rerollBtn("origin","Ajouter une origine tirée au hasard")} <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
+    <div class="field"><label>Sortilèges ${rerollBtn("spells","Piocher des sorts de rang 1 pour la classe actuelle")} <span class="hint">(un par ligne)</span></label><textarea id="f-spells" placeholder="Lumière…&#10;Projectile magique…">${esc(p.spells)}</textarea></div>
     <div class="row">
-      <div class="field" style="flex:0 1 220px"><label>Emplacements d'inventaire <span class="hint">(10 ou Force, la plus haute valeur)</span></label><input type="text" id="f-invSlots" value="${esc(p.invSlots||"")}" placeholder="10"></div>
+      <div class="field" style="flex:0 1 220px"><label>Emplacements d'inventaire ${rerollBtn("invSlots","Recalculer depuis la Force et la Constitution actuelles")} <span class="hint">(10 ou Force, la plus haute valeur)</span></label><input type="text" id="f-invSlots" value="${esc(p.invSlots||"")}" placeholder="10"></div>
     </div>
-    <div class="field"><label>Inventaire <span class="hint">(un objet par ligne)</span></label><textarea id="f-inventory" placeholder="Épée longue…&#10;Corde (15m)…&#10;Rations x3">${esc(p.inventory)}</textarea></div>
+    <div class="field"><label>Inventaire ${rerollBtn("gold","Ajouter un tirage d'or de départ (2d6×5 po)")} <span class="hint">(un objet par ligne)</span></label><textarea id="f-inventory" placeholder="Épée longue…&#10;Corde (15m)…&#10;Rations x3">${esc(p.inventory)}</textarea></div>
     <div class="field"><label>Informations / notes</label><textarea id="f-info" placeholder="Histoire, liens avec des [[PNJ]]…">${esc(p.info)}</textarea></div>
     ${portraitFieldHTML(formPortrait)}
     <div class="field"><label>Autres images <span class="hint">(illustrations libres, plusieurs possibles)</span></label>
@@ -2714,6 +2997,64 @@ function formPC(){
     if(mf) mf.classList.toggle("hidden", !usesMentor);
     if(!usesMentor){ const ms=document.getElementById("f-mentor"); if(ms) ms.value=""; }
   });
+}
+/* Relance un champ du formulaire PJ (bouton 🎲 à côté du label, voir formPC()) en réutilisant le
+   moteur de tirage partagé avec l'assistant pas-à-pas. Modifie uniquement le DOM du formulaire —
+   aucun saveDB() ici, la sauvegarde reste groupée via le bouton "Enregistrer" (savePC()). */
+function handlePCFieldReroll(kind){
+  const clsVal = document.getElementById("f-cls") ? document.getElementById("f-cls").value : "";
+  const cd = CLASSES_DATA[clsVal];
+  const sgn = m=>(m>=0?"+":"")+m;
+  switch(kind){
+    case "name": $("#f-name").value = rollName(); break;
+    case "ancestry": {
+      const r = rollAscendance();
+      const sel = $("#f-ancestry");
+      if([...sel.options].some(o=>o.value===r.name)) sel.value = r.name;
+      else toast(`Ascendance tirée : « ${r.name} » — personnalisée, absente du menu déroulant (à ajouter dans l'onglet Tables aléatoires ou à saisir ailleurs).`);
+      break;
+    }
+    case "cls": {
+      const sel = $("#f-cls"); sel.value = rollClass();
+      sel.dispatchEvent(new Event("change")); // rafraîchit le champ Mentor
+      break;
+    }
+    case "alignment": $("#f-align").value = rollAlignment(); break;
+    case "abilities": {
+      const scores = rollAbilityScores();
+      ["str","dex","con","int","wis","cha"].forEach(k=>{ $("#f-"+k).value = `${scores[k]} (${sgn(ABILITY_MOD(scores[k]))})`; });
+      break;
+    }
+    case "hp": {
+      if(!cd){ toast("Choisis d'abord une classe pour relancer les PV."); return; }
+      const conMod = parseAbilityMod($("#f-con").value);
+      const asc = ASCENDANCES[$("#f-ancestry").value];
+      const hp = rollHP(cd, conMod, !!(asc && asc.robust));
+      $("#f-hp").value = String(hp); $("#f-hpCurrent").value = String(hp);
+      break;
+    }
+    case "languages": {
+      if(!cd){ toast("Choisis d'abord une classe pour relancer les langues."); return; }
+      $("#f-languages").value = rollLanguages(cd).join(", ");
+      break;
+    }
+    case "deity": $("#f-deity").value = rollDeity($("#f-align").value); break;
+    case "mentor": { const sel=$("#f-mentor"); if(sel) sel.value = rollMentor(); break; }
+    case "origin": { const ta=$("#f-skills"); ta.value = (ta.value?ta.value+"\n":"") + rollOrigin(); break; }
+    case "spells": {
+      if(!cd || !cd.spellClass){ toast("Cette classe ne lance pas de sorts."); return; }
+      const ta = $("#f-spells");
+      ta.value = (ta.value?ta.value+"\n":"") + rollSpellsKnown(cd, clsVal).join("\n");
+      break;
+    }
+    case "gold": { const ta=$("#f-inventory"); ta.value = (ta.value?ta.value+"\n":"") + `${rollGold()} po pour acheter votre équipement de départ.`; break; }
+    case "invSlots": {
+      const strScore = parseInt($("#f-str").value)||10;
+      const conMod = parseAbilityMod($("#f-con").value);
+      $("#f-invSlots").value = String(computeInvSlots(clsVal, strScore, conMod));
+      break;
+    }
+  }
 }
 function savePC(){
   const o = view.mode==="edit" ? getEntity("pc",view.id) : {id:uid()};
@@ -3341,6 +3682,7 @@ app.addEventListener("click", e=>{
   if((el=closest("data-goto"))){ const [ty,id]=el.dataset.goto.split(":"); goto(ty,id); return; }
   if((el=t.closest("[data-create]"))){ toast(`« ${el.dataset.create} » n'existe pas encore — créez cette entité pour activer le lien.`); return; }
   if(closest("data-back")){
+    if(view.mode==="wizard") pcWizard = null; // abandon de l'assistant : rien n'a été enregistré
     if(editReturnTo){ view={tab:editReturnTo.tab, mode:"detail", id:editReturnTo.id}; editReturnTo=null; }
     else{ view.mode="list"; view.id=null; }
     render(); return;
@@ -3375,6 +3717,34 @@ app.addEventListener("click", e=>{
   if((el=closest("data-roll-talents"))){ rollTalents(el.dataset.rollTalents); return; }
   if(closest("data-gen-pc")){ generateRandomPC(); return; }
   if(closest("data-gen-npc")){ generateRandomNPC(); return; }
+  // Assistant de création pas-à-pas (PJ)
+  if(closest("data-pc-wizard-start")){ startPCWizard(); return; }
+  if(closest("data-wiz-keep")){
+    const steps = pcWizardStepList(pcWizard.draft);
+    const step = steps[pcWizard.stepIndex];
+    pcWizardApply(step.id, pcWizard.draft, pcWizard.value);
+    pcWizard.stepIndex++; pcWizard.value=undefined; pcWizard.manual=false;
+    render(); return;
+  }
+  if(closest("data-wiz-reroll")){
+    const steps = pcWizardStepList(pcWizard.draft);
+    const step = steps[pcWizard.stepIndex];
+    pcWizard.value = pcWizardRoll(step.id, pcWizard.draft);
+    render(); return;
+  }
+  if(closest("data-wiz-manual")){ pcWizard.manual = true; render(); return; }
+  if(closest("data-wiz-cancel-manual")){ pcWizard.manual = false; render(); return; }
+  if(closest("data-wiz-confirm-manual")){
+    const steps = pcWizardStepList(pcWizard.draft);
+    const step = steps[pcWizard.stepIndex];
+    const val = pcWizardReadManual(step.id, pcWizard.draft);
+    pcWizardApply(step.id, pcWizard.draft, val);
+    pcWizard.stepIndex++; pcWizard.value=undefined; pcWizard.manual=false;
+    render(); return;
+  }
+  if(closest("data-wiz-save")){ finishPCWizard(); return; }
+  // Boutons de relance champ par champ sur la fiche PJ existante (formPC) — voir handlePCFieldReroll()
+  if((el=closest("data-reroll"))){ handlePCFieldReroll(el.dataset.reroll); return; }
   // Barre d'outils du point crawl
   if(closest("data-crawl-add")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openPickEventModal(c); return; }
   if(closest("data-crawl-new")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openNewEventModal(c); return; }

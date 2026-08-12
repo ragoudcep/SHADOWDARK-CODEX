@@ -1996,3 +1996,109 @@ console `401`/`row-level security policy` observées pendant ce test sont attend
 vraie session MJ authentifiée dans ce sandbox, donc `saveDB()` échoue côté réseau comme prévu
 (catché, ne bloque rien) — comportement à re-vérifier une fois le script SQL exécuté et une
 vraie session MJ disponible.
+
+## PJ — assistant de création pas-à-pas (2026-08-12, implémenté — audit validé par Tristan)
+
+Suite à l'audit `f04f76d` (section « PJ — création de personnage scriptée » de
+`docs/TODO.md`), Tristan a validé le plan et tranché les points ouverts (ordre officiel
+Shadowdark Ascendance → Classe → Caractéristiques → Historique/Talent → Équipement,
+coexistence avec le bouton instantané, sauvegarde différée avec un seul bouton Enregistrer).
+**Avant de commencer, vérification anti-collision avec Dual** : `git fetch` + lecture de
+`git log origin/main` — les seuls commits après l'audit (`6678621`, `08a8de9`) sont
+exactement le point 1 du plan (routage de `generateRandomPC()` sur les tables live), déjà
+fait avant cette session. Aucun autre travail de Dual sur ce chantier précis — pas de
+collision, rien écrasé.
+
+**1. Confirmation du point 1 (déjà fait par une session précédente).** `generateRandomPC()`
+pioche bien Ascendances/Divinités (`appTableEntries`) et Langues courantes/rares
+(`appTableRows`) dans la collection live `db.tables` plutôt que dans les constantes JS
+figées — vérifié en lisant le code avant de construire dessus, rien à refaire ici.
+
+**2. Moteur de tirage par champ extrait.** Nouveau bloc de fonctions indépendantes juste
+avant `generateRandomPC()` dans `index.html` : `rollAscendance()`, `rollClass()`,
+`rollAlignment()`, `rollAbilityScores()` (règle p.15 : relance globale si aucune
+caractéristique ≥14), `rollHP(cd, conMod, robust)`, `rollTalent(cd)`, `rollOrigin()`,
+`rollName()`, `rollLanguages(cd)`, `rollDeity(alignment)`, `rollMentor()`,
+`rollSpellsKnown(cd, clsName)`, `rollGold()`, plus deux fonctions de calcul pur
+`computeAC(dexMod)`/`computeInvSlots(cls, strScore, conMod)`. `generateRandomPC()` a été
+réécrit pour appeler ces fonctions au lieu de dupliquer leur logique inline — **comportement
+inchangé** (mêmes règles, même objet `db.pcs` produit, vérifié par relecture ligne à ligne
+du corps de la fonction après refacto + `node --check` sur chaque bloc `<script>`). Ce
+moteur est maintenant partagé par trois consommateurs : le bouton instantané, l'assistant
+pas-à-pas et les boutons de relance sur une fiche existante (voir plus bas).
+
+**3. Assistant de création pas-à-pas.** Nouveau bouton MJ « 🧭 Créer un personnage » dans
+`listPCs()`, **en plus** des deux boutons existants (« 🎲 Générer un PJ aléatoire »,
+inchangé, et « ✦ Nouveau PJ » qui ouvre toujours `formPC()` en saisie manuelle directe) —
+les trois chemins de création coexistent, rien n'a été retiré. Nouveau `view.mode="wizard"`
+branché dans `render()`, piloté par un état global `pcWizard = { draft, stepIndex, value,
+manual }` (`null` hors assistant).
+
+Liste d'étapes recalculée à chaque rendu par `pcWizardStepList(draft)` — ordre officiel
+Shadowdark, étapes conditionnelles insérées seulement une fois le champ dont elles dépendent
+confirmé (donc leur présence ne change plus une fois dépassées) : Ascendance → Classe →
+Alignement → Caractéristiques → PV → Origine → Talent → *Talent supplémentaire si Ambitieux*
+→ Nom → Langues → *Divinité si Prêtre* → *Mentor si `usesMentor`* → *Sorts si `spellClass` +
+`spellsKnownLvl1>0`* → Or → Récapitulatif. Chaque étape (sauf le récapitulatif) affiche un
+tirage automatique (`pcWizardRoll`) avec trois actions : **Garder** (`pcWizardApply` puis
+étape suivante), **Relancer** (nouveau tirage, reste sur l'étape), **Saisir moi-même**
+(bascule vers `pcWizardManualHTML`/`pcWizardReadManual` — menus déroulants fermés pour les
+champs à liste fermée (ascendance/classe/alignement/mentor/talent), champs libres avec
+`<datalist>` pour les champs texte (nom/origine/divinité), inputs numériques pour
+caractéristiques/PV/or). Le récapitulatif final (`renderPCWizardReview`) affiche la fiche
+complète calculée (CA, PV, emplacements d'inventaire, tout le détail) et un bouton unique
+**« ✓ Enregistrer ce personnage »** (`finishPCWizard()`) qui construit l'objet `db.pcs` (même
+forme exacte que `generateRandomPC()`) et appelle `saveDB()` — **c'est le seul moment où
+quoi que ce soit est écrit en base** ; avant ça, tout Garder/Relancer/Saisir ne touche que
+`pcWizard.draft` en mémoire. « ← Annuler la création » (à tout moment) remet `pcWizard` à
+`null` et revient à la liste sans rien sauvegarder.
+
+**4. Boutons de relance champ par champ sur une fiche PJ existante.** Ajoutés dans `formPC()`
+(mode édition, mais aussi disponibles en mode « Nouveau PJ » manuel) : un petit bouton 🎲 à
+côté du label de chaque champ qui a un tirage correspondant (Nom, Ascendance, Classe,
+Alignement, PV, Caractéristiques (les 6 d'un coup), Langues, Divinité, Mentor). Pour les
+champs texte libre qui mélangent plusieurs informations (Compétences ↔ Origine, Sortilèges ↔
+sorts connus, Inventaire ↔ or de départ, Emplacements d'inventaire), le bouton **ajoute**
+(insère une ligne / recalcule la valeur) plutôt que de remplacer tout le champ — ces champs
+n'ont pas de représentation structurée séparée sur la fiche actuelle (décision documentée
+dans le TODO original, point 5 « migration des caractéristiques en score numérique » resté
+optionnel et non fait — pas nécessaire, les relances fonctionnent très bien sur le format
+texte `"14 (+2)"` existant). Câblé via `handlePCFieldReroll(kind)`, appelé par un seul
+gestionnaire délégué `data-reroll` dans le bloc de clics global. **Aucun `saveDB()` dans
+`handlePCFieldReroll()`** — chaque bouton ne modifie que la valeur de l'`<input>`/`<textarea>`
+dans le DOM du formulaire ; la sauvegarde reste exclusivement déclenchée par le bouton
+« ✓ Enregistrer » déjà existant du formulaire (`savePC()`), donc même logique de sauvegarde
+différée que l'assistant, sans dupliquer deux comportements différents dans le même
+formulaire (décision explicite de Tristan). Le bouton dé existant `rollTalents(id)` sur la
+fiche en lecture seule (détail, pas édition) n'a pas été touché — reste un outil d'affichage
+ponctuel à la table, comme avant, en dehors du périmètre de ce chantier.
+
+**Portée : PJ uniquement**, comme demandé — `generateRandomNPC()` n'a pas été touché.
+
+**Testé en bac à sable** (serveur statique local `outils`/`.claude/launch.json`
+`codex-static`, port 8420, panneau navigateur de cette session — `saveDB()` stubbé en no-op
+console + `myRole` forcé à `"gm"` + `db = emptyDB()` via `javascript_tool`, pas de vraie
+session Supabase disponible dans ce sandbox) :
+- Parcours complet de l'assistant (14 étapes avec une Ambitieux+Prêtre pour couvrir les deux
+  étapes conditionnelles talent supplémentaire et divinité) : Relancer sur l'étape 1, Saisir
+  moi-même (menu déroulant) sur l'étape Classe pour forcer Prêtre, Garder sur le reste,
+  jusqu'au récapitulatif — total d'étapes passé de 11 à 14 en cours de route au fur et à
+  mesure que les conditions (Ambitieux, Prêtre) se confirmaient, comme prévu. Récapitulatif
+  affichait CA/PV/or/emplacements cohérents avec les caractéristiques tirées. Clic sur
+  Enregistrer : `db.pcs.length` passe de 0 à 1, objet de forme identique à celle produite par
+  `generateRandomPC()`, navigation automatique vers la fiche détail.
+- Annulation en cours de route (après un Relancer) : `db.pcs` reste vide, `pcWizard` repasse
+  à `null`, retour à la liste — rien sauvegardé, confirmé.
+- Génération instantanée (`data-gen-pc`, bouton inchangé) toujours fonctionnelle après le
+  refacto du moteur de tirage.
+- Boutons de relance sur `formPC()` en édition (fiche générée instantanément comme fixture) :
+  Nom/PV/Caractéristiques rerollés → valeurs des `<input>` changées, mais `db.pcs[0]`
+  toujours identique à l'ancien état tant que « Enregistrer » n'est pas cliqué ; clic sur
+  Enregistrer → `db.pcs[0]` reflète bien les nouvelles valeurs. Reroll Mentor/Origine/
+  Langues/Or sur une fiche repassée en classe Ensorceleur (champ Mentor bien visible, pas
+  masqué) : mentor tiré, ligne d'origine ajoutée aux Compétences, langues remplacées, ligne
+  d'or ajoutée à l'Inventaire — tout confirmé côté DOM avant tout Enregistrer.
+`node --check` (équivalent maison, `outils/audit-check.sh` bloqué sur l'étape Python
+manquante dans ce shell mais l'étape 1, syntaxe JS, passe) sur chaque bloc `<script>` : OK,
+aucune déclaration dupliquée introduite (vérifié par grep sur les noms des nouvelles
+fonctions).

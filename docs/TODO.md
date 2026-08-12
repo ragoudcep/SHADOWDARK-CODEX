@@ -181,7 +181,7 @@ encore entièrement compilé, et un PDF supplémentaire reste à venir. Une fois
 disponible, les créatures qu'il contient devront être ajoutées à la collection Créatures
 avec le bon tag de source. Note de backlog seulement, rien à coder pour l'instant.
 
-## PJ — création de personnage scriptée (assistant pas-à-pas)
+## PJ — création de personnage scriptée (assistant pas-à-pas) — implémenté le 2026-08-12
 
 **Demande de Tristan (2026-08-12).** Aujourd'hui, la création d'un PJ est soit entièrement
 manuelle (`formPC()`, un seul long formulaire, tout est retapé à la main, aucun jet de dé),
@@ -192,9 +192,10 @@ questions dans l'ordre (ascendance, puis classe, puis les étapes suivantes) et 
 garde la possibilité de **retaper à la main OU relancer un jet au hasard, champ par champ**
 (nom, PV, etc.), le tout branché sur la collection Tables aléatoires déjà en place.
 
-Ceci est un audit (lecture du code existant + liste de travaux) — **rien n'a été implémenté**,
-en attente de validation de Tristan avant de commencer, même logique que le chantier
-« Tables aléatoires » ci-dessus.
+**Implémenté (2026-08-12), validé par Tristan avant construction.** Voir `docs/AUDIT.md`,
+section « PJ — assistant de création pas-à-pas », pour le détail complet (moteur de tirage
+par champ, assistant pas-à-pas, boutons de relance, tests). Cases à cocher ci-dessous mises à
+jour en conséquence.
 
 ### Existant repéré dans `index.html`
 
@@ -317,11 +318,28 @@ en attente de validation de Tristan avant de commencer, même logique que le cha
   décrit plus haut, pas un prérequis strict pour celui-ci mais pourrait partager le moteur de
   tirage du point 2 si les deux sont faits dans la foulée.
 
-- [ ] Valider l'ordre des étapes et les autres décisions listées ci-dessus avec Tristan.
-- [ ] Router `generateRandomPC()`/`generateRandomNPC()` sur les tables live plutôt que les
-      constantes JS (Ascendances, Divinités, Langues courantes, Langues rares).
-- [ ] Extraire un moteur de tirage par champ réutilisable depuis `generateRandomPC()`.
-- [ ] Construire l'assistant de création pas-à-pas (nouveau mode UI).
-- [ ] Ajouter les boutons de relance champ par champ sur la fiche PJ existante.
-- [ ] (Optionnel) Migrer les caractéristiques vers un score numérique structuré.
-- [ ] `outils/audit-check.sh` + test fonctionnel réel une fois implémenté.
+- [x] Valider l'ordre des étapes et les autres décisions listées ci-dessus avec Tristan
+      (2026-08-12) : ordre officiel Shadowdark (Ascendance → Classe → Caractéristiques →
+      Historique/Talent → Équipement) ; coexistence des 3 boutons de création (assistant,
+      génération instantanée, formulaire manuel) ; sauvegarde différée partout (un seul
+      bouton Enregistrer, jamais de sauvegarde au clic sur un bouton de relance). Détail
+      complet et points laissés à discrétion dans `docs/AUDIT.md`, section « PJ — assistant
+      de création pas-à-pas ».
+- [x] Router `generateRandomPC()` sur les tables live plutôt que les constantes JS
+      (Ascendances, Divinités, Langues courantes, Langues rares) — déjà fait avant cette
+      session (`6678621`/`08a8de9`), reconfirmé avant de construire dessus.
+      `generateRandomNPC()` volontairement laissé de côté (hors scope, décision de Tristan).
+- [x] Extraire un moteur de tirage par champ réutilisable depuis `generateRandomPC()`
+      (2026-08-12) — voir `docs/AUDIT.md`.
+- [x] Construire l'assistant de création pas-à-pas (nouveau mode UI) (2026-08-12) — bouton
+      « 🧭 Créer un personnage » dans l'onglet PJ, voir `docs/AUDIT.md`.
+- [x] Ajouter les boutons de relance champ par champ sur la fiche PJ existante (2026-08-12) —
+      dans `formPC()`, voir `docs/AUDIT.md`.
+- [ ] (Optionnel) Migrer les caractéristiques vers un score numérique structuré — pas fait,
+      pas nécessaire : les boutons de relance fonctionnent très bien sur le format texte
+      actuel (`"14 (+2)"`). Reste une amélioration possible si un besoin plus précis émerge
+      plus tard (ex. calculs mécaniques directs sur le score).
+- [x] Test fonctionnel réel une fois implémenté (2026-08-12) — bac à sable local (serveur
+      statique + session MJ simulée), voir le détail dans `docs/AUDIT.md`. `outils/
+      audit-check.sh` bloqué sur l'étape Python (non installée dans ce shell) mais l'étape 1
+      (syntaxe JS de chaque bloc `<script>`) confirmée OK par un vérificateur équivalent.
