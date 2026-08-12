@@ -2102,3 +2102,61 @@ session Supabase disponible dans ce sandbox) :
 manquante dans ce shell mais l'étape 1, syntaxe JS, passe) sur chaque bloc `<script>` : OK,
 aucune déclaration dupliquée introduite (vérifié par grep sur les noms des nouvelles
 fonctions).
+
+### Retour de Tristan après le premier essai (2026-08-12) — refonte de l'UX de l'assistant
+
+Retour reçu à l'oral, résumé : la v1 de l'assistant remplaçait **tout l'écran** à chaque
+étape (une seule question visible à la fois, écran entièrement redessiné à chaque Garder) —
+« on sait plus ce qu'on a créé avant », pas de résumé consultable en cours de route, et les
+jets de dés/calculs n'étaient pas tracés (pas moyen de savoir après coup quel dé avait donné
+quoi). Demande : que la fiche se construise **au même endroit**, champ après champ, sans que
+rien ne disparaisse — visuellement la fiche de personnage existante qui se remplit
+progressivement plutôt qu'un flux de questions isolées — et un journal des jets avec un
+indicateur (icône dé) de ce qui a été lancé à chaque tirage/relance.
+
+**Refonte appliquée, même session** (pas de changement de portée/décisions, uniquement la
+présentation de l'assistant existant) :
+- **`pcWizardSheetHTML(draft)`** (nouveau) : rend uniquement les champs déjà confirmés du
+  brouillon, avec le même gabarit visuel que `detailPC()` (classes `.statblock`,
+  `.abilities-grid`, `.section` réutilisées telles quelles pour rester cohérent avec la vraie
+  fiche PJ) — nom/ascendance/classe/alignement dès que connus, CA+PV+caractéristiques dès
+  que les caractéristiques sont tirées, historique (origine + talents) dès que confirmés,
+  langues/divinité/mentor, sortilèges, équipement. Rien ne disparaît jamais : chaque section
+  n'apparaît qu'une fois son champ confirmé et reste affichée pour toutes les étapes
+  suivantes.
+- **`pcWizardActiveStepHTML(step, label)`** (nouveau) : l'étape en cours de décision
+  (Garder/Relancer/Saisir moi-même, ou le formulaire manuel) est maintenant affichée **sous**
+  la fiche en construction plutôt qu'à sa place — encadrée visuellement (bordure dorée) pour
+  la distinguer clairement du reste déjà confirmé.
+- **Journal des jets** : `pcWizard.log` (tableau de chaînes), alimenté à chaque tirage
+  automatique initial d'une étape ET à chaque clic sur Relancer (`pcWizardFieldLog(id, value,
+  draft, manual)` — icône 🎲 pour un jet, ✎ pour une saisie manuelle, avec le type de dé
+  explicite par champ, ex. « 🎲 3d6 × 6 Caractéristiques → FOR 14, DEX 9… », « 🎲 2d6 Talent
+  de classe → 7 : … »). Affiché en `<details>` repliable sous l'étape active (le plus récent
+  en tête), pour consulter l'historique complet d'une étape déjà relancée plusieurs fois sans
+  encombrer l'écran par défaut.
+- **Récapitulatif final simplifié** : comme la fiche en construction contient déjà TOUT une
+  fois toutes les étapes passées, la dernière étape (« review ») réutilise directement
+  `pcWizardSheetHTML()` (complète à ce stade) au lieu de dupliquer un texte de résumé séparé
+  — un seul gabarit de rendu pour toute la fiche, plus de risque de divergence entre "ce qui
+  s'est affiché pendant" et "ce qui est récapitulé à la fin".
+- Petit détail demandé implicitement (« un petit dé qui tourne ») : icône 🎲/✎ de l'étape
+  active animée d'une rotation courte (`@keyframes wizDieSpin`, classe `.wiz-die-spin`,
+  0,5s) à chaque nouvel affichage — CSS injecté en inline dans le rendu de l'assistant
+  (`PC_WIZARD_STYLE`), pas touché au bloc `<style>` global de l'appli.
+- `handlePCFieldReroll()` (fiche existante, `formPC()`) **non touché** — le retour de Tristan
+  portait explicitement sur l'assistant pas-à-pas ; les boutons de relance sur une fiche déjà
+  créée n'ont pas ce problème de "perte d'information" puisqu'ils opèrent sur un formulaire
+  classique déjà entièrement visible d'un coup.
+
+**Retesté en bac à sable** (même méthode : serveur statique local, session MJ simulée,
+`saveDB()` stubbé) : parcours Ascendance (jet automatique, Relancer confirmé par le compteur
+du journal qui passe de 1 à 2, journal affiche bien les 2 lignes dans l'ordre), Saisir
+moi-même sur une nouvelle partie (sélection manuelle « Robuste », fiche en construction
+affiche aussitôt le bon texte de trait, journal passe à 3 avec l'entrée ✎ au bon endroit),
+Garder répété jusqu'au récapitulatif — la fiche affichée à l'étape 2/13 contenait déjà
+l'ascendance ET restait visible à l'étape 13/13 (récapitulatif) en plus de tout le reste
+(caractéristiques, historique, langues, divinité, sortilèges, équipement). Enregistrer :
+`db.pcs.length` passe de 0 à 1, fiche correcte. Annulation en cours de route : `db.pcs`
+inchangé, `pcWizard` repasse à `null` — toujours aucune sauvegarde avant le clic explicite
+sur Enregistrer.

@@ -2697,8 +2697,21 @@ function listPCs(){
    moteur de tirage par champ (rollAscendance() etc., voir plus haut).
    Aucune sauvegarde tant que "Enregistrer ce personnage" n'a pas été
    cliqué à la dernière étape (récapitulatif) — cf. décision de Tristan.
+
+   Retour de Tristan (2026-08-12, après premier essai) : la v1 remplaçait
+   tout l'écran à chaque étape (une seule question visible à la fois, rien
+   qui reste des étapes précédentes, pas de résumé pendant le parcours) —
+   "on sait plus ce qu'on a créé avant". Refonte : chaque étape confirmée
+   s'ajoute en PERMANENCE sur une fiche qui se construit au même endroit,
+   avec le même gabarit visuel que la fiche PJ existante (pcWizardSheetHTML,
+   réutilise les classes .statblock/.abilities-grid/.section de detailPC) —
+   rien ne disparaît, seule la case "à décider maintenant" avance le long de
+   la fiche. Chaque jet (initial ou relance) est aussi tracé dans un journal
+   (pcWizard.log, un 🎲/✎ + un intitulé de dé par ligne) consultable à tout
+   moment sous l'étape active, pour ne jamais perdre le fil de "quel dé a
+   donné quoi".
    ========================================================================= */
-let pcWizard = null; // { draft:{...}, stepIndex, value, manual } — null hors assistant
+let pcWizard = null; // { draft:{...}, stepIndex, value, manual, rolled, log:[] } — null hors assistant
 
 const PC_WIZARD_LABELS = {
   ancestry:"Ascendance", cls:"Classe", alignment:"Alignement",
@@ -2841,58 +2854,134 @@ function pcWizardReadManual(id, d){
     case "gold": return Math.max(0, parseInt($("#wiz-in").value)||0);
   }
 }
+/* Une ligne de journal par jet (initial ou relance) — sert à ne jamais perdre le fil de "quel dé
+   a donné quoi", y compris à travers plusieurs relances successives du même champ. `manual:true`
+   bascule l'icône ✎ (saisie) au lieu de 🎲 (jet). */
+function pcWizardFieldLog(id, value, d, manual){
+  const cd = CLASSES_DATA[d.cls];
+  const icon = manual ? "✎" : "🎲";
+  switch(id){
+    case "ancestry": return `${icon} d12 Ascendance → ${value.name}`;
+    case "cls": return `${icon} Classe → ${value}`;
+    case "alignment": return `${icon} d3 Alignement → ${cap(value)}`;
+    case "abilities": return `${icon} 3d6 × 6 Caractéristiques → ` + ["str","dex","con","int","wis","cha"].map(k=>`${k.toUpperCase()} ${value[k]}`).join(", ");
+    case "hp": return `${icon} d${cd?cd.hitDie:"?"} + mod. CON PV → ${value}`;
+    case "origin": return `${icon} d20 Origine → ${value}`;
+    case "talent": return `${icon} 2d6 Talent de classe → ${value.total} : ${firstLine(value.text||"—")}`;
+    case "talent2": return `${icon} 2d6 Talent supplémentaire (Ambitieux) → ${value.total} : ${firstLine(value.text||"—")}`;
+    case "name": return `${icon} Nom → ${value}`;
+    case "languages": return `${icon} Langues → ${value.join(", ")}`;
+    case "deity": return `${icon} Divinité → ${value}`;
+    case "mentor": return `${icon} Mentor → ${value}`;
+    case "spells": return `${icon} Sorts de rang 1 → ${value.length?value.join(", "):"aucun disponible"}`;
+    case "gold": return `${icon} 2d6 × 5 Or → ${value} po`;
+    default: return `${icon} ${id}`;
+  }
+}
+/* La fiche en construction : ne rend QUE les champs déjà confirmés dans le brouillon, avec le
+   même gabarit visuel que detailPC() (.statblock/.abilities-grid/.section) — chaque étape
+   confirmée s'ajoute ici de façon permanente et ne disparaît plus (retour de Tristan après le
+   premier essai de l'assistant, voir commentaire plus haut). */
+function pcWizardSheetHTML(d){
+  const mods = {};
+  if(d.scores) ["str","dex","con","int","wis","cha"].forEach(k=> mods[k]=ABILITY_MOD(d.scores[k]));
+  const sgn = m=>(m>=0?"+":"")+m;
+  const parts = [];
+  if(d.name || d.ancestryName || d.cls || d.alignment){
+    const subline = [d.ancestryName, d.cls].filter(Boolean).join(" · ") + (d.alignment ? ` · ${esc(cap(d.alignment))}` : "");
+    parts.push(`<h1 style="margin-bottom:.1rem">${esc(d.name || "Personnage en cours…")}</h1>`);
+    if(subline) parts.push(`<p class="muted" style="font-family:var(--ui)">${subline}</p>`);
+  }
+  if(d.ancestryName){
+    const asc = ASCENDANCES[d.ancestryName];
+    parts.push(`<p class="muted" style="font-family:var(--ui);font-size:.85rem">${esc(asc?asc.trait:"Ascendance personnalisée — aucun bonus mécanique automatique.")}</p>`);
+  }
+  if(d.scores){
+    const ac = computeAC(mods.dex);
+    parts.push(`<div class="statblock">
+      <div class="sb-line">
+        <span><b>CA</b> ${ac}</span>
+        ${d.hp!=null?`<span><b>PV</b> ${d.hp} / ${d.hp}</span>`:""}
+      </div>
+      <div class="abilities-grid">
+        ${["str","dex","con","int","wis","cha"].map(k=>`<div class="ab"><div class="n">${k.toUpperCase()}</div><div class="v">${d.scores[k]} (${sgn(mods[k])})</div></div>`).join("")}
+      </div>
+    </div>`);
+  }
+  if(d.origin || (d.talentRolls && d.talentRolls.length)){
+    parts.push(`<div class="section"><h2>🎯 Historique</h2>
+      ${d.origin?`<p style="font-family:var(--ui)">${esc(d.origin)}</p>`:""}
+      ${(d.talentRolls||[]).map((r,i)=>`<p style="font-family:var(--ui)">Talent${d.talentRolls.length>1?" "+(i+1):""} (2d6=${esc(String(r.total))}) : ${renderText(r.text||"—")}</p>`).join("")}
+    </div>`);
+  }
+  const infoLine = [
+    d.languages ? `Langues : ${esc(d.languages.join(", "))}` : "",
+    d.deity ? `Divinité : ${esc(d.deity)}` : "",
+    d.mentor ? `Mentor : ${esc(d.mentor)}` : ""
+  ].filter(Boolean).join(" · ");
+  if(infoLine) parts.push(`<p class="muted" style="font-family:var(--ui);font-size:.85rem">${infoLine}</p>`);
+  if(d.mentor && MENTORS[d.mentor]) parts.push(`<p class="muted" style="font-family:var(--ui);font-size:.8rem">${esc(MENTORS[d.mentor].desc)}</p>`);
+  if(d.spellLines && d.spellLines.length){
+    parts.push(`<div class="section"><h2>✨ Sortilèges</h2>${renderBullets(d.spellLines.join("\n"))}</div>`);
+  }
+  if(d.gold!=null){
+    const invSlots = d.scores ? computeInvSlots(d.cls, d.scores.str, mods.con) : null;
+    parts.push(`<div class="section"><h2>🎒 Équipement</h2><p style="font-family:var(--ui)">${d.gold} po de départ${invSlots!=null?` · ${invSlots} emplacements d'inventaire`:""}</p></div>`);
+  }
+  return parts.join("\n");
+}
+/* Étape active : le tirage en cours de décision (Garder/Relancer/Saisir moi-même), plus le
+   journal des jets déjà effectués — reste visible sous la fiche en construction (jamais à sa
+   place, jamais en remplacement d'elle). */
+function pcWizardActiveStepHTML(step, label){
+  const d = pcWizard.draft;
+  const body = pcWizard.manual ? pcWizardManualHTML(step.id, d, pcWizard.value) : pcWizardDisplayHTML(step.id, pcWizard.value, d);
+  const logHTML = pcWizard.log.length ? `<details class="wiz-log" style="margin-top:.7rem">
+      <summary style="font-family:var(--ui);font-size:.8rem;cursor:pointer" class="muted">🎲 Journal des jets (${pcWizard.log.length})</summary>
+      <div style="font-family:var(--ui);font-size:.8rem;max-height:180px;overflow-y:auto;margin-top:.4rem">
+        ${pcWizard.log.slice().reverse().map(l=>`<div style="padding:.15rem 0;border-bottom:1px solid var(--border,rgba(128,128,128,.25))">${esc(l)}</div>`).join("")}
+      </div>
+    </details>` : "";
+  return `<div class="section wiz-active-step" style="border:1px solid var(--gold,#b08d57);border-radius:8px">
+    <h2><span class="wiz-die-spin">${pcWizard.manual?"✎":"🎲"}</span> ${esc(label)}</h2>
+    ${body}
+    <div class="form-actions" style="flex-wrap:wrap;margin-top:.6rem">
+      ${pcWizard.manual
+        ? `<button class="btn" data-wiz-confirm-manual="1">✓ Valider et continuer</button><button class="btn ghost" data-wiz-cancel-manual="1">Annuler la saisie</button>`
+        : `<button class="btn" data-wiz-keep="1">✓ Garder</button><button class="btn ghost" data-wiz-reroll="1">🎲 Relancer</button><button class="btn ghost" data-wiz-manual="1">✎ Saisir moi-même</button>`}
+    </div>
+    ${logHTML}
+  </div>`;
+}
 function startPCWizard(){
-  pcWizard = { draft:{ talentRolls:[] }, stepIndex:0, value:undefined, manual:false };
+  pcWizard = { draft:{ talentRolls:[] }, stepIndex:0, value:undefined, manual:false, rolled:false, log:[] };
   editReturnTo = null;
   view = {tab:"pcs", mode:"wizard", id:null};
   render();
 }
+const PC_WIZARD_STYLE = `<style>@keyframes wizDieSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}.wiz-die-spin{display:inline-block;animation:wizDieSpin .5s ease-out}</style>`;
 function renderPCWizard(){
   if(!pcWizard) return startPCWizard();
   const steps = pcWizardStepList(pcWizard.draft);
   if(pcWizard.stepIndex>=steps.length) pcWizard.stepIndex = steps.length-1;
   const step = steps[pcWizard.stepIndex];
-  if(step.id==="review") return renderPCWizardReview(steps);
-  if(pcWizard.value===undefined && !pcWizard.manual) pcWizard.value = pcWizardRoll(step.id, pcWizard.draft);
+  const isReview = step.id==="review";
+  if(!isReview && !pcWizard.rolled && !pcWizard.manual){
+    pcWizard.value = pcWizardRoll(step.id, pcWizard.draft);
+    pcWizard.rolled = true;
+    pcWizard.log.push(pcWizardFieldLog(step.id, pcWizard.value, pcWizard.draft, false));
+  }
   const label = PC_WIZARD_LABELS[step.id];
   app.innerHTML = `<div class="form">
+    ${PC_WIZARD_STYLE}
     <button class="back" data-back="1">← Annuler la création</button>
     <h1>Créer un personnage</h1>
-    <p class="muted" style="font-family:var(--ui)">Étape ${pcWizard.stepIndex+1}/${steps.length} · ${esc(step.group)}</p>
-    <div class="section"><h2>${esc(label)}</h2>
-      ${pcWizard.manual ? pcWizardManualHTML(step.id, pcWizard.draft, pcWizard.value) : pcWizardDisplayHTML(step.id, pcWizard.value, pcWizard.draft)}
-    </div>
-    <div class="form-actions" style="flex-wrap:wrap">
-      ${pcWizard.manual
-        ? `<button class="btn" data-wiz-confirm-manual="1">✓ Valider et continuer</button><button class="btn ghost" data-wiz-cancel-manual="1">Annuler la saisie</button>`
-        : `<button class="btn" data-wiz-keep="1">✓ Garder</button><button class="btn ghost" data-wiz-reroll="1">🎲 Relancer</button><button class="btn ghost" data-wiz-manual="1">✎ Saisir moi-même</button>`}
-    </div>
-  </div>`;
-}
-function renderPCWizardReview(steps){
-  const d = pcWizard.draft;
-  const mods = {}; ["str","dex","con","int","wis","cha"].forEach(k=> mods[k]=ABILITY_MOD(d.scores[k]));
-  const ac = computeAC(mods.dex);
-  const invSlots = computeInvSlots(d.cls, d.scores.str, mods.con);
-  const sgn=m=>(m>=0?"+":"")+m;
-  const summary = `
-    <p style="font-family:var(--ui)"><b>${esc(d.name)}</b> — ${esc(d.ancestryName)} ${esc(d.cls)}, ${esc(cap(d.alignment))}</p>
-    <p style="font-family:var(--ui)">CA ${ac} · PV ${d.hp} · Or ${d.gold} po · ${invSlots} emplacements d'inventaire</p>
-    <div class="subgrid">${["str","dex","con","int","wis","cha"].map(k=>`<div class="field" style="margin:0"><label>${k.toUpperCase()}</label><div style="font-family:var(--ui)">${d.scores[k]} (${sgn(mods[k])})</div></div>`).join("")}</div>
-    <p style="font-family:var(--ui)">Origine : ${esc(d.origin)}</p>
-    <p style="font-family:var(--ui)">Langues : ${esc(d.languages.join(", "))}</p>
-    ${d.deity?`<p style="font-family:var(--ui)">Divinité : ${esc(d.deity)}</p>`:""}
-    ${d.mentor?`<p style="font-family:var(--ui)">Mentor : ${esc(d.mentor)}</p>`:""}
-    ${(d.spellLines&&d.spellLines.length)?`<p style="font-family:var(--ui)">Sorts : ${d.spellLines.join(", ")}</p>`:""}
-    <p style="font-family:var(--ui)">${d.talentRolls.map((r,i)=>`Talent ${i+1} (2d6=${esc(String(r.total))}) : ${r.text||"—"}`).join("<br>")}</p>
-  `;
-  app.innerHTML = `<div class="form">
-    <button class="back" data-back="1">← Annuler la création</button>
-    <h1>Créer un personnage</h1>
-    <p class="muted" style="font-family:var(--ui)">Étape ${steps.length}/${steps.length} · Récapitulatif</p>
-    <div class="section"><h2>${esc(d.name||"Sans nom")}</h2>${summary}</div>
-    <p class="muted" style="font-family:var(--ui);font-size:.85rem">Rien n'est encore enregistré — clique sur « Annuler la création » pour tout abandonner sans rien sauvegarder.</p>
-    <div class="form-actions"><button class="btn" data-wiz-save="1">✓ Enregistrer ce personnage</button><button class="btn ghost" data-back="1">Annuler</button></div>
+    <p class="muted" style="font-family:var(--ui)">Étape ${pcWizard.stepIndex+1}/${steps.length}${isReview?" · Récapitulatif":" · "+esc(step.group)+" — "+esc(label)}</p>
+    ${pcWizardSheetHTML(pcWizard.draft)}
+    ${isReview
+      ? `<p class="muted" style="font-family:var(--ui);font-size:.85rem">Rien n'est encore enregistré — « Annuler la création » abandonne tout sans rien sauvegarder.</p>
+         <div class="form-actions"><button class="btn" data-wiz-save="1">✓ Enregistrer ce personnage</button><button class="btn ghost" data-back="1">Annuler</button></div>`
+      : pcWizardActiveStepHTML(step, label)}
   </div>`;
 }
 function finishPCWizard(){
@@ -3723,13 +3812,14 @@ app.addEventListener("click", e=>{
     const steps = pcWizardStepList(pcWizard.draft);
     const step = steps[pcWizard.stepIndex];
     pcWizardApply(step.id, pcWizard.draft, pcWizard.value);
-    pcWizard.stepIndex++; pcWizard.value=undefined; pcWizard.manual=false;
+    pcWizard.stepIndex++; pcWizard.value=undefined; pcWizard.manual=false; pcWizard.rolled=false;
     render(); return;
   }
   if(closest("data-wiz-reroll")){
     const steps = pcWizardStepList(pcWizard.draft);
     const step = steps[pcWizard.stepIndex];
     pcWizard.value = pcWizardRoll(step.id, pcWizard.draft);
+    pcWizard.log.push(pcWizardFieldLog(step.id, pcWizard.value, pcWizard.draft, false));
     render(); return;
   }
   if(closest("data-wiz-manual")){ pcWizard.manual = true; render(); return; }
@@ -3738,8 +3828,9 @@ app.addEventListener("click", e=>{
     const steps = pcWizardStepList(pcWizard.draft);
     const step = steps[pcWizard.stepIndex];
     const val = pcWizardReadManual(step.id, pcWizard.draft);
+    pcWizard.log.push(pcWizardFieldLog(step.id, val, pcWizard.draft, true));
     pcWizardApply(step.id, pcWizard.draft, val);
-    pcWizard.stepIndex++; pcWizard.value=undefined; pcWizard.manual=false;
+    pcWizard.stepIndex++; pcWizard.value=undefined; pcWizard.manual=false; pcWizard.rolled=false;
     render(); return;
   }
   if(closest("data-wiz-save")){ finishPCWizard(); return; }
