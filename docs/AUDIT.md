@@ -2160,3 +2160,42 @@ l'ascendance ET restait visible à l'étape 13/13 (récapitulatif) en plus de to
 `db.pcs.length` passe de 0 à 1, fiche correcte. Annulation en cours de route : `db.pcs`
 inchangé, `pcWizard` repasse à `null` — toujours aucune sauvegarde avant le clic explicite
 sur Enregistrer.
+
+### Données live corrigées (2026-08-12) — la table « Ascendances » avait gardé les races
+
+**Signalé par Tristan** juste après le déploiement de l'assistant : la génération faisait
+réapparaître des races (Humain, Elfe, Nain, Gobelin, Halfelin, Demi-Orque) alors qu'il les
+avait retirées du système depuis le 2026-08-11 au profit de traits génériques (Puissance,
+Yeux perçants, etc.).
+
+**Cause identifiée** (inspection directe de `db.tables` sur l'app déployée via Claude in
+Chrome, pas un bug de code) : la table `db.tables` titrée « Ascendances » (celle que lit
+`rollAscendance()`/`generateRandomPC()`/l'assistant) avait été créée **avant** le 2026-08-11
+et contenait toujours ses 6 lignes raciales d'origine (Demi-Orque, Elfe, Gobelin, Halfelin,
+Humain, Nain). `seedCharGenTables()` ne crée une table que si elle **n'existe pas** —
+elle ne met jamais à jour le contenu d'une table déjà présente — donc le passage de la
+constante `ASCENDANCES` aux races vers les 12 traits génériques (2026-08-11, changement de
+code) n'a jamais touché cette ligne de données déjà en base. Le problème était invisible
+tant que `generateRandomPC()` lisait directement la constante JS ; il a commencé à se
+manifester dès que ce générateur a été routé sur la table live (`6678621`/`08a8de9`, avant
+cette session), et l'assistant pas-à-pas — qui affiche chaque tirage bien plus explicitement
+qu'avant — l'a rendu impossible à manquer.
+
+**Corrigé en base** (pas un changement de code — contenu Supabase, cf. mémoire
+`workflow_content_additions`) : `db.tables` → table « Ascendances » → `rows` remplacées par
+`ASCENDANCE_ROWS` (les 12 traits génériques actuels), `context` remis au texte à jour, via
+`javascript_tool` sur l'app déployée (Claude in Chrome, session MJ déjà connectée) +
+`saveDB()`, puis revérifié avec un `fetchRemoteDB()` frais côté serveur (12 lignes,
+« Puissance, Yeux perçants, Sens aiguisés, Discret, Ambitieux, Robuste, Rapide, Géant,
+Minuscule, Envoûtant, Prédestiné, Athlétique » — races entièrement parties).
+**Vérifié qu'aucun PJ existant n'a une ascendance figée sur l'un des 6 noms raciaux**
+(`db.pcs` filtré sur les anciens noms → liste vide) — rien d'autre à corriger côté fiches.
+**Autres tables live du même système (Divinités, Langues courantes/rares, Origines, Noms de
+personnages) vérifiées saines** (nombre de lignes conforme aux constantes actuelles).
+
+**Non touché, à trancher séparément si besoin** : une table distincte « Ascendance des PNJ »
+(catégorie « PNJ », `seedShadowdarkDefaultTables()`) contient toujours des races
+(Humain/Elfe/Nain/Halfelin/Demi-orque/Gobelin) — c'est un tirage de saveur pour les PNJ
+aléatoires, indépendant du système d'ascendance des PJ revu le 2026-08-11, jamais concerné
+par ce chantier. Laissée telle quelle faute de consigne explicite de Tristan sur ce point
+précis ; à signaler si lui aussi doit perdre ses dénominations raciales.
