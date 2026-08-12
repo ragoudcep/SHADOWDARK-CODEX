@@ -2243,3 +2243,85 @@ complet). Fiche de Nem revérifiée : `cls` correct côté serveur.
 n'a jamais été "invisible" dans le code lui-même, seulement pour une fiche dont la valeur
 stockée ne correspond plus à un nom de classe actuel). Aucune autre fiche existante n'a de
 `cls`/`ancestry` orpheline à ce jour.
+
+### Cursed Scroll — Trésors diaboliques (CS#1) et Montures (CS#2) ajoutées (2026-08-12)
+
+Suite aux fiches de référence `docs/regles/`, Tristan a validé l'ajout de deux morceaux de
+contenu trouvés dans les PDF mais absents de l'appli (commit `15641b3`, non journalisé sur
+le moment — noté ici après coup) :
+- **Trésors diaboliques** (CS#1, d20, p.76) — la note précédente dans `js/cursedscroll.js`
+  supposait à tort qu'il n'y avait que des cartes imprimées à cet endroit ; le texte est en
+  fait bien lisible dans le PDF. Ajouté en `treasures` de `CURSED_SCROLL_DOCS[1]`, même
+  mécanisme (éditable, liens `[[...]]`) que les tables de trésors des autres numéros.
+- **Montures** (CS#2, p.28-29) — directement lié à la capacité *Monture* du Cavalier du
+  désert, jugé nécessaire dès la création de ce PJ. Nouveau champ `montures` sur
+  `CURSED_SCROLL_DOCS[2]` (règles + 3 tables : montures, personnalité 2d6+CHA, équipement)
+  et fonction de rendu dédiée `monturesDocHTML()` — non éditable comme `classDocHTML()`
+  (contenu de référence calculé, pas du texte narratif propre à Cursed Scroll).
+Au passage, les « ambiguïtés de mise en page » listées dans les fiches `docs/regles/`
+(tables Nouvelles armes CS#2, titres Ras-Godai/CS#5/CS#6) ont été vérifiées en rendant les
+pages PDF concernées en image (`pymupdf`) et en les lisant directement plutôt qu'en se fiant
+au texte brut extrait par `pdftotext` (qui mélange parfois les colonnes) — toutes se sont
+révélées être des faux positifs, le contenu de l'appli était déjà correct partout. Rien à
+corriger de ce côté, méthode à retenir pour de futures vérifications similaires.
+Testé en bac à sable local (serveur statique) avant push : les deux sections s'affichent
+sans erreur, sommaire cliquable mis à jour en conséquence.
+
+### Tables aléatoires multi-colonnes — jet indépendant par colonne (2026-08-12)
+
+**Demande de Tristan** : plusieurs tables du livre de base sont conçues pour être lues de
+deux façons — une ligne entière déjà composée, OU un jet indépendant par colonne (le livre
+le dit explicitement pour la génération de noms par syllabes : « faites 4 jets de d20
+séparés, un par colonne, pour un résultat plus aléatoire »). Le second mode n'existait pas
+du tout dans l'appli : `rollTable()` ne savait tirer qu'une ligne entière.
+
+**Tables concernées** (repérées par grep sur les commentaires `context` du type « X résultats
+combinés par ligne », déjà présents dans `SHADOWDARK_DEFAULT_TABLES` depuis leur création —
+la limitation était déjà documentée en commentaire à cet endroit) : Périls (3 col.), Pièges
+(3 col.), Qualités des PNJ (3 col.), Génération de noms de PNJ par syllabes (4 col.), Nom de
+taverne (2 col.), Nom de lieu (2 col.).
+
+**Choix de modèle de données** : pas de migration des `rows` existantes (elles restent des
+chaînes « A / B / C », comme avant) — seulement un nouveau champ `columns` (tableau de
+libellés) qui marque une table comme multi-colonnes et sert d'en-tête d'affichage, plus un
+champ optionnel `joinMode` qui pilote comment recomposer un résultat tiré colonne par
+colonne :
+- `"concat"` — mots à assembler (génération de noms, noms de lieu) : les tirets de bordure
+  de chaque segment sont retirés puis les segments sont collés directement (`"Van-"` +
+  `"-us"` → `"Vanus"`).
+- `"space"` — phrase à espaces (nom de taverne : `"La Cloche"` + `"Muette"` →
+  `"La Cloche Muette"`).
+- (défaut, `"list"`) — résultats indépendants affichés séparément, PAS concaténés en texte
+  (Pièges/Périls/Qualités des PNJ : `Piège : ... · Déclencheur : ... · Dégâts ou effet : ...`
+  — ce sont 3 effets mécaniques distincts, pas un mot à former).
+
+**Implémenté dans `index.html`** : `splitTableRow()`/`tableColumnsHeadHTML()`/
+`tableColumnsRowHTML()` (affichage en colonnes dans `detailTable()`, un `<th>`/`<td>` par
+`columns[i]`, dérivé à l'affichage depuis les `rows` existantes — aucune donnée dupliquée) ;
+`rollTableColumns(id)` (nouveau jet : une pioche indépendante par colonne, met en surbrillance
+toutes les lignes piochées à la fois) ; second bouton `🎲×N Tirer chaque colonne séparément`
+à côté du bouton de jet existant, visible seulement si `t.columns` est défini. Badge
+`🧩 N colonnes` ajouté aux métadonnées de la fiche table.
+
+**Auto-migration des tables déjà seedées côté Supabase** — point important : `ensure()`/
+`seedShadowdarkDefaultTables()` ne recrée jamais une table dont le titre existe déjà, donc
+les 6 tables ci-dessus, déjà présentes dans la base de Tristan depuis longtemps, n'auraient
+jamais reçu `columns`/`joinMode` automatiquement. **Pas d'accès navigateur authentifié
+disponible pendant cette session** pour corriger ça à la main comme pour les cas précédents
+(Ascendances, classe Fouilleur) — patch fait donc directement dans `seedShadowdarkDefaultTables()` :
+la branche « table déjà existante » (déjà utilisée pour compléter une `category` manquante)
+complète maintenant aussi `columns`/`joinMode` si absents, sans jamais toucher `rows`/
+`context`/le reste. S'applique tout seul, sans intervention, au prochain chargement de
+l'app par un MJ (voir `startApp()`, toast mis à jour avec un décompte "mise(s) à jour").
+**Testé en bac à sable** : simulation d'une table "Pièges" pré-existante sans `columns` (comme
+sur la vraie base) → après `seedShadowdarkDefaultTables()`, `columns` apparaît, `rows` reste
+strictement identique (vérifié par comparaison JSON avant/après), compteur `patched` correct.
+Les 3 modes de recomposition (`concat`/`space`/liste) testés un par un sur une vraie table de
+chaque type — résultats corrects et cohérents avec l'exemple donné par le livre (« Pierre- »
++ « -fourche » → « Pierrefourche »).
+
+**Non trouvé/traité** : le lien partagé par Tristan (`claude.ai/share/...`) n'a pas pu être
+récupéré (page non rendue par l'outil de récupération web, contenu vide) — ce chantier a été
+mené uniquement à partir de sa description orale et de l'inspection du code existant
+(commentaire déjà présent dans `SHADOWDARK_DEFAULT_TABLES` signalant la limitation). À
+vérifier avec Tristan si le lien contenait des précisions supplémentaires non couvertes ici.

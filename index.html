@@ -996,8 +996,36 @@ function crawlBacklinkBlock(eventId){
     ${list.map(c=>`<span class="bl-chip" data-goto="pointcrawl:${c.id}">${esc(c.title||"—")}</span>`).join("")}</div>`;
 }
 
+/* Tables « multi-colonnes » (2026-08-12, demande de Tristan) : certaines tables du livre sont
+   conçues pour être lues de deux façons — une ligne entière déjà composée (comportement
+   historique de l'appli, seul mode existant jusqu'ici), OU un jet indépendant par colonne
+   (ex. Génération de noms par syllabes : 4d20 séparés, un par colonne, plutôt qu'une ligne
+   entière) pour un résultat plus varié. `t.columns` (tableau de libellés) marque une table
+   comme multi-colonnes ; chaque ligne de `t.rows` reste stockée comme avant (une chaîne,
+   segments séparés par « / », dans l'ordre de `t.columns`) — aucune migration de données
+   nécessaire, seulement un second mode de tirage et un affichage en colonnes. `t.joinMode`
+   pilote comment recomposer un résultat tiré colonne par colonne :
+   - "concat" : mots à assembler (le générateur de noms) — les tirets de bordure de chaque
+     segment sont retirés puis les segments sont collés (« Van- » + « -us » → « Vanus »).
+   - "space"  : phrase à espaces (ex. Nom de taverne : « Le Sanglier » + « Ivre »).
+   - (par défaut) "list" : résultats indépendants affichés séparément, un par colonne (ex.
+     Pièges : Piège / Déclencheur / Dégâts ne se concatènent pas, ce sont 3 effets distincts). */
+function splitTableRow(row, n){
+  const parts = String(row||"").split("/").map(s=>s.trim());
+  while(parts.length<n) parts.push("");
+  return parts.slice(0,n);
+}
+function tableColumnsHeadHTML(t){
+  if(!t.columns || !t.columns.length) return `<th>Résultat</th>`;
+  return t.columns.map(c=>`<th>${esc(c)}</th>`).join("");
+}
+function tableColumnsRowHTML(t, row){
+  if(!t.columns || !t.columns.length) return `<td>${renderText(row)||'<span class="faint">—</span>'}</td>`;
+  return splitTableRow(row, t.columns.length).map(seg=>`<td>${renderText(seg)||'<span class="faint">—</span>'}</td>`).join("");
+}
 function detailTable(t){
   const isDynamic = t.kind==="dynamic";
+  const isMultiCol = !isDynamic && t.columns && t.columns.length>1;
   const srcMeta = isDynamic ? DYNAMIC_TABLE_SOURCES[t.source] : null;
   const rows = isDynamic ? dynamicSourceItems(t).map(x=>x.name||x.title||"Sans nom") : (t.rows||[]);
   const resultsBlock = (isDynamic && !rows.length)
@@ -1007,23 +1035,53 @@ function detailTable(t){
       </p></div>`
     : `<div class="section">
       <h2>Résultats (${rows.length})</h2>
-      <div style="margin:.3rem 0 .8rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap"><button class="btn sm" data-roll="${t.id}">🎲 Lancer 1d${rows.length||0}</button>
+      <div style="margin:.3rem 0 .8rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+        <button class="btn sm" data-roll="${t.id}">🎲 Lancer 1d${rows.length||0}${isMultiCol?" (ligne entière)":""}</button>
+        ${isMultiCol?`<button class="btn ghost sm" data-roll-cols="${t.id}">🎲×${t.columns.length} Tirer chaque colonne séparément</button>`:""}
         <span id="roll-out" class="roll-result"></span>
         <button class="btn ghost sm hidden" id="roll-add-session">+ Ajouter à la session en cours</button></div>
-      <table class="tbl"><thead><tr><th style="width:2.5rem">#</th><th>Résultat</th></tr></thead>
+      <table class="tbl"><thead><tr><th style="width:2.5rem">#</th>${tableColumnsHeadHTML(isMultiCol?t:{})}</tr></thead>
         <tbody id="table-body">
-        ${rows.map((r,i)=>`<tr data-rowidx="${i}"><td class="idx">${i+1}</td><td>${(isDynamic?renderText(`[[${r}]]`):renderText(r))||'<span class="faint">—</span>'}</td></tr>`).join("")}
+        ${rows.map((r,i)=>`<tr data-rowidx="${i}"><td class="idx">${i+1}</td>${isMultiCol?tableColumnsRowHTML(t,r):`<td>${(isDynamic?renderText(`[[${r}]]`):renderText(r))||'<span class="faint">—</span>'}</td>`}</tr>`).join("")}
         </tbody></table>
     </div>`;
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Tables aléatoires</button>
-    <div class="meta"><span class="tag table">Table · d${rows.length||0}</span>${isDynamic?`<span class="tag gold">⚡ Dynamique</span>`:""}${t.category?`<span class="tag gold">${esc(t.category)}</span>`:""}</div>
+    <div class="meta"><span class="tag table">Table · d${rows.length||0}</span>${isDynamic?`<span class="tag gold">⚡ Dynamique</span>`:""}${isMultiCol?`<span class="tag gold">🧩 ${t.columns.length} colonnes</span>`:""}${t.category?`<span class="tag gold">${esc(t.category)}</span>`:""}</div>
     <h1>${esc(t.title||"Sans titre")}</h1>
     ${detailActions("table",t.id)}
     ${t.context?`<div class="section"><h2>Contexte</h2><div class="prose">${renderText(t.context)}</div></div>`:""}
     ${resultsBlock}
     ${backlinksBlock("table",t.id)}
   </div>`;
+}
+/* Tirage colonne par colonne (voir commentaire au-dessus de detailTable) : un jet indépendant
+   par colonne, chacun sur l'ensemble des lignes de la table — pas un seul jet qui prend toute
+   la ligne. Recompose le résultat selon `t.joinMode`. */
+function rollTableColumns(id){
+  const t = getEntity("table",id); if(!t || !t.columns || !t.rows || !t.rows.length) return;
+  const n = t.columns.length;
+  const pickedRowIdx = [];
+  const segs = t.columns.map((label,i)=>{
+    const idx = Math.floor(Math.random()*t.rows.length);
+    pickedRowIdx.push(idx);
+    return { label, value: splitTableRow(t.rows[idx], n)[i] };
+  });
+  document.querySelectorAll("#table-body tr").forEach(tr=>tr.classList.toggle("rolled", pickedRowIdx.includes(+tr.dataset.rowidx)));
+  let plain, linked;
+  if(t.joinMode==="concat"){
+    plain = segs.map(s=>s.value.replace(/^-+/,"").replace(/-+$/,"")).join("");
+    linked = plain;
+  } else if(t.joinMode==="space"){
+    plain = segs.map(s=>s.value).filter(Boolean).join(" ");
+    linked = plain;
+  } else {
+    plain = segs.map(s=>`${s.label} : ${s.value}`).join(" · ");
+    linked = plain;
+  }
+  const out = $("#roll-out"); out.textContent = `→ ${plain}`;
+  lastTableRoll = `${t.title||"Table"} → ${linked}`;
+  const addBtn = $("#roll-add-session"); if(addBtn) addBtn.classList.remove("hidden");
 }
 
 function detailCreature(c){
@@ -3905,6 +3963,7 @@ app.addEventListener("click", e=>{
   if((el=closest("data-xml-sample-type"))){ xmlSampleGeneric(el.dataset.xmlSampleType); return; }
   // Lancer de dé sur une table
   if((el=closest("data-roll"))){ rollTable(el.dataset.roll); return; }
+  if((el=closest("data-roll-cols"))){ rollTableColumns(el.dataset.rollCols); return; }
   if(t.id==="roll-add-session" && lastTableRoll){ addRollToCurrentSession(lastTableRoll); return; }
   // Bouton de secours dans l'état vide du focus par défaut des Point Crawl (rien "en cours"/"à visiter")
   if((el=closest("data-crawl-status-show-all"))){ crawlStatusFilter = "__all__"; renderList(); return; }
@@ -4122,13 +4181,18 @@ function seedIfEmpty(){
 /* --------------- Tables aléatoires par défaut (livre de base) ------------- */
 /* Chaque ligne de `rows` correspond à une face du dé (rows.length = taille du dé, comme partout ailleurs
    dans l'appli). Les tables du livre à colonnes multiples (Périls, Pièges, Qualités des PNJ, Noms par
-   syllabes) n'ont pas de support dédié dans le modèle de données (une table = un tableau de chaînes) :
-   chaque ligne combine donc ses résultats dans une seule chaîne, séparés par « / », dans l'ordre indiqué
-   par le champ `context`. Les tables à plages (Ascendance, Alignement, Âge, Richesse) sont développées en
-   une ligne par face de dé pour conserver les bonnes probabilités avec le tirage 1d de l'appli. */
+   syllabes, Nom de taverne, Nom de lieu) stockent toujours chaque ligne en une seule chaîne, segments
+   séparés par « / » dans l'ordre indiqué par `context` — mais portent désormais un champ `columns`
+   (libellés) qui active un second mode de tirage (2026-08-12, demande de Tristan) : un jet indépendant
+   par colonne plutôt qu'une ligne entière d'un coup, voir detailTable()/rollTableColumns(). `joinMode`
+   pilote comment recomposer le résultat multi-colonnes ("concat"/"space"/liste par défaut, voir le
+   commentaire au-dessus de detailTable()). Les tables à plages (Ascendance, Alignement, Âge, Richesse)
+   sont développées en une ligne par face de dé pour conserver les bonnes probabilités avec le tirage 1d
+   de l'appli. */
 const SHADOWDARK_DEFAULT_TABLES = [
   { title:"Périls", category:"Exploration & Dangers",
     context:"d12 — trois résultats combinés par ligne, dans l'ordre : Déplacement / Dégâts / Affaiblissement.",
+    columns:["Déplacement","Dégâts","Affaiblissement"],
     rows:[
       "Sables mouvants / Bassins d'acide / Fumée aveuglante",
       "Chausse-trappes / Pierres explosives / Champ magnétique",
@@ -4145,6 +4209,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
     ] },
   { title:"Pièges", category:"Exploration & Dangers",
     context:"d12 — trois résultats combinés par ligne, dans l'ordre : Piège / Déclencheur / Dégâts ou effet.",
+    columns:["Piège","Déclencheur","Dégâts ou effet"],
     rows:[
       "Arbalète / Fil déclencheur / 1d6",
       "Grêle de fléchettes / Plaque de pression / 1d6/sommeil",
@@ -4173,6 +4238,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
     rows:["Pauvre","Ordinaire","Ordinaire","Riche","Riche","Extravagant"] },
   { title:"Qualités des PNJ", category:"PNJ",
     context:"d20 — trois résultats combinés par ligne, dans l'ordre : Apparence / Manie / Secret.",
+    columns:["Apparence","Manie","Secret"],
     rows:[
       "Dégarni / Crache / Cache un fugitif",
       "Trapu / Mange constamment / Adore les bébés animaux",
@@ -4197,6 +4263,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
     ] },
   { title:"Génération de noms de PNJ (syllabes)", category:"PNJ",
     context:"d20 — quatre éléments combinés par ligne, dans l'ordre : Préfixe / Syllabe 1 / Syllabe 2 / Suffixe. Combinez les 4 éléments d'une même ligne pour un nom rapide, ou faites 4 jets de d20 séparés (un par colonne) pour un résultat plus aléatoire, selon l'usage du livre.",
+    columns:["Préfixe","Syllabe 1","Syllabe 2","Suffixe"], joinMode:"concat",
     rows:[
       "Ir- / an / l / -int",
       "Van- / ish / n / -us",
@@ -4349,6 +4416,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
     ] },
   { title:"Nom de taverne", category:"Lieux & Rumeurs",
     context:"d12 — deux résultats combinés par ligne, dans l'ordre : Nom / Épithète.",
+    columns:["Nom","Épithète"], joinMode:"space",
     rows:[
       "Le Sanglier / Ivre",
       "La Chope / Fêlée",
@@ -4365,6 +4433,7 @@ const SHADOWDARK_DEFAULT_TABLES = [
     ] },
   { title:"Nom de lieu", category:"Lieux & Rumeurs",
     context:"d12 — deux résultats combinés par ligne, dans l'ordre : Préfixe / Suffixe (assemblez les deux pour former un nom de lieu, ex. « Pierrefourche »).",
+    columns:["Préfixe","Suffixe"], joinMode:"concat",
     rows:[
       "Pierre- / -fourche",
       "Val- / -bois",
@@ -4405,23 +4474,31 @@ const SHADOWDARK_DEFAULT_DYNAMIC_TABLES = [
    a pas encore (ex : tables ajoutées avant l'introduction du champ catégorie), sans toucher au reste. */
 function seedShadowdarkDefaultTables(){
   const byTitle = new Map(db.tables.map(t=>[(t.title||"").trim().toLowerCase(), t]));
-  let added = 0, categorized = 0;
+  let added = 0, categorized = 0, patched = 0;
   const seedOne = (tpl, isDynamic) => {
     const existing = byTitle.get(tpl.title.toLowerCase());
     if(existing){
       if(!existing.category && tpl.category){ existing.category = tpl.category; categorized++; }
+      // 2026-08-12 : tables multi-colonnes (Périls, Pièges, Qualités des PNJ, Noms par syllabes,
+      // Nom de taverne, Nom de lieu) — ensure() ne recrée jamais une table déjà seedée, donc les
+      // tables créées avant ce chantier n'ont pas `columns`/`joinMode` tant que ce correctif ne
+      // tourne pas une fois côté serveur. Patch non destructif : n'ajoute que ces deux champs,
+      // ne touche jamais `rows`/`context`/le reste — auto-guérit au premier chargement de
+      // n'importe quel MJ après déploiement, sans avoir besoin d'une intervention manuelle en base.
+      if(tpl.columns && !existing.columns){ existing.columns = tpl.columns.slice(); patched++; }
+      if(tpl.joinMode && existing.joinMode!==tpl.joinMode){ existing.joinMode = tpl.joinMode; patched++; }
       return;
     }
     const o = { id:uid(), title:tpl.title, category:tpl.category||"", context:tpl.context };
     if(isDynamic){ o.kind="dynamic"; o.source=tpl.source; o.sourceFilter=tpl.sourceFilter||""; o.rows=[]; }
-    else { o.kind="static"; o.rows=[...tpl.rows]; }
+    else { o.kind="static"; o.rows=[...tpl.rows]; if(tpl.columns) o.columns=tpl.columns.slice(); if(tpl.joinMode) o.joinMode=tpl.joinMode; }
     db.tables.push(o);
     byTitle.set(tpl.title.toLowerCase(), o);
     added++;
   };
   SHADOWDARK_DEFAULT_TABLES.forEach(tpl=>seedOne(tpl,false));
   SHADOWDARK_DEFAULT_DYNAMIC_TABLES.forEach(tpl=>seedOne(tpl,true));
-  return { added, categorized };
+  return { added, categorized, patched };
 }
 
 /* ------------------------------- Démarrage ------------------------------- */
@@ -4538,12 +4615,13 @@ async function startApp(){
       }
     }
     if(effectiveRole()==="gm"){
-      const { added, categorized } = seedShadowdarkDefaultTables();
-      if(added>0 || categorized>0){
+      const { added, categorized, patched } = seedShadowdarkDefaultTables();
+      if(added>0 || categorized>0 || patched>0){
         await saveDB();
         const parts = [];
         if(added>0) parts.push(`${added} table(s) aléatoire(s) du livre de base ajoutée(s)`);
         if(categorized>0) parts.push(`${categorized} catégorisée(s)`);
+        if(patched>0) parts.push(`${patched} mise(s) à jour (mode multi-colonnes)`);
         toast(parts.join(" · ")+".");
       }
     }
