@@ -180,3 +180,148 @@ numéros, cf. section précédente) — le contenu source (créatures des bestia
 encore entièrement compilé, et un PDF supplémentaire reste à venir. Une fois ce contenu
 disponible, les créatures qu'il contient devront être ajoutées à la collection Créatures
 avec le bon tag de source. Note de backlog seulement, rien à coder pour l'instant.
+
+## PJ — création de personnage scriptée (assistant pas-à-pas)
+
+**Demande de Tristan (2026-08-12).** Aujourd'hui, la création d'un PJ est soit entièrement
+manuelle (`formPC()`, un seul long formulaire, tout est retapé à la main, aucun jet de dé),
+soit entièrement automatique (`generateRandomPC()`, un bouton qui tire tout d'un coup et crée
+la fiche complète). Tristan veut un entre-deux : un **assistant pas-à-pas** qui pose les
+questions dans l'ordre (ascendance, puis classe, puis les étapes suivantes) et fait les jets
+« au fur et à mesure » plutôt que tout d'un bloc — et, séparément, que la fiche déjà créée
+garde la possibilité de **retaper à la main OU relancer un jet au hasard, champ par champ**
+(nom, PV, etc.), le tout branché sur la collection Tables aléatoires déjà en place.
+
+Ceci est un audit (lecture du code existant + liste de travaux) — **rien n'a été implémenté**,
+en attente de validation de Tristan avant de commencer, même logique que le chantier
+« Tables aléatoires » ci-dessus.
+
+### Existant repéré dans `index.html`
+
+- **`formPC()`** (~l.2588-2653) : formulaire unique, tous les champs en saisie libre ou menu
+  déroulant fermé (Ascendance/Classe via `ASCENDANCES`/`PC_CLASSES`, obligatoire pour que les
+  règles de classe s'affichent correctement ensuite). **Aucun bouton de jet de dé nulle part
+  dans ce formulaire** — PV, CA, caractéristiques, tout est tapé à la main. Un seul
+  comportement dynamique existant : le champ Mentor apparaît/disparaît en direct selon la
+  classe choisie (l.2645-2652) — c'est le seul embryon de logique « pas-à-pas » déjà présent.
+- **`generateRandomPC()`** (~l.2475-2570) : à l'inverse, fait TOUT d'un coup, dans cet ordre :
+  classe → alignement → ascendance → caractéristiques (3d6×6, relance si aucune ≥14, règle
+  p.15) → PV → talent (2d6) → langues → origine → nom → divinité (si Prêtre) → mentor (si
+  Ensorceleur) → sorts connus (si caster) → or → CA → emplacements d'inventaire — puis crée
+  directement la fiche `db.pcs`, sans jamais rien montrer à l'utilisateur avant la fin.
+  **C'est déjà, presque au mot près, la séquence que Tristan décrit** — mais comme une boîte
+  noire plutôt qu'un flux visible et interruptible. Note : l'ordre actuel commence par la
+  **classe**, pas l'ascendance — Tristan a dit vouloir l'ascendance en premier ; à confirmer
+  quel ordre garder (la règle Shadowdark p.15-16 officielle est plutôt Ascendance → Classe →
+  Caractéristiques → Historique/talent → Équipement).
+- **Constat important, à corriger avant toute autre chose** : Tristan veut que tout soit
+  « connecté à toutes les tables aléatoires qu'on a déjà créées, générées, qui sont stockées
+  sur le site ». **Ce n'est aujourd'hui vrai qu'à moitié.** `seedCharGenTables()` (~l.2455)
+  copie bien les listes Ascendances/Divinités/Langues courantes/Langues rares dans la
+  collection `db.tables` (onglet Tables aléatoires) au premier chargement — mais
+  `generateRandomPC()` ne relit **jamais** ces tables une fois seedées : il continue de piocher
+  directement dans les constantes JS d'origine (`Object.keys(ASCENDANCES)`, `DIVINITES.filter(...)`,
+  `pick(LANGUES_COURANTES)`). Seules **Origines** et **Noms de personnages** passent réellement
+  par la table live, via `rollOnAppTable(titre)`. Résultat concret : si le MJ ajoute, modifie ou
+  supprime une entrée dans la table « Ascendances » via l'onglet Tables aléatoires, ce
+  changement **n'a aucun effet** sur ce que génère le bouton — les deux sources ne restent
+  synchronisées que parce qu'elles partent identiques au premier seed, pas parce qu'elles sont
+  réellement reliées.
+- **`rollOnAppTable(titre)`** (~l.2470) : l'unique pont existant entre générateur et table live.
+  Limité : ne gère que les tables `kind:"static"` (lit `t.rows`), pas les tables `kind:"dynamic"`
+  (créatures/PNJ/trésors/sorts piochés ailleurs) — pas un problème pour la génération de PJ en
+  l'état, mais à garder en tête si un futur champ doit un jour piocher dans une table dynamique.
+- **Aucun bouton « relancer ce champ »** n'existe dans `formPC`/le détail d'un PJ. Le seul
+  précédent dans toute l'appli est côté `initiative.js` : un petit bouton dé par ligne
+  (`data-init-roll`) qui relance UN SEUL champ (`e.initiative`) et enregistre immédiatement —
+  bon gabarit à réutiliser. `rollTalents()` (détail PJ, ~l.2778) relance aussi 2d6 en direct
+  pour surligner la ligne de talent correspondante, mais **n'enregistre rien** (affichage
+  seulement) — à distinguer du comportement voulu ici (relancer et persister).
+- **Caractéristiques stockées en texte libre**, pas en nombre : `p.str` vaut par exemple
+  `"14 (+2)"`, parfois juste `"+2"` — `parseAbilityMod()` fait de l'interprétation heuristique
+  à l'affichage. Un bouton « relancer les PV » est simple (PV est déjà quasi numérique) ; un
+  bouton « relancer telle caractéristique » l'est moins tant que le score n'est pas stocké
+  proprement en nombre à côté du modificateur affiché.
+- **18 classes** dans un seul menu déroulant plat (`PC_CLASSES`), sans lien formel vers des
+  tables d'origine/mentor sauf deux cas codés en dur (Prêtre → filtre `DIVINITES` par
+  alignement ; Ensorceleur → tirage `MENTORS`) — pas une relation générique classe→table,
+  chaque cas particulier est un `if` séparé dans `generateRandomPC()`.
+- **Chantier voisin mais distinct** : la « recette » de tables (section « Tables aléatoires »
+  plus haut dans ce fichier, toujours en attente de validation) compose plusieurs tirages de
+  tables en un **texte** affiché, sans créer d'entité. L'assistant PJ décrit ici doit au
+  contraire **remplir une vraie fiche `db.pcs` champ par champ, avec confirmation/retouche à
+  chaque étape** — objectif différent, mais le moteur de tirage (points ci-dessous) peut être
+  partagé entre les deux si Tristan le souhaite.
+
+### Ce qu'il faudrait construire (proposition, à valider)
+
+1. **Faire de la collection Tables aléatoires la vraie source unique**, avant toute autre
+   chose — sinon l'assistant ne ferait que déplacer le problème actuel dans une interface plus
+   jolie. Concrètement : router `generateRandomPC()` (et par cohérence `generateRandomNPC()`,
+   qui a le même défaut) sur `rollOnAppTable()`/un équivalent pour Ascendances/Divinités/
+   Langues courantes/Langues rares, au lieu des constantes JS directes. Les constantes JS
+   restent la source du **contenu par défaut au premier seed**, mais cessent d'être relues
+   ensuite.
+2. **Un moteur de tirage réutilisable par champ** (`rollField(kind, ...)` ou similaire) qui
+   sait : tirer une caractéristique (3d6, avec la règle de relance globale), tirer les PV,
+   tirer un talent (2d6 contre la table de la classe), tirer sur une table Tables aléatoires
+   par titre (ascendance, origine, nom, divinité, langue), tirer un mentor, tirer les sorts de
+   niveau 1 d'une classe. Essentiellement, découper les morceaux déjà écrits dans
+   `generateRandomPC()` en fonctions indépendantes rappelables une par une — c'est le
+   changement structurant qui permet ensuite à la fois l'assistant pas-à-pas ET les boutons de
+   relance individuels de la fiche existante.
+3. **Assistant de création pas-à-pas** (nouveau mode, en plus du formulaire manuel actuel, pas
+   à sa place — un MJ pressé doit pouvoir garder la saisie directe pour une PNJ minute) :
+   étapes successives (ordre à confirmer avec Tristan, cf. remarque plus haut sur Shadowdark
+   p.15-16 vs l'ordre actuel du générateur), chaque étape affiche le résultat du tirage avec
+   trois choix — Garder / Relancer / Saisir moi-même — avant de passer à la suivante. Étapes
+   conditionnelles déjà identifiées dans le code actuel : Mentor seulement si la classe a
+   `usesMentor`, Divinité seulement si Prêtre, Sorts seulement si `spellClass` défini.
+4. **Boutons de relance champ par champ sur une fiche PJ existante** (détail ou édition) :
+   nom (retire sur la table Noms de personnages), PV (relance le dé de vie + mod CON), origine,
+   talent — réutilisant le moteur du point 2, sur le même gabarit que le bouton dé
+   d'`initiative.js`. Décision d'UX à trancher : sauvegarde immédiate à chaque clic (comme le
+   mode édition Cursed Scroll ajouté ce soir) ou geste groupé avec un seul « Enregistrer » final
+   (comme le formulaire PJ actuel) — les deux se défendent, mais mélanger les deux logiques
+   dans le même formulaire serait déroutant, donc un seul choix cohérent pour tout le
+   formulaire PJ.
+5. **(Optionnel, plus structurant)** Migrer les caractéristiques d'un texte libre
+   (`"14 (+2)"`) vers un score numérique stocké proprement, pour permettre un vrai bouton
+   « relancer cette caractéristique » sans réanalyser du texte — nécessite une migration douce
+   des PJ déjà créés (garder `parseAbilityMod()` en compatibilité descendante). Peut être fait
+   après coup si Tristan préfère avancer sans ce chantier-là dans un premier temps ; sans lui,
+   la relance reste possible mais un peu plus fragile (regénère la chaîne texte en entier).
+
+### Décisions à prendre par Tristan avant implémentation
+
+- **Ordre des étapes de l'assistant** : celui que tu as décrit (Ascendance → Classe → …) ou
+  l'ordre officiel Shadowdark (Ascendance → Classe → Caractéristiques → Historique/talent →
+  Équipement) ou l'ordre actuel du code (Classe → Alignement → Ascendance → …) ? Les trois sont
+  différents.
+- **L'assistant remplace-t-il le bouton « Générer un PJ aléatoire » actuel**, ou coexiste avec
+  lui (génération instantanée pour un PNJ minute vs assistant pour un vrai PJ de joueur) ?
+- **Le formulaire manuel `formPC()` reste-t-il tel quel en parallèle**, avec juste des boutons
+  de relance ajoutés dessus, ou l'assistant le remplace-t-il complètement pour la création ?
+- **Sauvegarde immédiate vs groupée** pour les boutons de relance sur une fiche existante (voir
+  point 4 ci-dessus).
+- **Portée** : uniquement les PJ (comme demandé), ou le même moteur doit-il aussi moderniser
+  `generateRandomNPC()` (structurellement identique, même défauts) ? Pas nécessaire pour
+  répondre à la demande initiale, mais partagerait le travail du point 2.
+
+### Hors scope pour ce chantier (déjà backlog ailleurs)
+
+- Le regroupement des 18 classes par source dans le menu déroulant (section « Nuit du
+  2026-08-12 » plus haut) — indépendant, peut être fait avant, après ou en même temps.
+- Le tag de source des créatures — sans rapport direct.
+- La « recette » de tables (composition en texte, sans créer d'entité) — chantier voisin déjà
+  décrit plus haut, pas un prérequis strict pour celui-ci mais pourrait partager le moteur de
+  tirage du point 2 si les deux sont faits dans la foulée.
+
+- [ ] Valider l'ordre des étapes et les autres décisions listées ci-dessus avec Tristan.
+- [ ] Router `generateRandomPC()`/`generateRandomNPC()` sur les tables live plutôt que les
+      constantes JS (Ascendances, Divinités, Langues courantes, Langues rares).
+- [ ] Extraire un moteur de tirage par champ réutilisable depuis `generateRandomPC()`.
+- [ ] Construire l'assistant de création pas-à-pas (nouveau mode UI).
+- [ ] Ajouter les boutons de relance champ par champ sur la fiche PJ existante.
+- [ ] (Optionnel) Migrer les caractéristiques vers un score numérique structuré.
+- [ ] `outils/audit-check.sh` + test fonctionnel réel une fois implémenté.
