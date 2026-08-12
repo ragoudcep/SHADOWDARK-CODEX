@@ -30,6 +30,103 @@ Implique probablement une notion de « groupe de tables liées » ou de
 « recette de génération » qui n'existe pas encore dans le modèle de
 données actuel — à concevoir.
 
+### Plan proposé (session automatisée, 2026-08-11) — en attente de validation
+
+Chantier structurant (nouveau concept de modèle de données) : pas
+d'implémentation à l'aveugle ce soir, seulement exploration du code
+existant + proposition de plan ci-dessous. À valider ou corriger par
+Tristan avant implémentation.
+
+**Existant repéré dans `index.html` :**
+- Une table (`db.tables`) a aujourd'hui deux formes : « statique »
+  (`rows`, un tableau de chaînes, une par face de dé) et « dynamique »
+  (`kind:"dynamic"`, tire dans une autre collection de l'appli —
+  créatures/PNJ/trésors/sorts — via `dynamicSourceItems()`). Rien ne
+  permet de lier plusieurs tables entre elles.
+- Le besoin exprimé existe déjà, mais **codé en dur** deux fois :
+  `generateRandomNPC()` (ligne ~774) et `generateRandomPC()` (ligne
+  ~1987) tirent chacune une série de tables fixes (`rollOnAppTable("Nom
+  de la table")`) et assemblent le résultat à la main en JS pour créer
+  une fiche PNJ/PJ complète. C'est exactement le mécanisme que Tristan
+  veut pouvoir définir soi-même, sans toucher au code, pour n'importe
+  quelle combinaison de tables (pas seulement PNJ/PJ).
+- Les tables à colonnes multiples par ligne (ex. Noms par syllabes,
+  Périls, Qualités des PNJ) sont un mécanisme *différent et
+  complémentaire* : plusieurs résultats combinés **au sein d'une même
+  table/ligne**. Le chantier ci-dessous porte sur la combinaison **entre
+  plusieurs tables distinctes** — les deux mécanismes coexistent, l'un
+  ne remplace pas l'autre.
+
+**Proposition : un 3ᵉ type de table, « recette ».**
+
+Plutôt que d'ajouter une nouvelle collection top-niveau (ce qui
+impliquerait de toucher aux 6 emplacements du ledger — `TABS`, `DB_COLS`,
+`TAB_OF`, `TYPE_OF_TAB`, `collectionOf()`, `emptyDB()` — et une nouvelle
+table Supabase), l'idée est de rester dans `db.tables` avec un 3ᵉ
+`kind` en plus de statique et `"dynamic"` : `kind:"recipe"`.
+
+- `t.steps` : liste ordonnée d'étapes `{label, tableId}` — chaque étape
+  référence une table existante (statique ou dynamique, **pas une autre
+  recette**, pour écarter simplement tout risque de boucle) et porte un
+  libellé (par défaut le titre de la table référencée, modifiable).
+- `t.template` (texte libre, optionnel) : gabarit du résultat composé
+  avec des espaces réservés `{{Libellé}}`, ex. `"{{Nom}}, {{Ascendance}},
+  {{Alignement}}. Ambition : {{Ambition}} (par {{Moyen}})."`. Si vide,
+  gabarit par défaut = chaque étape listée sur sa propre ligne
+  (`Libellé : résultat`), pour ne pas obliger à écrire un gabarit dans
+  le cas simple.
+- Tirer une recette = tirer une fois sur chaque table référencée (en
+  réutilisant `rollTable`/`dynamicSourceItems` existants) puis appliquer
+  le gabarit. Le résultat composé alimente `lastTableRoll` normalement,
+  donc « Ajouter aux notes de session » fonctionne sans changement.
+- Aucune nouvelle table Supabase requise (les recettes vivent dans la
+  collection `tables` déjà synchronisée) — **pas de script SQL à
+  exécuter par Tristan pour ce chantier.**
+- Onglet « Tables aléatoires » : nouveau choix dans le formulaire de
+  création (Statique / Dynamique / Recette), éditeur d'étapes (ajouter/
+  retirer/réordonner, choix de la table par liste déroulante), carte de
+  liste avec un badge distinct (ex. 🧩 Recette) au lieu du dé.
+- Garde-fous : si une table référencée par une étape est supprimée
+  ensuite, l'étape doit afficher/tirer « (table supprimée) » proprement
+  au lieu de planter — et étendre le vérificateur de liens brisés déjà
+  présent (`btn-broken-links`) pour repérer aussi les étapes de recette
+  pointant vers une table qui n'existe plus.
+
+**Hors scope pour cette 1ʳᵉ version (à rediscuter séparément si voulu) :**
+- Faire produire à une recette une fiche complète (PNJ/PJ créé dans la
+  bonne collection), comme le font aujourd'hui `generateRandomNPC`/`PC`
+  en dur — une recette v1 ne fait que composer un **texte** de résultat,
+  elle ne crée pas d'entité. Migrer les deux générateurs actuels vers ce
+  système serait une v2 plus ambitieuse (mapping champ par champ vers
+  une fiche), pas nécessaire pour répondre au besoin initial (« un
+  bouton qui tire tout d'un coup et affiche un résultat composé »).
+- Recette référençant une autre recette (imbrication) — écarté pour
+  éviter la gestion de cycles, pas de besoin exprimé pour l'instant.
+
+**Prochaine étape suggérée :** si ce plan convient, l'implémentation
+(modèle de données + UI) tient dans un seul chantier mécanique
+raisonnable pour une prochaine session (pas besoin d'un nouveau tour de
+conception) : cases à cocher ci-dessous à transformer en travail réel.
+
+- [ ] Modèle de données : `kind:"recipe"`, `steps`, `template` sur
+      l'entité table.
+- [ ] Fonction de tirage composé (`rollRecipe`) + branchement dans
+      `rollTable()`.
+- [ ] UI de création/édition d'une recette (choix des étapes, gabarit).
+- [ ] Affichage carte/liste + tirage depuis la fiche détail.
+- [ ] Extension du vérificateur de liens brisés aux étapes de recette.
+- [ ] `outils/audit-check.sh` + test fonctionnel réel (créer une recette
+      de test, tirer, vérifier le texte composé et l'ajout aux notes de
+      session).
+
+**Note de livraison (2026-08-12) :** ce plan a été rédigé dès le
+2026-08-11 mais n'avait jamais atteint `origin/main` — la session de
+cette nuit-là avait buté sur l'absence d'identifiants Git pour pousser
+(voir `docs/AUDIT.md`). Récupéré et poussé ce soir, sans changement de
+fond. **Ce plan reste en attente de validation par Tristan avant
+implémentation** — rien ci-dessous n'a été codé.
+
+
 ## Nuit du 2026-08-12 — classes de Cursed Scroll, à valider au réveil
 
 Tristan a demandé d'implémenter en autonomie tout ce qui est faisable depuis les PDF

@@ -1530,6 +1530,73 @@ cette session.
   `node --check` OK sur les 8 blocs `<script>`, page de connexion s'affiche sans erreur console
   (pas de compte de test disponible dans ce contexte pour aller plus loin dans le bac à sable).
 
+### Tâche planifiée nocturne — 2026-08-11 : plan pour « Tables aléatoires » (log rétroactif)
+
+Passage automatisé (backlog `docs/TODO.md`). Chantier choisi : « Tables
+aléatoires » (premier point non commencé de la liste). Le point est noté
+dans `docs/TODO.md` comme nécessitant une conception de modèle de données
+(« à concevoir ») — donc pas d'implémentation à l'aveugle ce soir-là :
+lecture du code existant (modèle `db.tables`, tables statiques vs
+`kind:"dynamic"`, et surtout les deux générateurs codés en dur
+`generateRandomNPC()`/`generateRandomPC()` qui font déjà à la main ce que
+Tristan veut pouvoir définir soi-même), puis rédaction d'un plan détaillé
+dans `docs/TODO.md` sous le point concerné : un 3ᵉ type de table
+`kind:"recipe"` (étapes ordonnées référençant d'autres tables + gabarit
+de texte composé), conçu pour rester dans la collection `tables`
+existante (aucun nouvel emplacement du ledger à toucher, aucune nouvelle
+table Supabase, donc aucun script SQL à faire exécuter par Tristan pour
+ce chantier). Rien d'autre modifié dans `index.html`.
+
+**Blocage rencontré ce soir-là** : sandbox sans identifiants Git
+configurés pour `github.com` (ni token HTTPS, ni clé SSH utilisable —
+seule la résolution DNS HTTPS via proxy est autorisée, pas de connexion
+SSH brute). Commit local propre créé mais **jamais poussé** — ce
+log lui-même, ainsi que le plan dans `docs/TODO.md`, sont restés
+uniquement dans un conteneur sandbox éphémère et ont été perdus jusqu'à
+ce qu'une session suivante (voir entrée du 2026-08-12 ci-dessous) les
+retrouve et les repousse.
+
+### Tâche planifiée nocturne — 2026-08-12
+
+Contexte au démarrage : lecture de `docs/TODO.md` (2 chantiers ouverts :
+« Tables aléatoires », noté « à concevoir » ; « PJ — édition de classe a
+posteriori », note de backlog pas encore lancée) et de `docs/AUDIT.md`.
+Constat en explorant l'environnement sandbox : un clone Git orphelin
+d'une session précédente (2026-08-11, ~03h) traînait encore dans le
+conteneur, avec **un commit local jamais poussé** contenant exactement
+le plan « Tables aléatoires » décrit ci-dessus + une entrée d'audit
+jamais livrée. Vérifié via `git fetch`/`git log` que ce commit n'existe
+bien nulle part sur `origin/main` (HEAD réel : `25c4e12`, aucun commit
+touchant `docs/TODO.md` depuis `21a2ed1`) — travail confirmé perdu, pas
+juste en attente de merge.
+
+Décision : plutôt que de repartir de zéro sur ce chantier (qui aurait
+demandé de refaire la même exploration pour arriver au même plan),
+**récupération du plan perdu** : contenu réintégré à l'identique dans
+`docs/TODO.md` (avec une note de livraison précisant qu'il a été rédigé
+le 11 et livré le 12), et les deux entrées d'audit (celle du 11,
+rétroactive, et celle-ci) ajoutées à `docs/AUDIT.md`. Aucun changement
+dans `index.html` — ce chantier reste au stade « plan en attente de
+validation par Tristan », comme prévu, aucune implémentation à l'aveugle.
+
+**Blocage confirmé toujours présent ce soir** : re-testé les mêmes
+pistes que la session du 11 plus quelques autres — `git push` HTTPS
+échoue (« could not read Username », aucun identifiant/credential
+helper configuré) ; tentative SSH (`git@github.com`) échoue dès la
+résolution DNS (bloquée par la politique réseau du sandbox, seul HTTPS
+vers les hôtes autorisés passe) ; aucun jeton ni fichier d'identifiants
+trouvé dans le dossier de la tâche planifiée. Impossible donc de pousser
+directement depuis ce sandbox. Ce commit-ci est donc, comme le 11,
+resté local — fourni à Tristan sous forme de patch (voir message de fin
+de tâche et fichier joint) à appliquer manuellement, ou à faire pousser
+par une session qui a un accès Git fonctionnel (ex. "Dual", en local
+avec les identifiants déjà configurés). Recommandation pour éviter que
+ça se reproduise une 3ᵉ fois : configurer un accès Git (token HTTPS a
+minima) pour ce canal de tâche planifiée, ou pointer la tâche vers le
+dossier réel du repo sur le PC de Tristan une fois que le mode Cowork
+permet de connecter un dossier à une tâche planifiée sans validation
+manuelle à chaque nuit.
+
 ## Session de nuit (2026-08-12) — Classes de Cursed Scroll #1, en autonomie
 
 Tristan a fourni plusieurs PDF "Cursed Scroll" (suppléments Shadowdark tiers) contenant des
