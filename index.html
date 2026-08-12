@@ -2479,13 +2479,47 @@ function appTableRows(title){
   const t = db.tables.find(x=>(x.title||"").trim()===title);
   return (t && t.rows && t.rows.length) ? t.rows : null;
 }
+/* Extrait le nom en tête d'une ligne de table formatée "Nom — description" ou
+   "Nom (Aligné) — description" (format des tables Ascendances/Divinités, cf.
+   ASCENDANCE_ROWS/DIVINITES_ROWS) — utilisé pour retrouver l'entrée structurée
+   (ASCENDANCES[nom]/DIVINITES) correspondant à une ligne piochée dans la table live.
+   Si la ligne ne suit pas ce format (ex. entrée personnalisée ajoutée par le MJ sans le
+   même gabarit), retombe sur la ligne entière — le nom ne matchera alors rien de connu,
+   ce qui est le signal attendu pour afficher l'avertissement "ascendance non reconnue". */
+function extractLeadName(row){
+  const m = String(row||"").match(/^([^—(]+?)(?:\s*\([^)]*\))?\s*—/);
+  return m ? m[1].trim() : String(row||"").trim();
+}
+function appTableEntries(title){
+  const rows = appTableRows(title);
+  return rows ? rows.map(r=>({raw:r, name:extractLeadName(r)})) : null;
+}
+/* Ligne brute de la table live "Ascendances" correspondant à un nom donné — pour afficher le
+   texte tel qu'édité par le MJ quand ce nom ne correspond à aucune entrée mécanique connue
+   (ASCENDANCES). Retourne "" si la table n'existe pas ou ne contient pas ce nom. */
+function ascendanceTableRawFor(name){
+  const rows = appTableRows("Ascendances");
+  if(!rows) return "";
+  return rows.find(r=>extractLeadName(r)===name) || "";
+}
 function generateRandomPC(){
   seedCharGenTables();
   const cls = pick(Object.keys(CLASSES_DATA));
   const cd = CLASSES_DATA[cls];
   const alignment = pick(["loyal","neutre","chaos"]);
-  const ancestryName = pick(Object.keys(ASCENDANCES));
-  const asc = ASCENDANCES[ancestryName];
+  // 2026-08-13 : pioche désormais dans la table live "Ascendances" (onglet Tables aléatoires),
+  // pas dans la constante ASCENDANCES — un ajout/retrait/modification fait par le MJ dans cet
+  // onglet est donc pris en compte ici. Contrepartie assumée (accord de Tristan) : si le nom
+  // extrait de la ligne piochée ne correspond à aucune entrée connue de ASCENDANCES (ex. le MJ a
+  // ajouté une ascendance personnalisée), elle reste piochable mais perd tout effet mécanique
+  // automatique (ex. le bonus de PV de "Robuste" ne s'applique qu'à ce nom exact) — averti par
+  // toast ici, et rappelé en continu sur la fiche PJ via ascendanceTraitText()/detailPC().
+  const ascEntries = appTableEntries("Ascendances");
+  let ancestryName;
+  if(ascEntries && ascEntries.length) ancestryName = pick(ascEntries).name;
+  else ancestryName = pick(Object.keys(ASCENDANCES));
+  const ancestryUnmatched = !ASCENDANCES[ancestryName];
+  const asc = ASCENDANCES[ancestryName] || { trait: ascendanceTableRawFor(ancestryName) || ancestryName, robust:false };
 
   const rollSet = ()=> ["str","dex","con","int","wis","cha"].reduce((o,k)=>{ o[k]=rollDice(3,6); return o; },{});
   let scores = rollSet();
@@ -2527,10 +2561,26 @@ function generateRandomPC(){
   const origine = rollOnAppTable("Origines") || pick(ORIGINES_ROWS);
   const nom = rollOnAppTable("Noms de personnages") || pick(NOMS_ROWS);
 
+  // 2026-08-13 : idem Ascendances, pioche dans la table live "Divinités" — l'alignement de
+  // chaque divinité est reconstitué depuis le "(Aligné)" de la ligne (format DIVINITES_ROWS,
+  // ex. "Sainte Terragnis (Loyal) — ..."). Une divinité personnalisée sans ce format n'est
+  // simplement pas filtrable par alignement (traitée comme "n'importe quel alignement") — pas
+  // de bonus/malus mécanique lié à une divinité dans les règles actuelles, donc pas besoin
+  // d'avertissement comme pour Ascendances : au pire le filtre d'alignement est juste ignoré.
   let deity = "";
   if(cls==="Prêtre"){
-    const candidates = DIVINITES.filter(d=>d.align===alignment);
-    deity = (candidates.length ? pick(candidates) : pick(DIVINITES)).name;
+    const divEntries = appTableEntries("Divinités");
+    if(divEntries && divEntries.length){
+      const withAlign = divEntries.map(e=>{
+        const m = e.raw.match(/\(([^)]*)\)/);
+        return { name:e.name, align: m ? m[1].trim().toLowerCase() : null };
+      });
+      const candidates = withAlign.filter(e=>e.align===alignment);
+      deity = (candidates.length ? pick(candidates) : pick(withAlign)).name;
+    } else {
+      const candidates = DIVINITES.filter(d=>d.align===alignment);
+      deity = (candidates.length ? pick(candidates) : pick(DIVINITES)).name;
+    }
   }
   // Mentor (2026-08-12, Ensorceleur) : choix obligatoire pour la classe, tiré au hasard à la
   // génération faute de pouvoir demander au joueur — modifiable ensuite via le formulaire.
@@ -2578,7 +2628,7 @@ function generateRandomPC(){
 
   db.pcs.push(o);
   saveDB();
-  toast(`${nom} (${ancestryName} ${cls}) généré !`);
+  toast(`${nom} (${ancestryName} ${cls}) généré !${ancestryUnmatched ? " Ascendance personnalisée : aucun bonus mécanique automatique (voir la fiche du PJ)." : ""}`);
   view = {tab:"pcs", mode:"detail", id:o.id};
   render();
 }
@@ -2752,7 +2802,15 @@ function detailPC(p){
   const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
   const listSec = (icon,label,val)=> (val&&val.trim()) ? `<div class="section"><h2>${icon} ${label}</h2>${renderBullets(val)}</div>` : "";
   const titre = p.cls ? titleFor(p.cls, p.alignment, p.level) : "";
-  const ascTrait = p.ancestry && ASCENDANCES[p.ancestry] ? ascendanceTraitText(p.ancestry, p.cls) : "";
+  // Avertissement persistant (pas juste un toast à la génération) si l'ascendance de ce PJ ne
+  // correspond à aucune entrée connue de ASCENDANCES — ascendance personnalisée ajoutée par le
+  // MJ dans la table live "Ascendances" (onglet Tables aléatoires) : reste affichée telle quelle
+  // (texte de la table), mais rappel explicite qu'aucun bonus mécanique automatique n'y est lié.
+  const ascTrait = p.ancestry
+    ? (ASCENDANCES[p.ancestry]
+        ? ascendanceTraitText(p.ancestry, p.cls)
+        : `Ascendance personnalisée (« ${p.ancestry} ») : non reconnue par les règles de l'appli, aucun bonus mécanique automatique (ex. le bonus de PV de « Robuste » ne s'applique qu'à ce nom exact).${ascendanceTableRawFor(p.ancestry) ? " Texte de la table : "+ascendanceTableRawFor(p.ancestry) : ""}`)
+    : "";
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PJ</button>
     <span class="tag pc">PJ</span>
