@@ -1748,3 +1748,21 @@ une piste pour plus tard : afficher le DD d'incantation déjà calculé pour LE 
 (« lancez 1d20+X ») plutôt qu'une table générique par rang — nécessiterait de suivre le
 modificateur de caractéristique en nombre, alors qu'il n'est aujourd'hui qu'une partie du
 texte libre du champ (ex. "14 (+2)"). Pas fait ce soir, à voir si Tristan le souhaite.
+
+**Suite immédiate : fait.** Tristan a confirmé vouloir le bonus personnalisé. Nouveau champ
+`spellAbility` (`"str"|"dex"|"con"|"int"|"wis"|"cha"`) sur les 5 classes lanceuses de sorts
+(`priest`→wis, `wizard`→int, les deux `witch`→cha, `seer`→wis), et nouvelle fonction
+`parseAbilityMod(raw)` qui extrait le modificateur d'un champ de caractéristique en texte
+libre — gère les trois formats déjà rencontrés dans les fiches existantes : `"14 (+2)"`
+(format du générateur), `"+2"` seul (modificateur tapé à la main), `"14"` seul (score brut,
+recalculé via `ABILITY_MOD()` déjà existant) — retombe sur 0 si le champ est vide plutôt que
+de planter. `pcClassSectionHTML()`/`printClassBlock()` affichent désormais une ligne « Test
+d'incantation : 1d20±X (Nom de la caractéristique) » calculée en direct depuis la fiche du
+PJ, au-dessus du tableau Rang/DD (conservé, puisque le bonus ne dépend pas du rang mais le
+DD si).
+
+Vérifié en bac à sable contre l'exemple `Shazsod.pdf` lui-même : un Prêtre SAG "17 (+3)"
+affiche bien « 1d20+3 (Sagesse) », résultat identique à la fiche shadowdarklings.net qui a
+inspiré la demande. Testé aussi les trois formats de secours (score brut, modificateur seul,
+champ vide) et les 18 classes en boucle (détail + impression) sans erreur.
+`outils/audit-check.sh` : syntaxe JS OK.
