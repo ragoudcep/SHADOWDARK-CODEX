@@ -2530,7 +2530,7 @@ function formPC(){
       <div class="field"><label>Langues <span class="hint">(commune + tirages/choix)</span></label><input type="text" id="f-languages" value="${esc(p.languages||"")}" placeholder="Langue commune, Elfique…"></div>
       <div class="field"><label>Divinité <span class="hint">(surtout pour un Prêtre)</span></label><input type="text" id="f-deity" list="pc-deities" value="${esc(p.deity||"")}" placeholder="Sainte Terragnis…"><datalist id="pc-deities">${DIVINITES.map(d=>`<option value="${esc(d.name)}"></option>`).join("")}</datalist></div>
       <div class="field"><label>Arme maîtrisée <span class="hint">(surtout pour un Guerrier)</span></label><input type="text" id="f-masteredWeapon" value="${esc(p.masteredWeapon||"")}" placeholder="Épée longue…"></div>
-      <div class="field"><label>Mentor <span class="hint">(pour un Ensorceleur)</span></label><select id="f-mentor"><option value="">— Aucun —</option>${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${p.mentor===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
+      <div class="field${(CLASSES_DATA[p.cls]&&CLASSES_DATA[p.cls].usesMentor)?"":" hidden"}" id="mentor-field"><label>Mentor</label><select id="f-mentor"><option value="">— Aucun —</option>${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${p.mentor===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
     </div>
     <div class="field"><label>Compétences <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
     <div class="field"><label>Sortilèges <span class="hint">(un par ligne)</span></label><textarea id="f-spells" placeholder="Lumière…&#10;Projectile magique…">${esc(p.spells)}</textarea></div>
@@ -2548,6 +2548,17 @@ function formPC(){
     <div class="form-actions"><button class="btn" data-save="pc">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
   </div>`;
   renderImageThumbs();
+  // Le champ Mentor n'a de sens que pour une classe avec usesMentor (Ensorceleur) — masqué
+  // par défaut pour toutes les autres, et basculé en direct si le MJ change de classe dans
+  // le formulaire (pas besoin de rouvrir la fiche pour le voir apparaître/disparaître).
+  const clsSel = document.getElementById("f-cls");
+  if(clsSel) clsSel.addEventListener("change", ()=>{
+    const cd = CLASSES_DATA[clsSel.value];
+    const usesMentor = !!(cd && cd.usesMentor);
+    const mf = document.getElementById("mentor-field");
+    if(mf) mf.classList.toggle("hidden", !usesMentor);
+    if(!usesMentor){ const ms=document.getElementById("f-mentor"); if(ms) ms.value=""; }
+  });
 }
 function savePC(){
   const o = view.mode==="edit" ? getEntity("pc",view.id) : {id:uid()};

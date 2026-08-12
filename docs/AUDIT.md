@@ -1703,3 +1703,14 @@ Deux petits ajustements demandés après relecture des nouvelles fiches PJ :
 Vérifié en bac à sable : PJ généré aléatoirement → `info` ne contient plus que le jet de
 talent ; clic sur le bouton « ? » du formulaire → modale affichant les 12 ascendances avec
 leur texte complet. `outils/audit-check.sh` : syntaxe JS OK.
+
+**Suite immédiate (même soirée)** : Tristan a signalé que le champ Mentor restait visible
+pour toutes les classes alors qu'il n'a de sens que pour l'Ensorceleur. Champ désormais
+masqué par défaut (`#mentor-field.hidden`, condition sur `CLASSES_DATA[p.cls].usesMentor`
+à l'ouverture du formulaire) et basculé en direct via un listener `change` sur `#f-cls` —
+pas besoin de rouvrir la fiche en changeant de classe dans le formulaire. En quittant une
+classe à mentor, la valeur du `<select>` Mentor est aussi réinitialisée (évite qu'un mentor
+choisi puis abandonné reste enregistré silencieusement sur un PJ qui n'en a plus l'usage).
+Vérifié en bac à sable : champ masqué à l'ouverture pour un Guerrier, apparaît en changeant
+la classe vers Ensorceleur (sans re-render de la page), redisparaît et se vide en repassant
+sur Guerrier. `outils/audit-check.sh` : syntaxe JS OK.
