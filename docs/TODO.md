@@ -159,3 +159,24 @@ que de bloquer. Liste de ce qu'il faut relire/trancher (détail technique dans
     réorganisé par source/thème ; à voir si ça reste lisible une fois toutes les campagnes
     de Tristan dessus, ou si un regroupement (classes de base / Cursed Scroll #1 / #2-3 /
     #4-6) vaudrait le coup visuellement.
+
+## Créatures — tag de source/extension
+
+Demande de Tristan (2026-08-12) : chaque Cursed Scroll a aussi son propre bestiaire, et il
+veut que ces créatures soient ajoutées à la collection Créatures — mais taguées pour
+pouvoir retrouver de quelle extension elles viennent.
+
+Concrètement, un champ **« source »** par créature, en plus du flag existant `manual`/
+`imported` (qui distingue déjà homebrew vs tiers, mais pas *de quel* tiers) :
+- Livre de base Shadowdark
+- Cursed Scroll #1 à #6 (six numéros identifiés, cf. section « Nuit du 2026-08-12 »
+  ci-dessus pour le détail des PDF déjà fournis)
+- Au moins un futur PDF de bestiaire supplémentaire, encore à fournir par Tristan plus
+  tard — le champ doit donc rester une valeur libre/extensible, pas une liste figée à 7
+  entrées
+
+**Pas prêt à implémenter :** dépend du chantier Cursed Scroll en cours (compilation des 6
+numéros, cf. section précédente) — le contenu source (créatures des bestiaires) n'est pas
+encore entièrement compilé, et un PDF supplémentaire reste à venir. Une fois ce contenu
+disponible, les créatures qu'il contient devront être ajoutées à la collection Créatures
+avec le bon tag de source. Note de backlog seulement, rien à coder pour l'instant.
