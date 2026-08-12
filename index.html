@@ -2472,6 +2472,13 @@ function rollOnAppTable(title){
   if(!t || !(t.rows&&t.rows.length)) return "";
   return pick(t.rows);
 }
+/* Lignes d'une table statique de l'onglet Tables aléatoires, par titre — ou null si la table
+   n'existe pas/est vide. Contrairement à rollOnAppTable() (un seul tirage), sert à piocher
+   plusieurs valeurs (pickN) dans le même pool sans le retirer plusieurs fois de db.tables. */
+function appTableRows(title){
+  const t = db.tables.find(x=>(x.title||"").trim()===title);
+  return (t && t.rows && t.rows.length) ? t.rows : null;
+}
 function generateRandomPC(){
   seedCharGenTables();
   const cls = pick(Object.keys(CLASSES_DATA));
@@ -2505,9 +2512,16 @@ function generateRandomPC(){
   // Langues (2026-08-11) : plus liées à l'ascendance (supprimée avec les races) — chaque PJ tire
   // 1 langue courante au hasard en plus de la commune ; les bonus de classe (Magicien, etc.)
   // s'ajoutent par-dessus comme avant.
-  let languages = ["Langue commune", pick(LANGUES_COURANTES)];
-  if(cd.extraCommonLanguages) languages.push(...pickN(LANGUES_COURANTES, cd.extraCommonLanguages));
-  if(cd.extraRareLanguages) languages.push(...pickN(LANGUES_RARES, cd.extraRareLanguages));
+  // 2026-08-13 : pioche désormais dans la table live "Langues courantes"/"Langues rares" de
+  // l'onglet Tables aléatoires (repli sur la constante JS seulement si la table est absente/vide,
+  // ce qui ne devrait pas arriver puisque seedCharGenTables() vient de tourner juste au-dessus) —
+  // un ajout/retrait fait par le MJ dans cet onglet est donc immédiatement pris en compte ici,
+  // contrairement à avant où seule la constante d'origine était lue.
+  const commonLangPool = appTableRows("Langues courantes") || LANGUES_COURANTES;
+  const rareLangPool = appTableRows("Langues rares") || LANGUES_RARES;
+  let languages = ["Langue commune", pick(commonLangPool)];
+  if(cd.extraCommonLanguages) languages.push(...pickN(commonLangPool, cd.extraCommonLanguages));
+  if(cd.extraRareLanguages) languages.push(...pickN(rareLangPool, cd.extraRareLanguages));
   languages = [...new Set(languages)];
 
   const origine = rollOnAppTable("Origines") || pick(ORIGINES_ROWS);
