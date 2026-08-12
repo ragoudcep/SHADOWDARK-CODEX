@@ -235,7 +235,7 @@ officielle disponible pour ces suppléments tiers.**
 | Augure | CS#3 | 1d6 | Incantation (`spellClass:"seer"`, déjà présent dans `SPELL_CLASSES`, jamais utilisé avant ce soir), 1 sort connu au 1er niveau |
 | Guerrier basilic | CS#4 « River of Night » | 1d8 | Regard pétrifiant (ND CON 15) |
 | Rôdeur | CS#4 | 1d8 | Herboristerie (table de remèdes ND11-15 repliée dans le texte de capacité) |
-| Fouilleur | CS#5 « Dwellers in the Deep » | 1d6 | Charognard (récupère les consommables épuisés sur 5-6 au d6) |
+| Explorateur | CS#5 « Dwellers in the Deep » | 1d6 | Pilleur (récupère les consommables épuisés sur 5-6 au d6) |
 | Corrompu | CS#5 | 1d6 | Pseudopode (arme naturelle) + table « Corruption » (d10, **non modélisée**) |
 | Barde | CS#6 « City of Masks » | 1d6 | Fascination (hypnose de zone), Dilettante magique (active parchemins/baguettes au CHA) |
 | Duelliste | CS#6 | 1d8 | Beau parleur, Parade, Provocation |
@@ -248,9 +248,10 @@ officielle disponible pour ces suppléments tiers.**
 - Tables « Lotus noir » (Ras-Godai) et « Corruption » (Corrompu) lues et documentées dans
   le PDF mais **pas implémentées** — même décision que les Catastrophes diaboliques de
   Cursed Scroll #1 (hors scope de cette nuit).
-- Traductions de classe (Guerrier basilic, Rôdeur, Fouilleur, Corrompu, Barde, Duelliste)
+- Traductions de classe (Guerrier basilic, Rôdeur, Explorateur, Corrompu, Barde, Duelliste)
   et de titres sont des choix éditoriaux faits cette nuit, pas une VF officielle — à
-  valider/ajuster si Tristan préfère d'autres noms.
+  valider/ajuster si Tristan préfère d'autres noms. **Correction de Tristan (2026-08-12) :**
+  « Fouilleur »/« Charognard » (Delver, CS#5) renommés en « Explorateur »/« Pilleur ».
 
 ## Sorts connus au 1er niveau
 

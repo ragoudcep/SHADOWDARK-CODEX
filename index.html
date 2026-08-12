@@ -125,7 +125,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORE_KEY = "grimoire_shadowdark_v1"; // ancien cache localStorage — conservé en lecture seule, uniquement pour la migration initiale
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(36).slice(2));
 
-const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[], gmnotes:[] });
+const emptyDB = () => ({ sessions:[], events:[], creatures:[], tables:[], npcs:[], pointcrawls:[], pcs:[], treasures:[], hexmaps:[], spells:[], initiative:[], wheel:[], dungeonmaps:[], gmnotes:[], cursedscrolledits:[] });
 
 /* Lit l'ancien contenu localStorage (avant migration vers Supabase). Ne sert qu'une fois, au premier login. */
 function loadLegacyLocalDB(){
@@ -1951,7 +1951,7 @@ function openPrintNPCCardsModal(){
 /* =========================================================================
    PJ — fiches de personnages-joueurs (stat bloc + inventaire + talents 2d6)
    ========================================================================= */
-const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien","Chevalier de Saint Ydris","Ensorceleur","Sorcière","Cavalier du désert","Combattant de l'arène","Ras-Godai","Loup des mers","Augure","Guerrier basilic","Rôdeur","Fouilleur","Corrompu","Barde","Duelliste"];
+const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien","Chevalier de Saint Ydris","Ensorceleur","Sorcière","Cavalier du désert","Combattant de l'arène","Ras-Godai","Loup des mers","Augure","Guerrier basilic","Rôdeur","Explorateur","Corrompu","Barde","Duelliste"];
 
 /* =========================================================================
    GÉNÉRATION ALÉATOIRE DE PJ — règles de création de personnage tirées du
@@ -2317,11 +2317,11 @@ const CLASSES_DATA = {
     ]
   },
   /* 2026-08-12, Cursed Scroll #5 « Dwellers in the Deep » (VO anglaise). */
-  "Fouilleur": {
+  "Explorateur": {
     hitDie:6, weapons:"Gourdin, arbalète, dague, javelot, masse d'armes, arc court, épée courte, lance, bâton.", armor:"Armure de cuir, cotte de mailles, boucliers.",
     feature:[
       {name:"Langues", text:"2 langues courantes supplémentaires."},
-      {name:"Charognard", text:"Quand vous épuisez la dernière utilisation d'un objet consommable porté depuis votre dernier repos, lancez 1d6 : sur 5-6, vous récupérez une utilisation."},
+      {name:"Pilleur", text:"Quand vous épuisez la dernière utilisation d'un objet consommable porté depuis votre dernier repos, lancez 1d6 : sur 5-6, vous récupérez une utilisation."},
       {name:"Pionnier", text:"Avantage aux tests d'escalade, natation, cueillette, compréhension de langues inconnues, et pour éviter/échapper aux dangers naturels du terrain."},
       {name:"Équipement de confiance", text:"Choisissez un type d'équipement/arme : +1 + moitié niveau arrondi à l'inférieur aux tests/jets d'attaque avec."}
     ],
@@ -2329,7 +2329,7 @@ const CLASSES_DATA = {
       {roll:"2", text:"Vous gagnez 2 emplacements d'équipement et un Équipement de confiance supplémentaire."},
       {roll:"3-6", text:"+1 aux attaques et dégâts de corps à corps ou à distance."},
       {roll:"7-9", text:"+2 en Force, Dextérité ou Constitution."},
-      {roll:"10-11", text:"Ajoutez 1 point à la plage de réussite de Charognard (relancez si elle est déjà 3-6)."},
+      {roll:"10-11", text:"Ajoutez 1 point à la plage de réussite de Pilleur (relancez si elle est déjà 3-6)."},
       {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
     ]
   },
@@ -2398,7 +2398,7 @@ const TITRES = {
   "Augure": {loyal:["Guide","Chantre","Lectrice des runes","Sagace","Augure d'Odin"], chaos:["Sorcière des bois","Chuchoteuse","Lectrice des os","Redoutable","Augure de Loki"], neutre:["Diseuse de bonne aventure","Chanteuse","Lectrice des astres","Bénie","Augure de Freya"]},
   "Guerrier basilic": {loyal:["Guerrier de pierre","Pierre forte","Protecteur","Serpent du soleil","Basilic d'ambre"], chaos:["Guerrier de pierre","Pierre acérée","Tueur","Serpent de lune","Basilic d'obsidienne"], neutre:["Guerrier de pierre","Pierre silencieuse","Veilleur","Serpent du ciel","Basilic de saphir"]},
   "Rôdeur": {loyal:["Vagabond","Arpenteur","Gardien","Protecteur","Sentinelle"], chaos:["Encapuchonné","Hors-la-loi","Fugitif","Exilé","Paria"], neutre:["Étranger","Voyageur","Étranger des terres","Reclus","Ermite"]},
-  "Fouilleur": {loyal:["Explorateur","Chercheur","Antiquaire","Archéologue","Professeur"], chaos:["Intrus","Opportuniste","Larcin","Pilleur de tombes","Profanateur"], neutre:["Enquêteur","Observateur","Éclaireur","Défricheur","Pionnier"]},
+  "Explorateur": {loyal:["Explorateur","Chercheur","Antiquaire","Archéologue","Professeur"], chaos:["Intrus","Opportuniste","Larcin","Pilleur de tombes","Profanateur"], neutre:["Enquêteur","Observateur","Éclaireur","Défricheur","Pionnier"]},
   "Corrompu": {loyal:["Élu","Maudit","Hanté","Torturé","Fou furieux"], chaos:["Élu","Béni","Consacré","Révéré","Exalté"], neutre:["Élu","Chercheur","Auditeur","Guetteur","Érudit"]},
   "Barde": {loyal:["Conteur","Ménestrel","Philosophe","Poète","Maître Poète"], chaos:["Vaurien","Charlatan","Satiriste","Langue d'Argent","Oiseau de mauvais augure"], neutre:["Chercheur","Témoin","Porte-parole","Voix","Porteur de vérité"]},
   "Duelliste": {loyal:["Escrimeur","Défenseur","Mangouste","Loup","Maître d'armes"], chaos:["Voyou","Provocateur","Vipère","Cobra","Maître d'armes"], neutre:["Étudiant","Challenger","Chat de gouttière","Panthère","Maître d'armes"]}

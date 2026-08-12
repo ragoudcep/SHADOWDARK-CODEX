@@ -12,6 +12,19 @@
    contenu statique (spoiler MJ, pas encore attribué à un PJ) plutôt que dans la collection Trésor
    Supabase — voir docs/AUDIT.md pour le détail du choix. */
 let cursedScrollSub = 1;
+/* Mode édition (2026-08-12), demandé par Tristan pour corriger lui-même une coquille ou
+   supprimer une ligne qui ne lui plaît pas, sans repasser par du code. État client
+   volontairement non réinitialisé au changement de sous-onglet (pour enchaîner les
+   corrections sur plusieurs numéros sans re-cliquer à chaque fois), remis à false
+   uniquement en quittant complètement l'onglet Cursed Scroll (voir render() ailleurs
+   dans l'appli, même schéma que les autres états transitoires de ce type). Les
+   surcharges elles-mêmes vivent dans db.cursedscrolledits (collection Supabase à part,
+   MJ uniquement, voir outils/supabase_cursedscrolledits_setup.sql) — jamais dans ce
+   fichier JS, qui reste le contenu "d'origine" servant de base. Portée volontairement
+   limitée : les fiches de classe (CLASSES_DATA, partagées avec les vraies fiches PJ)
+   ne sont PAS éditables ici, seul le contenu propre à Cursed Scroll l'est (origines,
+   catastrophes, sorts, trésors, bienfaits de mentor). */
+let cursedScrollEditMode = false;
 
 const CS1_ORIGINES = [
   "Ermite. La nature et ses créatures sont votre famille.",
@@ -256,7 +269,7 @@ const CS4_TREASURES = [
   "La légendaire faucille d'obsidienne qui met fin à une vie ou en restaure une."
 ];
 
-/* Cursed Scroll #5 — Dwellers in the Deep (VO anglaise). Fouilleur / Corrompu : non-casters — les
+/* Cursed Scroll #5 — Dwellers in the Deep (VO anglaise). Explorateur / Corrompu : non-casters — les
    « Sorcerer Spells » (p.15-20) sont des sorts de Magicien réservés aux magiciens d'alignement
    Chaotique, extension au même titre que les Druid Spells du #4. VO gardée entre parenthèses,
    traduction non-officielle. */
@@ -383,7 +396,7 @@ const CURSED_SCROLL_DOCS = {
   },
   5: {
     label: "Cursed Scroll #5 — Dwellers in the Deep",
-    classNames: ["Fouilleur","Corrompu"],
+    classNames: ["Explorateur","Corrompu"],
     spells: CS5_SPELLS, spellsLabel: "Sorts de sorcier (variante Magicien chaotique)",
     spellsIntro: "Les magiciens Chaotiques peuvent choisir parmi les sorts ci-dessous, en plus des sorts de magicien standards — sorts propres à ce numéro, pas liés aux nouvelles classes.",
     treasures: {label:"Vous trouvez un livre perdu contenant…", rows:CS5_TREASURES},
@@ -420,66 +433,155 @@ function classDocHTML(clsName){
       <tbody>${cd.talents.map(t=>`<tr><td class="idx" style="text-align:center">${esc(t.roll)}</td><td>${renderText(t.text)}</td></tr>`).join("")}</tbody></table>
   </div>`;
 }
-function mentorsDocHTML(){
-  return `<div class="section"><h2>Mentors (Ensorceleur)</h2>
+/* ---- Surcharges d'édition MJ (db.cursedscrolledits) ----
+   Un seul enregistrement (même modèle que db.wheel), qui stocke des remplacements de
+   texte ou des suppressions de ligne par chemin (numéro > section > éventuelle sous-clé
+   > index). Ne modifie jamais les tableaux CS*_ ci-dessus : le contenu "d'origine" reste
+   toujours en JS, l'édition MJ n'est qu'une couche appliquée à l'affichage. */
+function csEditsRecord(){ return (db.cursedscrolledits && db.cursedscrolledits[0]) || null; }
+/* value === undefined -> pas de surcharge (texte d'origine) ; null -> ligne supprimée ;
+   string -> texte de remplacement. */
+function csGet(...parts){
+  let obj = csEditsRecord();
+  if(!obj) return undefined;
+  obj = obj.docs;
+  for(const p of parts){ if(obj==null) return undefined; obj = obj[p]; }
+  return obj;
+}
+function csSet(value, ...parts){
+  let rec = csEditsRecord();
+  if(!rec){ rec = {id:uid(), docs:{}}; db.cursedscrolledits.push(rec); }
+  let obj = rec.docs;
+  for(let i=0;i<parts.length-1;i++){ const k=parts[i]; if(!obj[k]) obj[k]={}; obj=obj[k]; }
+  obj[parts[parts.length-1]] = value;
+  saveDB();
+}
+function csUnset(...parts){
+  const rec = csEditsRecord();
+  if(!rec) return;
+  let obj = rec.docs;
+  for(let i=0;i<parts.length-1;i++){ if(!obj[parts[i]]) return; obj = obj[parts[i]]; }
+  delete obj[parts[parts.length-1]];
+  saveDB();
+}
+/* Une ligne de saisie éditable (texte + Enregistrer/Supprimer/Réinitialiser), ou son état
+   "supprimé"/"masqué" avec un bouton Restaurer — partagé par toutes les listes simples
+   (origines, catastrophes, trésors, bienfaits de mentor). `rows` prend le nombre de lignes
+   du <textarea> (plus grand pour les sorts, dont le texte est plus long). */
+function csEditableRowHTML(pathParts, idx, originalText, rows){
+  const key = [...pathParts, idx].join("|");
+  const ov = csGet(...pathParts, idx);
+  if(ov === null){
+    return `<tr class="cs-edit-removed"><td class="idx" style="text-align:center">${idx+1}</td>
+      <td><span class="faint">(ligne supprimée)</span>
+        <div style="margin-top:.3rem"><button class="btn ghost sm" data-cs-restore="${key}">Restaurer</button></div>
+      </td></tr>`;
+  }
+  const text = ov===undefined ? originalText : ov;
+  return `<tr><td class="idx" style="text-align:center">${idx+1}</td>
+    <td>
+      <textarea class="cs-edit-ta" rows="${rows||2}" style="width:100%;font-family:var(--ui);font-size:.85rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);border-radius:.3rem;color:inherit;padding:.4rem">${esc(text)}</textarea>
+      <div style="margin-top:.35rem;display:flex;gap:.4rem;flex-wrap:wrap">
+        <button class="btn ghost sm" data-cs-save="${key}">Enregistrer</button>
+        <button class="btn ghost sm" data-cs-delete-row="${key}">Supprimer</button>
+        ${ov!==undefined ? `<button class="btn ghost sm" data-cs-restore="${key}">Réinitialiser</button>` : ""}
+      </div>
+    </td></tr>`;
+}
+/* Rend une liste simple de lignes texte (origines, trésors, bienfaits de mentor) en
+   appliquant les surcharges — en lecture, ou en édition selon `editable`. */
+function csListRowsHTML(items, pathParts, editable){
+  return items.map((orig,i)=>{
+    if(editable) return csEditableRowHTML(pathParts, i, orig, 2);
+    const ov = csGet(...pathParts, i);
+    if(ov === null) return "";
+    return `<tr><td class="idx" style="text-align:center">${i+1}</td><td>${renderText(ov===undefined?orig:ov)}</td></tr>`;
+  }).join("");
+}
+function mentorsDocHTML(n, editable){
+  return `<div class="section" id="cs-sec-mentors"><h2>Mentors (Ensorceleur)</h2>
     ${Object.entries(MENTORS).map(([name,men])=>`<div style="margin-bottom:1.2rem">
       <h3 style="color:var(--gold2);margin:.2rem 0 .3rem">${esc(name)}</h3>
       <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .5rem">${esc(men.desc)}</p>
       <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Bienfait</th></tr></thead>
-        <tbody>${men.benefits.map(b=>`<tr><td class="idx" style="text-align:center">${esc(b.roll)}</td><td>${renderText(b.text)}</td></tr>`).join("")}</tbody></table>
+        <tbody>${csListRowsHTML(men.benefits.map(b=>`${b.roll} : ${b.text}`), [n,"mentor",name], editable)}</tbody></table>
     </div>`).join("")}
   </div>`;
 }
 /* Petit résumé du contenu d'un numéro, affiché en haut de page — pour savoir d'un coup d'œil
-   ce qu'il y a dedans sans devoir tout parcourir. Généré depuis les champs déjà renseignés du
-   doc plutôt que rédigé à la main, pour ne jamais désynchroniser du contenu réel. */
+   ce qu'il y a dedans sans devoir tout parcourir, et cliquable pour sauter directement à la
+   section correspondante (chaque section porte un id="cs-sec-...", voir cursedScrollDocHTML).
+   Généré depuis les champs déjà renseignés du doc plutôt que rédigé à la main, pour ne jamais
+   désynchroniser du contenu réel. */
 function cursedScrollSommaireHTML(doc){
   const items = [];
-  if(doc.classNames && doc.classNames.length) items.push(`Classes (${doc.classNames.length}) — ${doc.classNames.join(", ")}`);
-  if(doc.mentors) items.push(`Mentors (Ensorceleur)`);
-  if(doc.origines && doc.origines.length) items.push(`${doc.originesLabel || "Origines"} (${doc.origines.length})`);
-  if(doc.catastrophes) items.push(`Catastrophes diaboliques`);
-  if(doc.spells && doc.spells.length) items.push(`${doc.spellsLabel || "Sorts"} (${doc.spells.length})`);
-  if(doc.treasures && doc.treasures.rows && doc.treasures.rows.length) items.push(`${doc.treasures.label} (${doc.treasures.rows.length})`);
+  if(doc.classNames && doc.classNames.length) items.push(["cs-sec-classes", `Classes (${doc.classNames.length}) — ${doc.classNames.join(", ")}`]);
+  if(doc.mentors) items.push(["cs-sec-mentors", `Mentors (Ensorceleur)`]);
+  if(doc.origines && doc.origines.length) items.push(["cs-sec-origines", `${doc.originesLabel || "Origines"} (${doc.origines.length})`]);
+  if(doc.catastrophes) items.push(["cs-sec-catastrophes", `Catastrophes diaboliques`]);
+  if(doc.spells && doc.spells.length) items.push(["cs-sec-spells", `${doc.spellsLabel || "Sorts"} (${doc.spells.length})`]);
+  if(doc.treasures && doc.treasures.rows && doc.treasures.rows.length) items.push(["cs-sec-treasures", `${doc.treasures.label} (${doc.treasures.rows.length})`]);
   if(!items.length) return "";
   return `<div class="section" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:.5rem;padding:.6rem 1rem;margin-bottom:1.2rem">
     <div style="font-family:var(--ui);font-size:.8rem;font-weight:700;color:var(--gold2);letter-spacing:.02em;text-transform:uppercase;margin-bottom:.35rem">Au sommaire</div>
-    <ul class="bullets" style="margin:0">${items.map(i=>`<li style="font-family:var(--ui);font-size:.85rem">${i}</li>`).join("")}</ul>
+    <ul class="bullets" style="margin:0">${items.map(([id,label])=>`<li style="font-family:var(--ui);font-size:.85rem"><a href="javascript:void(0)" class="wl" data-cs-jump="${id}">${label}</a></li>`).join("")}</ul>
   </div>`;
 }
-function cursedScrollDocHTML(n){
+function cursedScrollDocHTML(n, editable){
   const doc = CURSED_SCROLL_DOCS[n];
   if(!doc) return emptyState("", `Cursed Scroll #${n} pas encore compilé — dis-moi si le format du #1 te convient.`);
   const sommaireHTML = cursedScrollSommaireHTML(doc);
   const classesHTML = doc.classNames && doc.classNames.length
-    ? `<div class="section"><h2>Classes</h2>${doc.classNames.map(classDocHTML).join("")}</div>` : "";
-  const mentorsHTML = doc.mentors ? mentorsDocHTML() : "";
+    ? `<div class="section" id="cs-sec-classes"><h2>Classes</h2>${doc.classNames.map(classDocHTML).join("")}</div>` : "";
+  const mentorsHTML = doc.mentors ? mentorsDocHTML(n, editable) : "";
   const originesHTML = doc.origines
-    ? `<div class="section"><h2>${esc(doc.originesLabel || "Origines")} (d${doc.origines.length})</h2>
-        <table class="tbl"><tbody>${doc.origines.map((o,i)=>`<tr><td class="idx" style="text-align:center">${i+1}</td><td>${renderText(o)}</td></tr>`).join("")}</tbody></table></div>` : "";
+    ? `<div class="section" id="cs-sec-origines"><h2>${esc(doc.originesLabel || "Origines")} (d${doc.origines.length})</h2>
+        <table class="tbl"><tbody>${csListRowsHTML(doc.origines, [n,"origines"], editable)}</tbody></table></div>` : "";
   const catastrophesHTML = doc.catastrophes
-    ? `<div class="section"><h2>Catastrophes diaboliques</h2>
-        ${doc.catastrophes.map(c=>`<h3 style="color:var(--gold2);margin:.6rem 0 .3rem">${esc(c.label)}</h3>
-          <table class="tbl"><tbody>${c.rows.map((r,i)=>`<tr><td class="idx" style="text-align:center">${i+1}</td><td>${renderText(r)}</td></tr>`).join("")}</tbody></table>`).join("")}
+    ? `<div class="section" id="cs-sec-catastrophes"><h2>Catastrophes diaboliques</h2>
+        ${doc.catastrophes.map((c,ti)=>`<h3 style="color:var(--gold2);margin:.6rem 0 .3rem">${esc(c.label)}</h3>
+          <table class="tbl"><tbody>${csListRowsHTML(c.rows, [n,"catastrophes",ti], editable)}</tbody></table>`).join("")}
       </div>` : "";
   const spellsHTML = doc.spells && doc.spells.length
-    ? `<div class="section"><h2>${esc(doc.spellsLabel || "Sorts")} (${doc.spells.length})</h2>
+    ? `<div class="section" id="cs-sec-spells"><h2>${esc(doc.spellsLabel || "Sorts")} (${doc.spells.length})</h2>
         ${doc.spellsIntro ? `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .8rem">${esc(doc.spellsIntro)}</p>` : ""}
         ${[1,2,3,4,5].map(r=>{
-          const list = doc.spells.filter(s=>s.tier===r);
+          const list = doc.spells.map((s,i)=>[s,i]).filter(([s])=>s.tier===r);
           if(!list.length) return "";
           return `<h3 style="color:var(--gold2);margin:.6rem 0 .3rem">Rang ${r}</h3>
-            <div class="grid" style="margin-bottom:1rem">${list.map(s=>`<div class="card" style="cursor:default">
-              <h3 style="margin-top:0">${esc(s.name)}</h3>
-              <div class="meta"><span class="tag">Durée ${esc(s.duration)}</span><span class="tag">Portée ${esc(s.range)}</span></div>
-              <p>${esc(s.text)}</p>
-            </div>`).join("")}</div>`;
+            <div class="grid" style="margin-bottom:1rem">${list.map(([s,i])=>{
+              const key = [n,"spells",i].join("|");
+              const ov = csGet(n,"spells",i);
+              if(editable){
+                if(ov === null) return `<div class="card cs-edit-removed" style="cursor:default">
+                  <h3 style="margin-top:0">${esc(s.name)}</h3><p class="faint">(sort masqué)</p>
+                  <button class="btn ghost sm" data-cs-restore="${key}">Restaurer</button>
+                </div>`;
+                const text = ov===undefined ? s.text : ov;
+                return `<div class="card" style="cursor:default">
+                  <h3 style="margin-top:0">${esc(s.name)}</h3>
+                  <div class="meta"><span class="tag">Durée ${esc(s.duration)}</span><span class="tag">Portée ${esc(s.range)}</span></div>
+                  <textarea class="cs-edit-ta" rows="4" style="width:100%;font-family:var(--ui);font-size:.85rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);border-radius:.3rem;color:inherit;padding:.4rem">${esc(text)}</textarea>
+                  <div style="margin-top:.35rem;display:flex;gap:.4rem;flex-wrap:wrap">
+                    <button class="btn ghost sm" data-cs-save="${key}">Enregistrer</button>
+                    <button class="btn ghost sm" data-cs-delete-row="${key}">Masquer ce sort</button>
+                    ${ov!==undefined ? `<button class="btn ghost sm" data-cs-restore="${key}">Réinitialiser</button>` : ""}
+                  </div>
+                </div>`;
+              }
+              if(ov === null) return "";
+              return `<div class="card" style="cursor:default">
+                <h3 style="margin-top:0">${esc(s.name)}</h3>
+                <div class="meta"><span class="tag">Durée ${esc(s.duration)}</span><span class="tag">Portée ${esc(s.range)}</span></div>
+                <p>${esc(ov===undefined?s.text:ov)}</p>
+              </div>`;
+            }).join("")}</div>`;
         }).join("")}
       </div>` : "";
   const treasuresHTML = doc.treasures && doc.treasures.rows && doc.treasures.rows.length
-    ? `<div class="section"><h2>${esc(doc.treasures.label)} (d${doc.treasures.rows.length})</h2>
+    ? `<div class="section" id="cs-sec-treasures"><h2>${esc(doc.treasures.label)} (d${doc.treasures.rows.length})</h2>
         <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .8rem">Objets/trésors de ce numéro — contenu de référence uniquement (spoiler MJ), pas encore attribués à un PJ. Une fois un objet remis en jeu, crée-le normalement dans l'onglet Trésor.</p>
-        <table class="tbl"><tbody>${doc.treasures.rows.map((r,i)=>`<tr><td class="idx" style="text-align:center">${i+1}</td><td>${renderText(r)}</td></tr>`).join("")}</tbody></table></div>` : "";
+        <table class="tbl"><tbody>${csListRowsHTML(doc.treasures.rows, [n,"treasures"], editable)}</tbody></table></div>` : "";
   const noteHTML = doc.note ? `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.3rem 0 1rem">${esc(doc.note)}</p>` : "";
   return `<h1 style="margin-top:0">${esc(doc.label)}</h1>${noteHTML}${sommaireHTML}${classesHTML}${mentorsHTML}${originesHTML}${catastrophesHTML}${spellsHTML}${treasuresHTML}`;
 }
@@ -511,11 +613,44 @@ function seedCursedScrollTables(){
 }
 function viewCursedScroll(){
   seedCursedScrollTables();
+  const isGM = effectiveRole()==="gm";
+  const editing = isGM && cursedScrollEditMode;
   const subNav = [1,2,3,4,5,6].map(n=>`<button class="btn ghost sm${cursedScrollSub===n?' active-mode':''}" data-cs-sub="${n}">#${n}</button>`).join("");
+  const editToggle = isGM
+    ? `<button class="btn ghost sm${editing?' active-mode':''}" data-cs-toggle-edit>${editing?"Terminer l'édition":"Modifier ce contenu"}</button>` : "";
+  const editHint = editing
+    ? `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:0 0 1rem">Mode édition : corrigez ou supprimez une ligne puis « Enregistrer ». Les fiches de classe ne sont pas éditables ici (elles sont partagées avec les fiches PJ).</p>` : "";
   app.innerHTML = `<div class="detail">
     <h1 style="margin-bottom:.3rem">Cursed Scroll</h1>
     <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:0 0 1rem">Doc de référence MJ, création de personnage uniquement (pas les scénarios) — suppléments tiers.</p>
-    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.2rem">${subNav}</div>
-    ${cursedScrollDocHTML(cursedScrollSub)}
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-bottom:1.2rem">
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap">${subNav}</div>
+      ${editToggle}
+    </div>
+    ${editHint}
+    ${cursedScrollDocHTML(cursedScrollSub, editing)}
   </div>`;
 }
+/* Clics propres à l'onglet Cursed Scroll : saut vers une section depuis le sommaire, bascule
+   du mode édition, et sauvegarde/suppression/restauration d'une ligne. Délégué sur `app` en
+   plus (pas à la place) du dispatcher générique d'index.html — les deux listeners coexistent
+   sans conflit puisqu'ils testent des attributs data-* disjoints. */
+app.addEventListener("click", e=>{
+  const t = e.target;
+  const closest = a => t.closest(`[${a}]`);
+  let el;
+  if((el=closest("data-cs-jump"))){
+    const target = document.getElementById(el.dataset.csJump);
+    if(target) target.scrollIntoView({behavior:"smooth", block:"start"});
+    return;
+  }
+  if(closest("data-cs-toggle-edit")){ cursedScrollEditMode = !cursedScrollEditMode; viewCursedScroll(); return; }
+  if((el=closest("data-cs-save"))){
+    const ta = el.closest("tr,.card").querySelector(".cs-edit-ta");
+    if(ta) csSet(ta.value, ...el.dataset.csSave.split("|"));
+    viewCursedScroll();
+    return;
+  }
+  if((el=closest("data-cs-delete-row"))){ csSet(null, ...el.dataset.csDeleteRow.split("|")); viewCursedScroll(); return; }
+  if((el=closest("data-cs-restore"))){ csUnset(...el.dataset.csRestore.split("|")); viewCursedScroll(); return; }
+});

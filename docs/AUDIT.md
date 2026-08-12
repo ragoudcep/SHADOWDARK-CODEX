@@ -1917,3 +1917,82 @@ lien dans l'interface réelle avec une session Supabase MJ active (nécessite de
 je n'ai pas dans ce sandbox) — la logique sous-jacente est désormais vérifiée par exécution
 réelle du code de l'appli, pas seulement par inspection statique, mais la navigation UI
 elle-même reste à confirmer par Tristan ou Dual à l'occasion.
+
+### Retours de Tristan sur le premier livrable (2026-08-12, encore plus tard)
+
+Trois retours distincts après relecture, traités dans la foulée :
+
+**1. Smileys.** Tristan a demandé de retirer les emojis ajoutés dans l'onglet Cursed Scroll
+(titres de section, sommaire, nav, état vide) — fait dans `js/cursedscroll.js` et `index.html`
+(commit `6d5d74a`). Pas touché au reste de l'appli : les emojis y sont une convention établie
+de longue date (états vides, onglets…), pas quelque chose ajouté par ce chantier — à clarifier
+avec Tristan si ça doit devenir une règle générale.
+
+**2. Confusion sur les #2-6.** Tristan pensait que seul le #1 avait été traité. Vérifié en
+direct sur le site déployé (`ragoudcep.github.io`, chargement sans cache au moment du
+contrôle) : les 6 numéros étaient bien tous compilés côté code (classes, sorts, trésors,
+sommaire), avec 0 lien pour les #2-6 — normal et volontaire, aucune référence textuelle à une
+table aléatoire trouvée dans leur contenu source (contrairement au #1). Hypothèse la plus
+probable pour ce que Tristan voyait : cache navigateur sur l'ancienne version du JS.
+
+**3. Traduction Cursed Scroll #5 (Delver).** Corrigé sur indication de Tristan : la classe
+« Fouilleur » devient **Explorateur**, son trait « Charognard » devient **Pilleur** — renommés
+partout (`CLASSES_DATA`, `TITRES`, `PC_CLASSES` dans `index.html` ; `classNames`/commentaire
+dans `js/cursedscroll.js` ; tableau récapitulatif dans `docs/REGLES-CREATION-PERSONNAGE.md`).
+Les mentions historiques dans ce journal et dans `docs/TODO.md` (entrées déjà écrites avant ce
+soir) n'ont volontairement pas été réécrites — un journal ne se réécrit pas rétroactivement.
+**Point non vérifiable depuis ce sandbox** : si un PJ existant a déjà la classe "Fouilleur"
+enregistrée côté Supabase (peu probable, classe ajoutée ce soir même), il faudrait la
+renommer manuellement sur cette fiche — à vérifier par Tristan si un PJ Explorateur/ex-Fouilleur
+existe déjà en jeu.
+
+**4. Sommaire cliquable.** Chaque entrée du bloc « Au sommaire » (`cursedScrollSommaireHTML()`)
+est maintenant un lien qui fait défiler la page jusqu'à la section correspondante — chaque
+section porte désormais un `id="cs-sec-..."` (`classes`/`mentors`/`origines`/`catastrophes`/
+`spells`/`treasures`), et un clic déclenche `scrollIntoView({behavior:"smooth"})` via un
+`data-cs-jump` dédié. Testé en bac à sable (page réelle, DOM réel, clic simulé) : le lien vers
+`cs-sec-spells` existe et le clic ne lève aucune exception.
+
+**5. Nouveau mode « Modifier ce contenu » (demandé mi-session, hors de la consigne initiale).**
+Tristan veut pouvoir corriger lui-même une coquille ou supprimer une ligne du contenu Cursed
+Scroll sans repasser par du code. Ajouté un bouton MJ-only (`effectiveRole()==="gm"`) qui
+bascule chaque ligne de texte simple (origines, catastrophes, trésors, bienfaits de mentor) et
+chaque carte de sort en `<textarea>` + boutons Enregistrer / Supprimer / Réinitialiser (ou
+Restaurer si déjà supprimée). **Portée volontairement limitée aux tables propres à Cursed
+Scroll** — les fiches de classe (`CLASSES_DATA`, partagées avec les vraies fiches PJ ailleurs
+dans l'appli) restent non éditables ici, pour ne pas mélanger cette édition ponctuelle avec la
+donnée de règles utilisée partout ailleurs.
+
+**Modèle de données** : nouvelle collection Supabase à un seul enregistrement
+`db.cursedscrolledits` (même schéma que `db.wheel`), qui stocke uniquement des surcharges
+(texte de remplacement ou suppression, jamais le contenu par défaut qui reste dans le JS),
+adressées par un chemin `[numéro, section, sous-clé?, index]`. Ajoutée aux 2 endroits qui
+comptent pour une collection Supabase (`emptyDB()` dans `index.html`, `DB_COLS` dans
+`js/importexport.js`) — **pas** ajoutée à `TABS`/`TYPE_OF_TAB`/`TAB_OF`/`collectionOf()` :
+contrairement à `wheel`, ce n'est pas un onglet de nav ni une entité navigable via
+`goto()`/liens `[[...]]`, uniquement un blob de config interne à l'onglet Cursed Scroll — donc
+pas besoin de ces 4 entrées-là du ledger habituel.
+**Table Supabase à créer** : script fourni dans
+`outils/supabase_cursedscrolledits_setup.sql` (même modèle MJ-only sans lecture joueur que
+`gmnotes`, l'onglet n'étant de toute façon jamais dans `PLAYER_VISIBLE_TABS`) — à exécuter par
+Tristan dans l'éditeur SQL Supabase, à confirmer et à reporter dans le ledger ci-dessous une
+fois fait. **Tant que ce script n'a pas été exécuté**, `fetchRemoteDB()` logue une erreur
+console pour cette table (comportement attendu, déjà géré ailleurs dans l'appli : "une table
+manquante ne doit pas bloquer tout le reste") et les corrections faites en mode édition ne
+survivront pas à un rechargement — visible mais pas bloquant.
+**Limite connue, assumée pour cette v1** : une correction faite ici sur une catastrophe
+diabolique ou un bienfait de mentor du #1 n'est **pas** répercutée sur la copie déjà seedée
+dans la collection Tables aléatoires (`seedCursedScrollTables()` est idempotente et ne
+retouche jamais une table déjà créée) — les deux représentations peuvent donc diverger avec le
+temps. Non traité ce soir (aurait demandé de faire aussi vivre `seedCursedScrollTables()` des
+mêmes surcharges, hors scope de la demande initiale) ; à signaler si ça devient gênant en
+usage réel.
+**Testé en bac à sable** (page réelle chargée en local, `myRole` forcé à `"gm"`, DOM réel, pas
+de vraie session Supabase) : bascule du mode édition, édition + Enregistrer d'une ligne de
+trésor (texte modifié bien visible ensuite en lecture seule), Supprimer une ligne (affiche
+« ligne supprimée » + bouton Restaurer), Restaurer (revient bien à l'état "pas de surcharge",
+`csGet()` redevient `undefined`) — cycle complet vérifié sans exception JS. Les erreurs
+console `401`/`row-level security policy` observées pendant ce test sont attendues : pas de
+vraie session MJ authentifiée dans ce sandbox, donc `saveDB()` échoue côté réseau comme prévu
+(catché, ne bloque rien) — comportement à re-vérifier une fois le script SQL exécuté et une
+vraie session MJ disponible.
