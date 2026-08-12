@@ -2199,3 +2199,47 @@ personnages) vérifiées saines** (nombre de lignes conforme aux constantes actu
 aléatoires, indépendant du système d'ascendance des PJ revu le 2026-08-11, jamais concerné
 par ce chantier. Laissée telle quelle faute de consigne explicite de Tristan sur ce point
 précis ; à signaler si lui aussi doit perdre ses dénominations raciales.
+
+### Correctif important de méthode : `saveDB()`/`fetchRemoteDB()` ne prouvent pas la persistance
+
+**Constat gênant découvert en creusant le signalement suivant de Tristan** (classe
+introuvable sur une fiche, voir plus bas) : la correction de la table « Ascendances »
+ci-dessus, présentée comme "vérifiée côté serveur" via `await saveDB(); const fresh = await
+fetchRemoteDB(); ...`, **n'avait en réalité pas persisté** — un rechargement complet de la
+page montrait encore les 6 races d'origine. `fetchRemoteDB()` semble retourner un état qui
+peut refléter l'écriture qu'on vient de faire même quand l'upsert réseau a échoué
+silencieusement côté serveur (RLS, policy, ou autre — non creusé plus loin) ; ce n'est **pas**
+une preuve fiable de persistance, contrairement à ce qui était supposé dans le protocole de
+vérification utilisé jusqu'ici pour les corrections de contenu en direct.
+**Nouvelle méthode fiable, utilisée pour re-corriger ce soir** : appeler directement le
+client Supabase (`await sb.from("<table>").select("id,data")...` puis
+`await sb.from("<table>").update({data}).eq("id", row.id)`), puis **recharger la page
+entièrement** (`navigate`, pas juste rejouer du JS dans le même onglet) et refaire une
+requête `sb.from(...)` indépendante pour confirmer. À utiliser systématiquement pour toute
+future correction de contenu en direct — ne plus se fier à `saveDB()`/`fetchRemoteDB()` seuls
+pour "prouver" qu'une écriture a tenu.
+**Table « Ascendances » re-corrigée avec cette méthode** (même contenu cible que
+précédemment, les 12 traits génériques) — confirmée cette fois par une requête Supabase
+directe après rechargement complet de la page : races bien absentes.
+
+### Classe « Fouilleur » introuvable sur la fiche de Nem (2026-08-12)
+
+**Signalé par Tristan** : « il y a encore les classes que je ne peux pas voir » — sur la
+fiche d'un PJ, toute la section 🛡 Classe (dé de vie, armes, armures, capacités, table de
+talents) manquait purement et simplement.
+
+**Cause** : `pcClassSectionHTML(p)` retourne `""` dès que `CLASSES_DATA[p.cls]` est
+`undefined` (première ligne de la fonction) — silencieux, pas d'avertissement comme pour une
+ascendance non reconnue. Le PJ concerné (Nem) avait `cls:"Fouilleur"`, l'ancien nom de la
+classe **avant** son renommage en « Explorateur » (nuit du 2026-08-12, voir plus haut dans ce
+journal — le nom anglais d'origine est *Delver*). Ce risque était déjà noté dans ce même
+journal au moment du renommage (« si un PJ existant a déjà la classe "Fouilleur"
+enregistrée... il faudrait la renommer manuellement ») mais n'avait pas été vérifié depuis.
+**Balayage complet** : `db.pcs` (7 fiches) et `db.npcs` filtrés sur un `cls` absent de
+`PC_CLASSES` — seul Nem était concerné. Corrigé directement en base (`cls` → `"Explorateur"`,
+même méthode de vérification directe Supabase que ci-dessus, confirmée après rechargement
+complet). Fiche de Nem revérifiée : `cls` correct côté serveur.
+**Pas un problème de code** — `pcClassSectionHTML` se comporte comme prévu (aucune classe
+n'a jamais été "invisible" dans le code lui-même, seulement pour une fiche dont la valeur
+stockée ne correspond plus à un nom de classe actuel). Aucune autre fiche existante n'a de
+`cls`/`ancestry` orpheline à ce jour.
