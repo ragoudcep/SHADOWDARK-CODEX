@@ -1894,3 +1894,26 @@ vérifier par Tristan ou Dual** à la prochaine ouverture de l'onglet Cursed Scr
 MJ : les 7 nouvelles tables doivent apparaître dans « Tables aléatoires » (catégorie « Cursed
 Scroll »), et les liens dans les fiches de classe Sorcière/Chevalier de Saint Ydris/Ensorceleur
 doivent pointer dessus au lieu d'afficher un lien rouge « bad ».
+
+**Reprise de session (2026-08-12, plus tard) — vérification en bac à sable, toujours pas de
+connexion MJ réelle.** La session précédente ci-dessus s'était arrêtée en plein test (bloquée
+sur un appel de navigation resté sans réponse) juste après avoir committé/poussé le travail —
+`git fetch` confirme que `4b1320e` (ce commit) est bien sur `origin/main`, rien à repousser.
+Comme l'outil de navigation connecté (Chrome) n'a de nouveau pas répondu, vérification faite
+via un petit serveur statique local (`node` + `http.createServer`, sans dépendance) et le
+panneau navigateur : page chargée sans erreur console, `js/cursedscroll.js` s'exécute sans
+lever d'exception. En bac à sable dans la vraie page (`db`/`saveDB` remplacés temporairement le
+temps du test, restaurés juste après) : `seedCursedScrollTables()` crée bien les 7 tables
+attendues (6 mentors + Catastrophes diaboliques, 24 lignes = 12+12) ; `cursedScrollDocHTML(n)`
+pour n=1..6 ne lève aucune exception et contient bien le bloc sommaire ; une fois les tables
+seedées, les 8 liens `[[...]]` du #1 (6 mentors + 2× Catastrophes diaboliques, dans les fiches
+Ensorceleur/Chevalier de Saint Ydris/Sorcière) se résolvent tous en lien valide (`class="wl
+…"`), zéro lien rouge `bad` — et les #2-6 ne contiennent aucun lien de ce type, cohérent avec le
+fait qu'aucune référence à une table aléatoire n'y a été trouvée à part les tables de talents
+volontairement exclues. Confirmé aussi : ni `cursedscroll` ni `treasures` ne sont dans
+`PLAYER_VISIBLE_TABS` — la question du spoiler pour les tables de trésors (point 4 de la
+consigne de Tristan) était donc déjà sans objet. **Toujours pas testé** : un vrai clic sur un
+lien dans l'interface réelle avec une session Supabase MJ active (nécessite des identifiants que
+je n'ai pas dans ce sandbox) — la logique sous-jacente est désormais vérifiée par exécution
+réelle du code de l'appli, pas seulement par inspection statique, mais la navigation UI
+elle-même reste à confirmer par Tristan ou Dual à l'occasion.
