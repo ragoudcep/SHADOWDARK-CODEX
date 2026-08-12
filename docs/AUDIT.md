@@ -1686,3 +1686,20 @@ exception levée) ; `titleFor()` renvoie un titre cohérent pour chacune ; 80 g�
 aléatoires successives ont fait apparaître 17 des 18 classes sans erreur (la 18e n'étant
 qu'une question de probabilité sur l'échantillon, testée séparément avec succès).
 `outils/audit-check.sh` : syntaxe JS OK sur les 8 blocs `<script>`.
+
+### Retouches PJ (2026-08-12, retours de Tristan sur la refonte)
+
+Deux petits ajustements demandés après relecture des nouvelles fiches PJ :
+- **Retrait de la ligne « PJ généré automatiquement (règles de création, Quickstart
+  p.12-31). »** dans `generateRandomPC()` — Tristan : inutile (le but est justement de ne
+  plus dépendre de notes figées) et ça se retrouvait imprimée sur la fiche PDF. `info` ne
+  contient désormais que le(s) jet(s) de talent initial.
+- **Aide contextuelle sur le champ Ascendance** (`formPC`) : petit bouton « ? » à côté du
+  label, ouvre une modale (`openAscendancesModal()`, réutilise `openModal()` comme
+  `openCreditsModal()`/`openBrokenLinksModal()`) listant les 12 ascendances et leur trait —
+  répond au besoin concret rencontré en éditant la fiche de Nem (choisir une ascendance dans
+  le menu déroulant sans savoir ce qu'elle fait).
+
+Vérifié en bac à sable : PJ généré aléatoirement → `info` ne contient plus que le jet de
+talent ; clic sur le bouton « ? » du formulaire → modale affichant les 12 ascendances avec
+leur texte complet. `outils/audit-check.sh` : syntaxe JS OK.
