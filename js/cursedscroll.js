@@ -124,6 +124,31 @@ const CS1_SPELLS = [
   {name:"Mère de la nuit", tier:5, duration:"Instantanée", range:"Personnelle", text:"Vous implorez la Mère de la nuit et exprimez un souhait unique, réalisé par le MJ. En cas d'échec au test d'incantation, elle vous juge et bloque ce sort tant que vous ne l'avez pas apaisée."},
   {name:"Scrutation", tier:5, duration:"Concentration", range:"Personnelle", text:"Vous invoquez les images d'un lieu éloigné dans une boule de cristal ou un bassin. ND 18 si la cible ne vous est pas familière. Chaque round, les créatures observées peuvent tenter un test de Sagesse pour sentir qu'on les observe."}
 ];
+/* Trésors diaboliques (d20, p.76 — 4e de couverture) — 2026-08-12, retrouvé par extraction
+   PDF directe (le texte est bien présent et lisible, contrairement à une note précédente qui
+   supposait "objets sur cartes imprimées, rien à extraire"). */
+const CS1_TRESORS = [
+  "Os sculpté — prend feu 1/jour pendant 1d4 rounds.",
+  "Globe oculaire — repousse les insectes et les araignées à bout de bras.",
+  "Idole de loup — flotte dans l'air là où on la place.",
+  "Rose séchée — se tourne vers le nord quand on ne la touche pas.",
+  "Diablotin en bocal — attire les créatures démoniaques vers sa position.",
+  "Bouquet de sauge — une créature qui le tient ne peut pas mentir délibérément.",
+  "Clou de fer froid — vous sentez si quelque chose est toxique.",
+  "Crâne difforme — suinte du sang en présence de morts-vivants.",
+  "Miroir fêlé — chante une obsédante berceuse quand on l'agite.",
+  "Doigt coupé — appartient à une sorcière qui veut le récupérer.",
+  "Bougie noire — cause douleur et dégoût chez les créatures féeriques.",
+  "Tête réduite — peut ouvrir une seule fois un portail en sens unique vers l'enfer.",
+  "Bracelet de fleurs — vous permet de retenir votre souffle pendant une heure.",
+  "Symbole impie — un démon doit une faveur à son propriétaire.",
+  "Clef rouillée — 1/jour, immunité au feu pendant 1d4 rounds.",
+  "Fiole de sang — roule lentement au loin si on la lâche.",
+  "Médaillon terni — 1/jour, lisez brièvement les pensées d'une créature.",
+  "Sac de dents — rien ne peut écraser cet objet.",
+  "Flûte de pan — lourde comme une enclume quand on ne la transporte pas.",
+  "Cerveau en bocal — provoque le doute et l'hésitation chez les démons."
+];
 /* Cursed Scroll #2 — Sables rouges (VF). Aucune classe caster dans ce numéro (Cavalier du
    désert / Combattant de l'arène / Ras-Godai) : pas d'origines ni de sorts thématiques dans le
    livret pour ce numéro-ci. La table « Lotus noir » (talents de Ras-Godai, p.15) reste écrite en
@@ -151,6 +176,40 @@ const CS2_TREASURES = [
   "Sac de grains de sésame magiques à répandre sur une porte pour la déverrouiller.",
   "Lampe à huile en bronze terni avec une inscription gravée et presque effacée."
 ];
+/* Montures (p.28-29) — 2026-08-12, demandé par Tristan : directement lié à la capacité
+   Monture du Cavalier du désert, un joueur qui crée cette classe en a besoin tout de suite. */
+const CS2_MONTURES = {
+  rules: [
+    "Emplacements d'inventaire : une monture dispose d'un nombre d'emplacements égal à 5 × son bonus de Force. Le cavalier et son propre équipement (sac à dos, objets portés) occupent 10 de ces emplacements.",
+    "Déplacement : on utilise la vitesse de la monture en la chevauchant. Pointe de vitesse — en voyage, un cavalier peut pousser sa monture à parcourir chaque jour un nombre de cases hexagonales de 10 km égal au bonus de CON de la monture ; elle doit réussir un test de CON ND 12 (échec : ne peut voyager le jour suivant), le ND augmentant de 1 par jour consécutif à cette allure.",
+    "Combat : la plupart des montures ne peuvent pas attaquer en combat ; une monture de niveau 7+ peut effectuer une attaque lors du tour de son cavalier. Descendre de/monter sur la monture dépense le déplacement du cavalier. Une monture non habituée au combat doit effectuer un test de moral la première fois qu'elle (ou son cavalier) est blessée.",
+    "Nourriture et eau : les montures à sang chaud consomment un nombre de rations égal à leur niveau de base (hors niveaux bonus) chaque jour ; chameaux et montures à sang froid, une fois par semaine seulement. Elles tiennent 3 jours sans eau et 3 semaines sans nourriture au-delà de leur limite avant de subir 1d8 dégâts par jour (non régénérables tant qu'elles n'ont pas mangé/bu à satiété)."
+  ],
+  mounts: [
+    {name:"Âne", cost:"40 po", panics:"Oui", rarity:"Courant", property:"—"},
+    {name:"Chameau", cost:"50 po", panics:"Oui", rarity:"Courant", property:"—"},
+    {name:"Chameau argenté", cost:"200 po", panics:"Non", rarity:"Rare", property:"—"},
+    {name:"Cheval", cost:"50 po", panics:"Oui", rarity:"Courant", property:"Avantage au test de moral"},
+    {name:"Destrier de guerre", cost:"100 po", panics:"Non", rarity:"Peu courant", property:"Peut porter une armure"},
+    {name:"Éléphant", cost:"400 po", panics:"Non", rarity:"Rare", property:"—"},
+    {name:"Scrag", cost:"150 po", panics:"Oui", rarity:"Peu courant", property:"—"},
+    {name:"Scrag de guerre", cost:"250 po", panics:"Non", rarity:"Rare", property:"Peut porter une armure"}
+  ],
+  personality: [
+    {range:"0-4", attitude:"Infecte", behavior:"Rebelle, obstinée, malveillante"},
+    {range:"5-7", attitude:"Mauvaise", behavior:"N'aime que son propriétaire, insolente, malpolie"},
+    {range:"8-9", attitude:"Fiable", behavior:"Loyale, obéissante, protectrice"},
+    {range:"10+", attitude:"Adorable", behavior:"Loyale, douce, affectueuse"}
+  ],
+  gear: [
+    {name:"Armure de cuir", cost:"30 po", property:"CA 11 + mod. DEX"},
+    {name:"Cotte de mailles", cost:"80 po", property:"CA 13 + mod. DEX ; désavantage pour nager et se déplacer discrètement ; 2 emplacements"},
+    {name:"Armure de plates", cost:"150 po", property:"CA 15 ; impossible de nager ou de se déplacer discrètement ; 3 emplacements"},
+    {name:"Armure en mithral", cost:"× 5 du prix de l'armure équivalente", property:"Métal uniquement ; -1 emplacement ; peut nager et se déplacer discrètement sans malus"},
+    {name:"Selle", cost:"30 po", property:"Cavalier avantagé aux tests pour rester sur sa monture ; peut être portée par la monture sans occuper d'emplacement"},
+    {name:"Chariot", cost:"120 po", property:"Pas de cavalier sur la monture ; se déplace à moitié moins vite ; +15 emplacements d'inventaire ; limité à 1 par monture"}
+  ]
+};
 
 /* Cursed Scroll #3 — Soleil de minuit / Îles d'Andrik (VF). Loup des mers (non-caster) +
    Augure (spellClass "seer" côté CLASSES_DATA) — d'où la liste de sorts d'augure ci-dessous,
@@ -370,12 +429,14 @@ const CURSED_SCROLL_DOCS = {
       {label:"Catastrophes diaboliques — sorts de rang 4 à 5 (d12)", rows:CS1_CATASTROPHES_45}
     ],
     spells: CS1_SPELLS, spellsLabel: "Sorts de sorcière",
-    note: "Les objets magiques de ce numéro sont sur la 4e de couverture du livret (cartes imprimées) — pas de texte à extraire de ce côté."
+    treasures: {label:"Trésors diaboliques", rows:CS1_TRESORS},
+    note: "Trésors diaboliques (d20, p.76, 4e de couverture) retrouvés le 2026-08-12 par extraction directe du PDF — une note précédente supposait à tort qu'il n'y avait que des cartes imprimées à cet endroit."
   },
   2: {
     label: "Cursed Scroll #2 — Sables rouges",
     classNames: ["Cavalier du désert","Combattant de l'arène","Ras-Godai"],
     treasures: {label:"Dans la main d'un bandit mort, vous trouvez…", rows:CS2_TREASURES},
+    montures: CS2_MONTURES,
     note: "Aucune classe de ce numéro ne lance de sorts : pas d'origines ni de sorts thématiques dans ce livret. La table de talents « Lotus noir » (Ras-Godai) reste décrite en texte dans son talent de classe, pas reprise ici."
   },
   3: {
@@ -521,6 +582,7 @@ function cursedScrollSommaireHTML(doc){
   if(doc.catastrophes) items.push(["cs-sec-catastrophes", `Catastrophes diaboliques`]);
   if(doc.spells && doc.spells.length) items.push(["cs-sec-spells", `${doc.spellsLabel || "Sorts"} (${doc.spells.length})`]);
   if(doc.treasures && doc.treasures.rows && doc.treasures.rows.length) items.push(["cs-sec-treasures", `${doc.treasures.label} (${doc.treasures.rows.length})`]);
+  if(doc.montures) items.push(["cs-sec-montures", `Montures (Cavalier du désert)`]);
   if(!items.length) return "";
   return `<div class="section" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:.5rem;padding:.6rem 1rem;margin-bottom:1.2rem">
     <div style="font-family:var(--ui);font-size:.8rem;font-weight:700;color:var(--gold2);letter-spacing:.02em;text-transform:uppercase;margin-bottom:.35rem">Au sommaire</div>
@@ -582,8 +644,26 @@ function cursedScrollDocHTML(n, editable){
     ? `<div class="section" id="cs-sec-treasures"><h2>${esc(doc.treasures.label)} (d${doc.treasures.rows.length})</h2>
         <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .8rem">Objets/trésors de ce numéro — contenu de référence uniquement (spoiler MJ), pas encore attribués à un PJ. Une fois un objet remis en jeu, crée-le normalement dans l'onglet Trésor.</p>
         <table class="tbl"><tbody>${csListRowsHTML(doc.treasures.rows, [n,"treasures"], editable)}</tbody></table></div>` : "";
+  const monturesHTML = doc.montures ? monturesDocHTML(doc.montures) : "";
   const noteHTML = doc.note ? `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.3rem 0 1rem">${esc(doc.note)}</p>` : "";
-  return `<h1 style="margin-top:0">${esc(doc.label)}</h1>${noteHTML}${sommaireHTML}${classesHTML}${mentorsHTML}${originesHTML}${catastrophesHTML}${spellsHTML}${treasuresHTML}`;
+  return `<h1 style="margin-top:0">${esc(doc.label)}</h1>${noteHTML}${sommaireHTML}${classesHTML}${mentorsHTML}${originesHTML}${catastrophesHTML}${spellsHTML}${treasuresHTML}${monturesHTML}`;
+}
+/* Montures (Cursed Scroll #2, lié à la capacité Monture du Cavalier du désert) — contenu de
+   référence calculé depuis CS2_MONTURES, non éditable (comme classDocHTML : ce n'est pas du
+   contenu narratif propre à Cursed Scroll, juste des règles/tables de référence). */
+function monturesDocHTML(m){
+  return `<div class="section" id="cs-sec-montures"><h2>Montures (Cavalier du désert)</h2>
+    <ul class="bullets">${m.rules.map(r=>`<li>${renderText(r)}</li>`).join("")}</ul>
+    <h3 style="color:var(--gold2);margin:.8rem 0 .3rem">Table des montures</h3>
+    <table class="tbl"><thead><tr><th>Nom</th><th>Coût</th><th>Panique ?</th><th>Rareté</th><th>Propriété</th></tr></thead>
+      <tbody>${m.mounts.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.cost)}</td><td>${esc(x.panics)}</td><td>${esc(x.rarity)}</td><td>${esc(x.property)}</td></tr>`).join("")}</tbody></table>
+    <h3 style="color:var(--gold2);margin:.8rem 0 .3rem">Personnalité de la monture (2d6 + mod. CHA du cavalier)</h3>
+    <table class="tbl"><thead><tr><th style="width:6rem">2d6+CHA</th><th>Attitude</th><th>Comportement</th></tr></thead>
+      <tbody>${m.personality.map(x=>`<tr><td class="idx" style="text-align:center">${esc(x.range)}</td><td>${esc(x.attitude)}</td><td>${esc(x.behavior)}</td></tr>`).join("")}</tbody></table>
+    <h3 style="color:var(--gold2);margin:.8rem 0 .3rem">Équipement pour monture</h3>
+    <table class="tbl"><thead><tr><th>Nom</th><th>Coût</th><th>Propriété</th></tr></thead>
+      <tbody>${m.gear.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.cost)}</td><td>${esc(x.property)}</td></tr>`).join("")}</tbody></table>
+  </div>`;
 }
 /* Crée dans la collection Supabase "Tables aléatoires" les tables explicitement référencées en
    [[...]] depuis le texte des classes (Bienfaits de mentor, Catastrophes diaboliques) — sans quoi
