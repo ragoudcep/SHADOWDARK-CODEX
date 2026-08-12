@@ -1765,4 +1765,58 @@ Vérifié en bac à sable contre l'exemple `Shazsod.pdf` lui-même : un Prêtre 
 affiche bien « 1d20+3 (Sagesse) », résultat identique à la fiche shadowdarklings.net qui a
 inspiré la demande. Testé aussi les trois formats de secours (score brut, modificateur seul,
 champ vide) et les 18 classes en boucle (détail + impression) sans erreur.
+
+### Nouvel onglet « Cursed Scroll » — doc MJ, contenu VF du #1 (2026-08-12)
+
+Tristan a demandé un nouvel onglet réservé au MJ, « Cursed Scroll », avec 6 sous-onglets (un
+par numéro du zine), qui retranscrit en français le contenu utile à la création de
+personnage (classes, mentors, sorts, tables, trésors liés) — explicitement **pas** les
+scénarios, donjons, hexcrawls ou cartes. Consigne : livrer d'abord le #1 seul, valider avec
+Tristan avant de faire les 5 autres.
+
+**Nouveau fichier `js/cursedscroll.js`** (suit le pattern déjà établi : fichier séparé chargé
+via `<script src>`, scope global partagé) :
+- `CURSED_SCROLL_DOCS` : un objet `{1: {...}, 2: null, ..., 6: null}` — seul le #1 est
+  rempli ce soir, les autres sont `null` (affichés comme un état vide « pas encore compilé »
+  plutôt que masqués, pour que la structure à 6 sous-onglets soit visible dès maintenant).
+- Contenu du #1 (thème « Diablerie », déjà en VF dans le PDF source) : les 3 classes déjà
+  présentes dans `CLASSES_DATA` (Chevalier de Saint Ydris, Ensorceleur, Sorcière) rendues via
+  `classDocHTML()` qui réutilise directement `CLASSES_DATA`/`pcClassSectionHTML`-style plutôt
+  que dupliquer le texte ; les 6 Mentors via `mentorsDocHTML()` (idem, réutilise `MENTORS`) ;
+  et, nouveau ce soir (pas encore dans `CLASSES_DATA` faute d'usage mécanique dans les
+  fiches) : la table des 20 Origines diaboliques, les 2 tables de Catastrophes diaboliques
+  (sorts rang 1-3 et rang 4-5, d12 chacune), et les 46 sorts de sorcière au complet
+  (name/tier/duration/range/text), transcrits à la main depuis `pdftotext` sur le PDF
+  original, groupés par rang 1 à 5 en grille de cartes.
+- Note affichée en tête de doc : les objets magiques du #1 sont des cartes imprimées en 4e de
+  couverture, pas de texte à en extraire.
+
+**Câblage `index.html`** : bouton de nav `data-tab="cursedscroll"` juste après « To-do MJ »,
+entrée dans `TABS`, **volontairement absent de `PLAYER_VISIBLE_TABS`** (seul mécanisme de
+restriction MJ-only dans l'appli, par omission) ; `renderList()` route vers `viewCursedScroll()` ;
+dispatcher de clic global pour les pastilles `data-cs-sub` (1 à 6) qui changent la variable
+`cursedScrollSub` et re-rendent.
+
+**Faux problème rencontré en testant en bac à sable** : après plusieurs appels manuels
+successifs à `applyRoleUI()`/`render()` dans la même session de test (simulation MJ→joueur
+via `previewAsPlayer`), `document.querySelectorAll('[data-tab="cursedscroll"]')` renvoyait
+2 éléments — un correctement masqué dans `#tabs`, un second orphelin (hors `#tabs`) jamais
+touché par `applyRoleUI()`. Le doublon semblait signaler un bug de génération dynamique de
+nav. Après un rechargement propre de la page (`navigate` vers la même URL, sans réutiliser
+l'état JS accumulé), un seul élément existe et se masque correctement — confirmé qu'il
+s'agissait d'un résidu de mes propres appels de test répétés dans le même onglet, pas d'un
+bug du code. **Leçon pour les prochains tests en bac à sable** : après une série de
+manipulations manuelles de `view`/`myRole`/`previewAsPlayer` via `javascript_exec`, toujours
+recharger la page avant de conclure à un bug DOM, plutôt que de creuser sur un état de page
+potentiellement pollué par les tests précédents.
+
+Vérifié en bac à sable (page rechargée proprement) : `effectiveRole()==="player"` avec
+`previewAsPlayer=true` → le bouton `[data-tab="cursedscroll"]` obtient bien `class="hidden"`,
+un seul nœud DOM ; vue MJ (`view={tab:"cursedscroll"}` + clic réel sur le bouton) affiche les
+pastilles #1-#6, le contenu complet du #1 (classes, mentors, origines, catastrophes, sorts
+groupés par rang) sans erreur console ; le #2 affiche l'état vide attendu.
+`outils/audit-check.sh` : syntaxe JS OK ; `node --check js/cursedscroll.js` : OK.
+
+**Reste à faire, explicitement pas commencé** : compiler les Cursed Scroll #2 à #6 dans ce
+même système — Tristan a été clair, ça attend sa validation du #1 d'abord.
 `outils/audit-check.sh` : syntaxe JS OK.

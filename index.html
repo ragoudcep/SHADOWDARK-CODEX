@@ -78,6 +78,7 @@
     <button data-tab="initiative">Initiative</button>
     <button data-tab="wheel">Roue</button>
     <button data-tab="gmnotes">To-do MJ</button>
+    <button data-tab="cursedscroll">📜 Cursed Scroll</button>
   </nav>
   <div id="nav-backdrop"></div>
 </header>
@@ -269,7 +270,7 @@ const NODE_COLORS = [
 function nodeColorMeta(v){ return NODE_COLORS.find(c=>c.value===v) || null; }
 
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", hexmap:"Hexcrawl", spell:"Sort" };
-const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel","gmnotes"];
+const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel","gmnotes","cursedscroll"];
 const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel", gmnotes:"gmnote" };
 const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
@@ -515,6 +516,7 @@ function renderList(){
   if(view.tab==="initiative") return listInitiative();
   if(view.tab==="wheel")      return viewWheel();
   if(view.tab==="gmnotes")    return listGmNotes();
+  if(view.tab==="cursedscroll") return viewCursedScroll();
 }
 </script>
 <script src="js/initiative.js"></script>
@@ -523,6 +525,7 @@ function renderList(){
 </script>
 <script src="js/wheel.js"></script>
 <script src="js/gmnotes.js"></script>
+<script src="js/cursedscroll.js"></script>
 <script>
 
 function pageHead(title, sub, newLabel, extra){
@@ -3342,6 +3345,7 @@ app.addEventListener("click", e=>{
   if((el=closest("data-remove-img"))){ formImages.splice(+el.dataset.removeImg,1); renderImageThumbs(); return; }
   // Portraits (bibliothèque partagée PJ/PNJ)
   if(closest("data-show-ascendances")){ openAscendancesModal(); return; }
+  if((el=closest("data-cs-sub"))){ cursedScrollSub = +el.dataset.csSub; viewCursedScroll(); return; }
   if(closest("data-open-portrait-picker")){ openPortraitPickerModal(); return; }
   if(closest("data-clear-portrait")){ formPortrait=""; refreshPortraitPickWidget(); return; }
   if((el=closest("data-lightbox"))){ openLightbox(el.dataset.lightbox); return; }
