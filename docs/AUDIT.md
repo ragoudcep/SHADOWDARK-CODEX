@@ -1714,3 +1714,37 @@ choisi puis abandonné reste enregistré silencieusement sur un PJ qui n'en a pl
 Vérifié en bac à sable : champ masqué à l'ouverture pour un Guerrier, apparaît en changeant
 la classe vers Ensorceleur (sans re-render de la page), redisparaît et se vide en repassant
 sur Guerrier. `outils/audit-check.sh` : syntaxe JS OK.
+
+### Refonte de l'affichage de la section Classe (2026-08-12)
+
+Tristan a jugé la section « Classe » de la fiche PJ illisible : `cd.feature` était une
+seule chaîne de plusieurs capacités séparées par des « ; », rendue en un unique pavé de
+texte, et les DD d'incantation par rang s'affichaient en pastilles (`<span class="tag">`)
+flottant au milieu d'un paragraphe sans structure claire.
+
+**Changement de modèle de données** : `feature` passe de `string` à un tableau d'objets
+`{name, text}` (une capacité par entrée) sur les **18 classes** de `CLASSES_DATA` — retapé à
+la main capacité par capacité plutôt qu'un découpage automatique par regex, car plusieurs
+classes ont des points-virgules *à l'intérieur* d'une capacité (ex. Ensorceleur : « Mentor
+(... ; il peut vous accorder ou retirer ...) ») qui auraient été mal coupés par un simple
+`split(";")`.
+
+**Affichage** (`pcClassSectionHTML()` dans `index.html`, et `printClassBlock()` pour le
+PDF) réorganisé en sous-sections avec une étiquette dans le même langage visuel que les
+en-têtes de colonne des tableaux (`CLASS_SUBLABEL_STYLE`, réutilise le style de
+`table.tbl th` plutôt que d'ajouter une classe CSS) : **Capacités** (liste à puces, nom en
+gras + description), **Incantation** (nombre de sorts connus, puis un vrai tableau Rang/DD
+au lieu des pastilles), **Talents (2d6)** et **Mentor** (déjà des tableaux, inchangés).
+
+Vérifié en bac à sable : les 18 classes passées en boucle affichent toutes la liste à puces
+(`class="bullets"` présent) sans erreur, en détail et à l'impression ; capture d'écran de la
+fiche Augure (le cas cité par Tristan) confirmant visuellement la liste propre + le tableau
+DD. `outils/audit-check.sh` : syntaxe JS OK.
+
+**Référence fournie après coup** : Tristan a partagé `Shazsod.pdf` (fiche générée par
+shadowdarklings.net, un générateur de PJ Shadowdark tiers) comme exemple de mise en forme
+compacte — confirme la direction prise (une ligne par capacité, pas de prose), et suggère
+une piste pour plus tard : afficher le DD d'incantation déjà calculé pour LE personnage
+(« lancez 1d20+X ») plutôt qu'une table générique par rang — nécessiterait de suivre le
+modificateur de caractéristique en nombre, alors qu'il n'est aujourd'hui qu'une partie du
+texte libre du champ (ex. "14 (+2)"). Pas fait ce soir, à voir si Tristan le souhaite.

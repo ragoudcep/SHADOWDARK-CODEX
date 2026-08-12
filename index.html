@@ -1708,29 +1708,30 @@ function printInventoryList(p){
 function printClassBlock(p){
   const cd = CLASSES_DATA[p.cls];
   if(!cd) return "";
+  const featureList = `<ul>${cd.feature.map(f=>`<li>${f.name?`<b>${esc(f.name)}</b> — `:""}${renderTextPrint(f.text)}</li>`).join("")}</ul>`;
   let spellLine = "";
   if(cd.spellClass){
     if(cd.spellsKnownLvl1>0){
       const dc = [1,2,3,4,5].map(r=>`Rang ${r} : DD ${spellCastDC(r)}`).join(" · ");
-      spellLine = `<p>Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${p.cls==="Prêtre"?" (+ Renvoi des morts-vivants, offert)":""}<br>Difficulté d'incantation — ${dc}</p>`;
+      spellLine = `<p><b>Incantation</b> — Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${p.cls==="Prêtre"?" (+ Renvoi des morts-vivants, offert)":""}<br>${dc}</p>`;
     } else if(cd.spellsFromLevel){
-      spellLine = `<p>Aucun sort connu au 1er niveau — incantation à partir du niveau ${cd.spellsFromLevel}.</p>`;
+      spellLine = `<p><b>Incantation</b> — aucun sort connu au 1er niveau, à partir du niveau ${cd.spellsFromLevel}.</p>`;
     }
   }
   let weaponLine = "";
   if(p.masteredWeapon && p.masteredWeapon.trim()){
     const bonus = 1 + Math.floor((parseInt(p.level)||1)/2);
-    weaponLine = `<p>Arme maîtrisée : ${esc(p.masteredWeapon)} (+${bonus} attaque/dégâts)</p>`;
+    weaponLine = `<p><b>Arme maîtrisée</b> : ${esc(p.masteredWeapon)} (+${bonus} attaque/dégâts)</p>`;
   }
   let mentorLine = "";
   if(cd.usesMentor && p.mentor && MENTORS[p.mentor]){
     const men = MENTORS[p.mentor];
-    mentorLine = `<p>Mentor : ${esc(p.mentor)}</p>
+    mentorLine = `<p><b>Mentor</b> : ${esc(p.mentor)}</p>
       <table class="pp-tal"><tbody>${men.benefits.map(b=>`<tr><td>${esc(b.roll)}</td><td>${renderTextPrint(b.text)}</td></tr>`).join("")}</tbody></table>`;
   }
   return `<div class="pp-sec"><h4>Classe — ${esc(p.cls)}</h4>
     <p>Dé de vie d${cd.hitDie} · Armes : ${esc(cd.weapons)} · Armures : ${esc(cd.armor)}</p>
-    <p>${esc(cd.feature)}</p>
+    ${featureList}
     ${weaponLine}${spellLine}
     <table class="pp-tal"><tbody>${cd.talents.map(t=>`<tr><td>${esc(t.roll)}</td><td>${renderTextPrint(t.text)}</td></tr>`).join("")}</tbody></table>
     ${mentorLine}
@@ -2078,7 +2079,11 @@ const MENTORS = {
 const CLASSES_DATA = {
   "Guerrier": {
     hitDie:8, weapons:"Toutes.", armor:"Toutes les armures, tous les boucliers.",
-    feature:"Maîtrise des armes (+1 aux jets d'attaque et de dégâts avec un type d'arme choisi, plus la moitié du niveau arrondi à l'entier inférieur) ; Cran (avantage aux jets de Force ou Dextérité destinés à triompher d'une force opposée) ; Bête de somme (ajoute le modificateur de Constitution, s'il est positif, aux emplacements d'inventaire).",
+    feature:[
+      {name:"Maîtrise des armes", text:"+1 aux jets d'attaque et de dégâts avec un type d'arme choisi, plus la moitié du niveau arrondi à l'entier inférieur."},
+      {name:"Cran", text:"Avantage aux jets de Force ou Dextérité destinés à triompher d'une force opposée."},
+      {name:"Bête de somme", text:"Ajoute le modificateur de Constitution, s'il est positif, aux emplacements d'inventaire."}
+    ],
     talents: [
       {roll:"2", text:"Vous recevez la maîtrise d'un type d'armes supplémentaire."},
       {roll:"3-6", text:"+1 aux attaques à distance et de corps à corps."},
@@ -2089,7 +2094,10 @@ const CLASSES_DATA = {
   },
   "Prêtre": {
     hitDie:6, weapons:"Gourdin, arbalète, dague, masse d'armes, épée longue, bâton, marteau de guerre.", armor:"Toutes les armures et tous les boucliers.",
-    feature:"Divinité (vous servez un dieu correspondant à votre alignement, et possédez un symbole sacré) ; Incantation (vous lancez les sorts de prêtre que vous connaissez) ; vous connaissez en outre le sort Renvoi des morts-vivants, qui ne compte pas dans votre nombre de sorts connus.",
+    feature:[
+      {name:"Divinité", text:"Vous servez un dieu correspondant à votre alignement, et possédez un symbole sacré."},
+      {name:"Incantation", text:"Vous lancez les sorts de prêtre que vous connaissez. Vous connaissez en outre le sort Renvoi des morts-vivants, qui ne compte pas dans votre nombre de sorts connus."}
+    ],
     spellClass:"priest", spellsKnownLvl1:2,
     talents: [
       {roll:"2", text:"Vous êtes avantagé pour lancer un sort que vous connaissez."},
@@ -2101,7 +2109,10 @@ const CLASSES_DATA = {
   },
   "Voleur": {
     hitDie:4, weapons:"Gourdin, arbalète, dague, arc court, épée courte.", armor:"Armure de cuir, cotte de mailles en mithral.",
-    feature:"Attaque sournoise (dégâts supplémentaires égaux à un dé d'arme contre une cible prise au dépourvu, plus un dé d'arme par tranche de niveau/2) ; Compétences de voleur (formé et avantagé pour Grimper, se mouvoir en silence et se cacher, adopter des déguisements, repérer/désamorcer des pièges, réaliser des tâches délicates comme crocheter des serrures).",
+    feature:[
+      {name:"Attaque sournoise", text:"Dégâts supplémentaires égaux à un dé d'arme contre une cible prise au dépourvu, plus un dé d'arme par tranche de niveau/2."},
+      {name:"Compétences de voleur", text:"Formé et avantagé pour Grimper, se mouvoir en silence et se cacher, adopter des déguisements, repérer/désamorcer des pièges, réaliser des tâches délicates comme crocheter des serrures."}
+    ],
     talents: [
       {roll:"2", text:"Vous avez l'avantage aux jets d'initiative (relancez si vous avez déjà ce talent)."},
       {roll:"3-5", text:"Vos attaques sournoises infligent +1 dé de dégâts."},
@@ -2112,7 +2123,10 @@ const CLASSES_DATA = {
   },
   "Magicien": {
     hitDie:4, weapons:"Dague, bâton.", armor:"Aucune.",
-    feature:"Incantation (vous lancez les sorts de magicien que vous connaissez) ; Apprentissage des sorts (vous pouvez apprendre définitivement un sort de magicien à partir d'un parchemin, en l'étudiant un jour entier et en réussissant un test d'Intelligence ND 15).",
+    feature:[
+      {name:"Incantation", text:"Vous lancez les sorts de magicien que vous connaissez."},
+      {name:"Apprentissage des sorts", text:"Vous pouvez apprendre définitivement un sort de magicien à partir d'un parchemin, en l'étudiant un jour entier et en réussissant un test d'Intelligence ND 15."}
+    ],
     spellClass:"wizard", spellsKnownLvl1:3, extraCommonLanguages:2, extraRareLanguages:2,
     talents: [
       {roll:"2", text:"Fabriquez un objet magique aléatoire au choix (cf. Guide de démarrage du meneur de jeu)."},
@@ -2129,7 +2143,10 @@ const CLASSES_DATA = {
      (onglet Sorts) mais jamais utilisée avant ce soir. */
   "Chevalier de Saint Ydris": {
     hitDie:6, weapons:"Toutes les armes de corps à corps, arbalète.", armor:"Toutes les armures, tous les boucliers.",
-    feature:"Possession démoniaque (3/jour, bonus de +1 aux dégâts pendant 3 rounds, plus la moitié du niveau arrondie à l'entier inférieur) ; Incantation de sorts de sorcière à partir du niveau 3 (aucun sort connu avant), lancés au Charisme, DD = 10 + rang du sort. Un échec au test d'incantation bloque le sort jusqu'au prochain repos complet ; un 1 naturel déclenche une Catastrophe diabolique (cf. Cursed Scroll #1 p.22-23, non modélisée dans l'appli).",
+    feature:[
+      {name:"Possession démoniaque", text:"3/jour, bonus de +1 aux dégâts pendant 3 rounds, plus la moitié du niveau arrondie à l'entier inférieur."},
+      {name:"Incantation", text:"Sorts de sorcière à partir du niveau 3 (aucun sort connu avant), lancés au Charisme, DD = 10 + rang du sort. Un échec au test d'incantation bloque le sort jusqu'au prochain repos complet ; un 1 naturel déclenche une Catastrophe diabolique (cf. Cursed Scroll #1 p.22-23, non modélisée dans l'appli)."}
+    ],
     spellClass:"witch", spellsKnownLvl1:0, spellsFromLevel:3,
     talents: [
       {roll:"2", text:"Votre bonus de possession démoniaque augmente de 1."},
@@ -2141,7 +2158,10 @@ const CLASSES_DATA = {
   },
   "Ensorceleur": {
     hitDie:6, weapons:"Gourdin, arbalète, dague, masse d'armes, épée longue.", armor:"Armure de cuir, cotte de mailles en mithral, boucliers.",
-    feature:"Mentor (vous choisissez un patron occulte — cf. MENTORS — qui est l'unique source de vos pouvoirs surnaturels ; il peut vous accorder ou retirer ses bienfaits à tout moment). Au 1er niveau, vous recevez un Bienfait de mentor (table de votre mentor, pas la table de talents ci-dessous). À chaque jet de talent ultérieur, vous choisissez de tirer sur la table de Talents d'ensorceleur ou sur celle des Bienfaits de votre mentor.",
+    feature:[
+      {name:"Mentor", text:"Vous choisissez un patron occulte qui est l'unique source de vos pouvoirs surnaturels ; il peut vous accorder ou retirer ses bienfaits à tout moment."},
+      {name:"Bienfait de mentor", text:"Au 1er niveau, vous recevez un Bienfait de mentor (table de votre mentor, pas la table de talents ci-dessous). À chaque jet de talent ultérieur, vous choisissez de tirer sur la table de Talents d'ensorceleur ou sur celle des Bienfaits de votre mentor."}
+    ],
     usesMentor:true,
     talents: [
       {roll:"2", text:"Tirez un Bienfait de mentor de n'importe quel autre mentor que le vôtre, qui vous en fait inexplicablement don."},
@@ -2153,7 +2173,10 @@ const CLASSES_DATA = {
   },
   "Sorcière": {
     hitDie:4, weapons:"Dague, bâton.", armor:"Armure de cuir.",
-    feature:"Familier (petit animal parlant, source de vos sorts — la portée se calcule depuis lui ; s'il meurt, vous pouvez le ranimer en sacrifiant définitivement 1d4 PV) ; Incantation (vous lancez les sorts de sorcière que vous connaissez, au Charisme, DD = 10 + rang du sort). Un échec au test d'incantation bloque le sort jusqu'au prochain repos complet ; un 1 naturel déclenche une Catastrophe diabolique (cf. Cursed Scroll #1 p.22-23, non modélisée dans l'appli).",
+    feature:[
+      {name:"Familier", text:"Petit animal parlant, source de vos sorts — la portée se calcule depuis lui ; s'il meurt, vous pouvez le ranimer en sacrifiant définitivement 1d4 PV."},
+      {name:"Incantation", text:"Vous lancez les sorts de sorcière que vous connaissez, au Charisme, DD = 10 + rang du sort. Un échec au test d'incantation bloque le sort jusqu'au prochain repos complet ; un 1 naturel déclenche une Catastrophe diabolique (cf. Cursed Scroll #1 p.22-23, non modélisée dans l'appli)."}
+    ],
     spellClass:"witch", spellsKnownLvl1:3,
     talents: [
       {roll:"2", text:"Une fois par jour, téléportez-vous à l'endroit où se trouve votre familier, à la place de votre déplacement."},
@@ -2166,7 +2189,10 @@ const CLASSES_DATA = {
   /* 2026-08-12, Cursed Scroll #2 « Sables rouges » (VF). */
   "Cavalier du désert": {
     hitDie:8, weapons:"Gourdin, dague, javelot, épée longue, pique, arc court, cimeterre, lance, fouet.", armor:"Armure de cuir, boucliers.",
-    feature:"Charge (3/jour, en chargeant sur au moins une distance intermédiaire avant d'attaquer, vos attaques de corps à corps infligent le double de dégâts ce round) ; Monture (chameau ou cheval fidèle qui répond à votre appel et ne panique jamais ; bonus de CA à tous deux égal à la moitié de votre niveau en chevauchant ; la monture gagne la moitié de vos niveaux ; en cas de perte, test de CHA ND 15 pour en dresser une nouvelle pendant le répit entre deux aventures).",
+    feature:[
+      {name:"Charge", text:"3/jour, en chargeant sur au moins une distance intermédiaire avant d'attaquer, vos attaques de corps à corps infligent le double de dégâts ce round."},
+      {name:"Monture", text:"Chameau ou cheval fidèle qui répond à votre appel et ne panique jamais ; bonus de CA à tous deux égal à la moitié de votre niveau en chevauchant ; la monture gagne la moitié de vos niveaux ; en cas de perte, test de CHA ND 15 pour en dresser une nouvelle pendant le répit entre deux aventures."}
+    ],
     talents: [
       {roll:"2", text:"Vous pouvez utiliser n'importe quelle créature susceptible d'être chevauchée comme monture."},
       {roll:"3-6", text:"+1 à l'attaque ou aux dégâts."},
@@ -2177,7 +2203,12 @@ const CLASSES_DATA = {
   },
   "Combattant de l'arène": {
     hitDie:8, weapons:"Toutes.", armor:"Armure de cuir, boucliers.",
-    feature:"Coup spectaculaire (3/jour, regagnez 1d6 PV en touchant un ennemi au corps à corps) ; Implacable (avantage aux tests de Constitution contre blessures, poison et environnements extrêmes) ; Jusqu'au bout (mourant, vous vous relevez avec 1 PV sur un 18-20 naturel) ; Inébranlable (3/jour, à 0 PV, test de CON ND 18 pour ne tomber qu'à 1 PV — bénéficie du talent Implacable).",
+    feature:[
+      {name:"Coup spectaculaire", text:"3/jour, regagnez 1d6 PV en touchant un ennemi au corps à corps."},
+      {name:"Implacable", text:"Avantage aux tests de Constitution contre blessures, poison et environnements extrêmes."},
+      {name:"Jusqu'au bout", text:"Mourant, vous vous relevez avec 1 PV sur un 18-20 naturel."},
+      {name:"Inébranlable", text:"3/jour, à 0 PV, test de CON ND 18 pour ne tomber qu'à 1 PV — bénéficie du talent Implacable."}
+    ],
     talents: [
       {roll:"2", text:"Une fois par jour, ignorez tous les dégâts et effets d'une attaque."},
       {roll:"3-6", text:"Bonus de +1 aux dégâts des armes de corps à corps."},
@@ -2188,7 +2219,11 @@ const CLASSES_DATA = {
   },
   "Ras-Godai": {
     hitDie:6, weapons:"Sarbacane, bolas, dague, chaîne-rasoir, cimeterre, shuriken, lance.", armor:"Armure de cuir.",
-    feature:"Assassin (avantage pour vous cacher et vous déplacer discrètement ; dégâts doublés contre une cible inconsciente de votre présence) ; Marche de fumée (3/jour, téléportation vers un point vu à portée intermédiaire, sans dépenser d'action) ; Lotus noir (vous avez survécu à la sorcellerie du légendaire lotus noir — tirez 1 talent sur la table « Lotus noir », d12, non modélisée dans l'appli, cf. Cursed Scroll #2 p.15).",
+    feature:[
+      {name:"Assassin", text:"Avantage pour vous cacher et vous déplacer discrètement ; dégâts doublés contre une cible inconsciente de votre présence."},
+      {name:"Marche de fumée", text:"3/jour, téléportation vers un point vu à portée intermédiaire, sans dépenser d'action."},
+      {name:"Lotus noir", text:"Vous avez survécu à la sorcellerie du légendaire lotus noir — tirez 1 talent sur la table « Lotus noir » (d12, non modélisée dans l'appli, cf. Cursed Scroll #2 p.15)."}
+    ],
     talents: [
       {roll:"2", text:"Vous êtes formé à l'usage des poisons."},
       {roll:"3-6", text:"Tirez un autre talent sur la table de talents de lotus noir."},
@@ -2200,7 +2235,11 @@ const CLASSES_DATA = {
   /* 2026-08-12, Cursed Scroll #3 « Soleil de minuit » (VF). */
   "Loup des mers": {
     hitDie:8, weapons:"Dague, hache à deux mains, hache à une main, arc long, épée longue, lance.", armor:"Armure de cuir, cotte de mailles, boucliers.",
-    feature:"Marin (avantage pour la navigation et le maniement des bateaux) ; Anciens dieux (chaque jour après un repos, harmonisez-vous avec Odin [+1d4 PV par ennemi tué], Freya [1/jour un jeton de chance si vous n'en avez pas, +1d6 aux jets où vous en dépensez un] ou Loki [avantage pour mentir, vous déplacer discrètement et vous cacher] jusqu'au prochain repos) ; Mur de boucliers (avec un bouclier, action pour passer en posture défensive : CA 20).",
+    feature:[
+      {name:"Marin", text:"Avantage pour la navigation et le maniement des bateaux."},
+      {name:"Anciens dieux", text:"Chaque jour après un repos, harmonisez-vous avec Odin (+1d4 PV par ennemi tué), Freya (1/jour un jeton de chance si vous n'en avez pas, +1d6 aux jets où vous en dépensez un) ou Loki (avantage pour mentir, vous déplacer discrètement et vous cacher) jusqu'au prochain repos."},
+      {name:"Mur de boucliers", text:"Avec un bouclier, action pour passer en posture défensive : CA 20."}
+    ],
     talents: [
       {roll:"2", text:"Une fois par jour, la furie guerrière vous prend : immunisé aux dégâts pendant 3 rounds. Vos attaques infligent +1 dégât."},
       {roll:"3-6", text:"+2 en Force ou en Constitution, ou +1 aux attaques."},
@@ -2211,7 +2250,11 @@ const CLASSES_DATA = {
   },
   "Augure": {
     hitDie:6, weapons:"Dague, canne, lance.", armor:"Armure de cuir.",
-    feature:"Destin (chaque fois que vous dépensez un jeton de chance, ajoutez 1d6 au jet de dé) ; Présage (3/jour, test de SAG ND 9 pour recevoir un jeton de chance, maximum un à la fois) ; Incantation (vous lancez les sorts d'augure que vous connaissez, à la Sagesse, DD = 10 + rang du sort). Un échec au test bloque le sort jusqu'au repos complet ; un 1 naturel bloque le sort jusqu'à une pénitence d'augure (non modélisée dans l'appli).",
+    feature:[
+      {name:"Destin", text:"Chaque fois que vous dépensez un jeton de chance, ajoutez 1d6 au jet de dé."},
+      {name:"Présage", text:"3/jour, test de SAG ND 9 pour recevoir un jeton de chance, maximum un à la fois."},
+      {name:"Incantation", text:"Vous lancez les sorts d'augure que vous connaissez, à la Sagesse, DD = 10 + rang du sort. Un échec au test bloque le sort jusqu'au repos complet ; un 1 naturel bloque le sort jusqu'à une pénitence d'augure (non modélisée dans l'appli)."}
+    ],
     spellClass:"seer", spellsKnownLvl1:1,
     talents: [
       {roll:"2", text:"Apprenez un nouveau sort d'augure d'un rang qui vous est accessible."},
@@ -2225,7 +2268,11 @@ const CLASSES_DATA = {
      français, pas de traduction officielle existante pour ce supplément tiers). */
   "Guerrier basilic": {
     hitDie:8, weapons:"Boomerang, gourdin, dague, lance, propulseur de lance.", armor:"Aucune.",
-    feature:"Regard pétrifiant (une créature de votre niveau ou moins qui croise votre regard doit réussir un test de CON ND 15 ou être pétrifiée pendant 1d4 rounds — elle continue de subir les dégâts normalement ; utilisable un nombre de fois par jour égal à votre modificateur de Constitution, minimum 1) ; Sang de basilic (avantage aux tests de Constitution contre maladies, poisons ou afflictions) ; Peau de pierre (+2 + moitié niveau arrondi à l'inférieur à la CA si vous êtes sans armure ; avantage pour vous cacher en milieu naturel).",
+    feature:[
+      {name:"Regard pétrifiant", text:"Une créature de votre niveau ou moins qui croise votre regard doit réussir un test de CON ND 15 ou être pétrifiée pendant 1d4 rounds — elle continue de subir les dégâts normalement ; utilisable un nombre de fois par jour égal à votre modificateur de Constitution, minimum 1."},
+      {name:"Sang de basilic", text:"Avantage aux tests de Constitution contre maladies, poisons ou afflictions."},
+      {name:"Peau de pierre", text:"+2 + moitié niveau arrondi à l'inférieur à la CA si vous êtes sans armure ; avantage pour vous cacher en milieu naturel."}
+    ],
     talents: [
       {roll:"2", text:"Vous trouvez un œuf de basilic ; un bébé fidèle éclot en 1d4 jours (relancez si vous avez déjà un basilic)."},
       {roll:"3-6", text:"+1 aux jets d'attaque et de dégâts avec une arme."},
@@ -2236,7 +2283,10 @@ const CLASSES_DATA = {
   },
   "Rôdeur": {
     hitDie:8, weapons:"Dague, arc long, épée longue, arc court, épée courte, lance, bâton.", armor:"Armure de cuir, cotte de mailles.",
-    feature:"Pisteur (avantage aux tests de navigation, pistage, débrouillardise en milieu sauvage, discrétion, et liés aux animaux sauvages) ; Herboristerie (test d'Intelligence pour préparer un remède au choix — ND11 Onguent : soigne 1 PV ; ND12 Stimulant : ne peut être pris par surprise pendant 10 rounds ; ND13 Fléau : avantage aux attaques/dégâts contre un type de créature choisi pendant 1d6 rounds ; ND14 Reconstituant : guérit un poison ou une maladie ; ND15 Curatif : équivalent à une Potion de soins — un échec bloque ce remède jusqu'au repos, un remède non utilisé expire en 3 rounds).",
+    feature:[
+      {name:"Pisteur", text:"Avantage aux tests de navigation, pistage, débrouillardise en milieu sauvage, discrétion, et liés aux animaux sauvages."},
+      {name:"Herboristerie", text:"Test d'Intelligence pour préparer un remède au choix — ND11 Onguent : soigne 1 PV ; ND12 Stimulant : ne peut être pris par surprise pendant 10 rounds ; ND13 Fléau : avantage aux attaques/dégâts contre un type de créature choisi pendant 1d6 rounds ; ND14 Reconstituant : guérit un poison ou une maladie ; ND15 Curatif : équivalent à une Potion de soins — un échec bloque ce remède jusqu'au repos, un remède non utilisé expire en 3 rounds."}
+    ],
     talents: [
       {roll:"2", text:"Vous infligez d12 en dégâts avec un type d'arme au choix."},
       {roll:"3-6", text:"+1 aux attaques et dégâts de corps à corps ou à distance."},
@@ -2248,7 +2298,12 @@ const CLASSES_DATA = {
   /* 2026-08-12, Cursed Scroll #5 « Dwellers in the Deep » (VO anglaise). */
   "Fouilleur": {
     hitDie:6, weapons:"Gourdin, arbalète, dague, javelot, masse d'armes, arc court, épée courte, lance, bâton.", armor:"Armure de cuir, cotte de mailles, boucliers.",
-    feature:"Langues (2 langues courantes supplémentaires) ; Charognard (quand vous épuisez la dernière utilisation d'un objet consommable porté depuis votre dernier repos, lancez 1d6 : sur 5-6, vous récupérez une utilisation) ; Pionnier (avantage aux tests d'escalade, natation, cueillette, compréhension de langues inconnues, et pour éviter/échapper aux dangers naturels du terrain) ; Équipement de confiance (choisissez un type d'équipement/arme : +1 + moitié niveau arrondi à l'inférieur aux tests/jets d'attaque avec).",
+    feature:[
+      {name:"Langues", text:"2 langues courantes supplémentaires."},
+      {name:"Charognard", text:"Quand vous épuisez la dernière utilisation d'un objet consommable porté depuis votre dernier repos, lancez 1d6 : sur 5-6, vous récupérez une utilisation."},
+      {name:"Pionnier", text:"Avantage aux tests d'escalade, natation, cueillette, compréhension de langues inconnues, et pour éviter/échapper aux dangers naturels du terrain."},
+      {name:"Équipement de confiance", text:"Choisissez un type d'équipement/arme : +1 + moitié niveau arrondi à l'inférieur aux tests/jets d'attaque avec."}
+    ],
     talents: [
       {roll:"2", text:"Vous gagnez 2 emplacements d'équipement et un Équipement de confiance supplémentaire."},
       {roll:"3-6", text:"+1 aux attaques et dégâts de corps à corps ou à distance."},
@@ -2259,7 +2314,12 @@ const CLASSES_DATA = {
   },
   "Corrompu": {
     hitDie:6, weapons:"Gourdin, arbalète, dague, pseudopode, arc court, épée courte, lance.", armor:"Armure de cuir, cotte de mailles, boucliers.",
-    feature:"Langues (vous parlez le primordial) ; Corruption (tirez un talent sur la table de Corruption, d10, non modélisée dans l'appli, cf. Cursed Scroll #5 p.12) ; Biologie hideuse (vous pouvez étirer votre corps pour passer par une fissure large de quelques centimètres ; 3 rounds pour franchir un obstacle ainsi) ; Pseudopode (arme naturelle griffue, 1d6, Finesse — FOR ou DEX au choix pour l'attaque).",
+    feature:[
+      {name:"Langues", text:"Vous parlez le primordial."},
+      {name:"Corruption", text:"Tirez un talent sur la table de Corruption (d10, non modélisée dans l'appli, cf. Cursed Scroll #5 p.12)."},
+      {name:"Biologie hideuse", text:"Vous pouvez étirer votre corps pour passer par une fissure large de quelques centimètres ; 3 rounds pour franchir un obstacle ainsi."},
+      {name:"Pseudopode", text:"Arme naturelle griffue, 1d6, Finesse — Force ou Dextérité au choix pour l'attaque."}
+    ],
     talents: [
       {roll:"2", text:"Gagnez deux nouveaux talents de Corruption."},
       {roll:"3-6", text:"+2 en Force, Dextérité ou Charisme."},
@@ -2271,7 +2331,13 @@ const CLASSES_DATA = {
   /* 2026-08-12, Cursed Scroll #6 « City of Masks » (VO anglaise). */
   "Barde": {
     hitDie:6, weapons:"Arbalète, dague, masse d'armes, arc court, épée courte, lance, bâton.", armor:"Armure de cuir, cotte de mailles, boucliers.",
-    feature:"Fascination (Attention : test de CHA ND 12 pour hypnotiser toutes les cibles à portée proche de niveau ≤ 1 + moitié votre niveau arrondi à l'inférieur ; échec = indisponible jusqu'au repos, sauf en dépensant votre Attention) ; Inspiration (chaque jour, distribuez un nombre de jetons de chance égal à votre modificateur de Charisme, minimum 1) ; Langues (4 langues courantes supplémentaires + 1 langue rare) ; Dilettante magique (vous pouvez activer des parchemins et baguettes avec votre Charisme ; échec critique = mésaventure de magicien) ; Arts du barde (formé en art oratoire, arts de la scène, érudition et diplomatie — avantage aux tests liés). À la place d'un jet de talent, vous pouvez trouver une baguette de prêtre ou de magicien au hasard (vous choisissez le type).",
+    feature:[
+      {name:"Fascination", text:"Attention : test de CHA ND 12 pour hypnotiser toutes les cibles à portée proche de niveau ≤ 1 + moitié votre niveau arrondi à l'inférieur ; échec = indisponible jusqu'au repos, sauf en dépensant votre Attention."},
+      {name:"Inspiration", text:"Chaque jour, distribuez un nombre de jetons de chance égal à votre modificateur de Charisme, minimum 1."},
+      {name:"Langues", text:"4 langues courantes supplémentaires + 1 langue rare."},
+      {name:"Dilettante magique", text:"Vous pouvez activer des parchemins et baguettes avec votre Charisme ; échec critique = mésaventure de magicien."},
+      {name:"Arts du barde", text:"Formé en art oratoire, arts de la scène, érudition et diplomatie — avantage aux tests liés. À la place d'un jet de talent, vous pouvez trouver une baguette de prêtre ou de magicien au hasard (vous choisissez le type)."}
+    ],
     talents: [
       {roll:"2", text:"Avantage aux tests de temps mort (hors bringue)."},
       {roll:"3-6", text:"+1 aux attaques de corps à corps et à distance, ou +1 aux jets de Fascination."},
@@ -2282,7 +2348,11 @@ const CLASSES_DATA = {
   },
   "Duelliste": {
     hitDie:8, weapons:"Dague, toutes les épées.", armor:"Armure de cuir, cotte de mailles en mithral.",
-    feature:"Beau parleur (test de CHA ND 15 : si réussi, les inconnus autour de vous vous croient célèbre et important pour le reste de l'interaction — un même individu ne peut être dupé deux fois) ; Parade (une fois par jour, une attaque de votre choix qui vous aurait touché rate) ; Provocation (quand un ennemi vous rate, avantage à vos attaques contre lui au round suivant).",
+    feature:[
+      {name:"Beau parleur", text:"Test de CHA ND 15 : si réussi, les inconnus autour de vous vous croient célèbre et important pour le reste de l'interaction — un même individu ne peut être dupé deux fois."},
+      {name:"Parade", text:"Une fois par jour, une attaque de votre choix qui vous aurait touché rate."},
+      {name:"Provocation", text:"Quand un ennemi vous rate, avantage à vos attaques contre lui au round suivant."}
+    ],
     talents: [
       {roll:"2", text:"Une fois par jour, toutes les attaques qui vous toucheraient ce round ratent à la place."},
       {roll:"3-6", text:"+1 aux attaques et dégâts de corps à corps, ou +1 utilisation de Parade par jour."},
@@ -2593,41 +2663,48 @@ function savePC(){
    aucune donnée de classe n'est stockée sur le PJ, donc changer sa classe dans le formulaire met
    instantanément à jour armes/armures/capacités/sorts/DD/talents affichés ici, y compris pour un
    PJ créé à la main (pas seulement ceux générés aléatoirement). Réutilisée par printPCSheet(). */
+/* Étiquette de sous-section dans la fiche Classe — même langage visuel que les en-têtes de
+   colonne des tableaux (table.tbl th), pour rester cohérent sans ajouter de classe CSS. */
+const CLASS_SUBLABEL_STYLE = "font-family:var(--ui);font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin:.9rem 0 .35rem";
 function pcClassSectionHTML(p){
   const cd = CLASSES_DATA[p.cls];
   if(!cd) return "";
+  const featureList = `<ul class="bullets">${cd.feature.map(f=>`<li>${f.name?`<b>${esc(f.name)}</b> — `:""}${renderText(f.text)}</li>`).join("")}</ul>`;
   let spellBlock = "";
   if(cd.spellClass){
     if(cd.spellsKnownLvl1>0){
-      const dcTags = [1,2,3,4,5].map(r=>`<span class="tag">Rang ${r} : DD ${spellCastDC(r)}</span>`).join(" ");
-      spellBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0">
-        <b>Sorts connus (rang 1)</b> : ${cd.spellsKnownLvl1}${p.cls==="Prêtre" ? " (+ Renvoi des morts-vivants, offert)" : ""}<br>
-        <b>Difficulté (DD) d'incantation</b> : 10 + (rang du sort × 2) — ${dcTags}
-      </p>`;
+      spellBlock = `<div style="${CLASS_SUBLABEL_STYLE}">Incantation</div>
+        <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0">Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${p.cls==="Prêtre" ? " (+ Renvoi des morts-vivants, offert)" : ""}</p>
+        <table class="tbl"><thead><tr><th style="width:4.5rem">Rang</th><th>DD d'incantation</th></tr></thead>
+          <tbody>${[1,2,3,4,5].map(r=>`<tr><td class="idx" style="text-align:center">${r}</td><td>${spellCastDC(r)}</td></tr>`).join("")}</tbody></table>`;
     } else if(cd.spellsFromLevel){
-      spellBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0"><b>Incantation</b> : aucun sort connu au 1er niveau — vous gagnez l'incantation à partir du niveau ${cd.spellsFromLevel}.</p>`;
+      spellBlock = `<div style="${CLASS_SUBLABEL_STYLE}">Incantation</div>
+        <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0">Aucun sort connu au 1er niveau — vous gagnez l'incantation à partir du niveau ${cd.spellsFromLevel}.</p>`;
     }
   }
   let weaponBlock = "";
   if(p.masteredWeapon && p.masteredWeapon.trim()){
     const bonus = 1 + Math.floor((parseInt(p.level)||1)/2);
-    weaponBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0"><b>Arme maîtrisée</b> : ${esc(p.masteredWeapon)} (+${bonus} aux jets d'attaque et de dégâts avec cette arme)</p>`;
+    weaponBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.4rem 0"><b>Arme maîtrisée</b> : ${esc(p.masteredWeapon)} (+${bonus} aux jets d'attaque et de dégâts avec cette arme)</p>`;
   }
   let mentorBlock = "";
   if(cd.usesMentor && p.mentor && MENTORS[p.mentor]){
     const men = MENTORS[p.mentor];
-    mentorBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.7rem 0 .3rem"><b>Mentor</b> : ${esc(p.mentor)} — ${esc(men.desc)}</p>
-      <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Bienfait de ${esc(p.mentor)}</th></tr></thead>
+    mentorBlock = `<div style="${CLASS_SUBLABEL_STYLE}">Mentor — ${esc(p.mentor)}</div>
+      <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .5rem">${esc(men.desc)}</p>
+      <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Bienfait</th></tr></thead>
         <tbody>${men.benefits.map(b=>`<tr><td class="idx" style="text-align:center">${esc(b.roll)}</td><td>${renderText(b.text)}</td></tr>`).join("")}</tbody></table>`;
   } else if(cd.usesMentor){
-    mentorBlock = `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.5rem 0">Aucun mentor choisi — sélectionnez-en un dans la fiche pour voir sa table de Bienfaits.</p>`;
+    mentorBlock = `<div style="${CLASS_SUBLABEL_STYLE}">Mentor</div><p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0">Aucun mentor choisi — sélectionnez-en un dans la fiche pour voir sa table de Bienfaits.</p>`;
   }
   return `<div class="section"><h2>🛡 Classe — ${esc(p.cls)}</h2>
     <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0"><b>Dé de vie</b> d${cd.hitDie} &nbsp;·&nbsp; <b>Armes</b> ${esc(cd.weapons)} &nbsp;·&nbsp; <b>Armures</b> ${esc(cd.armor)}</p>
-    <p style="font-family:var(--ui);font-size:.9rem;margin:.5rem 0">${esc(cd.feature)}</p>
+    <div style="${CLASS_SUBLABEL_STYLE}">Capacités</div>
+    ${featureList}
     ${weaponBlock}
     ${spellBlock}
-    <div style="margin:.6rem 0 .5rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6 (talent)</button> <span id="talent-roll-out" class="roll-result"></span></div>
+    <div style="${CLASS_SUBLABEL_STYLE}">Talents (2d6)</div>
+    <div style="margin:.2rem 0 .5rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6</button> <span id="talent-roll-out" class="roll-result"></span></div>
     <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Talent / évolution</th></tr></thead>
       <tbody id="talents-body">${cd.talents.map(t=>`<tr data-roll-range="${esc(t.roll)}"><td class="idx" style="text-align:center">${esc(t.roll)}</td><td>${renderText(t.text)}</td></tr>`).join("")}</tbody></table>
     ${mentorBlock}
