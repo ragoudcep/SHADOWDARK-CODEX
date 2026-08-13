@@ -236,7 +236,7 @@ officielle disponible pour ces suppléments tiers.**
 | Guerrier basilic | CS#4 « River of Night » | 1d8 | Regard pétrifiant (ND CON 15) |
 | Rôdeur | CS#4 | 1d8 | Herboristerie (table de remèdes ND11-15 repliée dans le texte de capacité) |
 | Explorateur | CS#5 « Dwellers in the Deep » | 1d6 | Pilleur (récupère les consommables épuisés sur 5-6 au d6) |
-| Corrompu | CS#5 | 1d6 | Pseudopode (arme naturelle) + table « Corruption » (d10, **non modélisée**) |
+| Mystique | CS#5 | 1d6 | Pseudopode (arme naturelle) + table « Corruption » (d10, **non modélisée**) |
 | Barde | CS#6 « City of Masks » | 1d6 | Fascination (hypnose de zone), Dilettante magique (active parchemins/baguettes au CHA) |
 | Duelliste | CS#6 | 1d8 | Beau parleur, Parade, Provocation |
 
@@ -245,10 +245,10 @@ officielle disponible pour ces suppléments tiers.**
   est illisible/manquant (`pdftotext` a fusionné deux blocs). Valeur provisoire mise en
   place (« +1 aux attaques à distance ou de corps à corps ») — **à vérifier dans le PDF
   original avant utilisation en jeu.**
-- Tables « Lotus noir » (Ras-Godai) et « Corruption » (Corrompu) lues et documentées dans
+- Tables « Lotus noir » (Ras-Godai) et « Corruption » (Mystique) lues et documentées dans
   le PDF mais **pas implémentées** — même décision que les Catastrophes diaboliques de
   Cursed Scroll #1 (hors scope de cette nuit).
-- Traductions de classe (Guerrier basilic, Rôdeur, Explorateur, Corrompu, Barde, Duelliste)
+- Traductions de classe (Guerrier basilic, Rôdeur, Explorateur, Mystique, Barde, Duelliste)
   et de titres sont des choix éditoriaux faits cette nuit, pas une VF officielle — à
   valider/ajuster si Tristan préfère d'autres noms. **Correction de Tristan (2026-08-12) :**
   « Fouilleur »/« Charognard » (Delver, CS#5) renommés en « Explorateur »/« Pilleur ».

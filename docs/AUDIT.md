@@ -2400,3 +2400,15 @@ Testé en bac à sable : les 4 tables se seedent correctement, le tirage colonne
 sur « Traits des potions » compose bien une description lisible (« Sulfureuse, Frémit et se
 secoue, Flammes à la surface »), l'encart de résultat s'affiche et se remplit comme prévu
 pour un mode "texte" (potions) et pour un mode "liste" (Pièges, testé en comparaison).
+
+### Classe « Corrompu » renommée en « Mystique » (2026-08-13)
+
+Demande de Tristan. Renommé dans `CLASSES_DATA`/`PC_CLASSES`/`TITRES` (`index.html`) et
+`CURSED_SCROLL_DOCS[5].classNames` (`js/cursedscroll.js`) — le nom mécanique de la table de
+talents « Corruption » (issu du livre, VO *Corruption Table*) n'est pas touché, seul le nom
+de la classe change. `docs/REGLES-CREATION-PERSONNAGE.md` et `docs/regles/cursed-scroll-5.md`
+mis à jour. Vérifié qu'aucun PJ/PNJ existant n'avait `cls:"Corrompu"` avant de renommer (même
+vérification que pour l'incident Fouilleur/Explorateur) — rien à migrer, base propre.
+Mentions de « Corrompu » dans `docs/TODO.md`/`docs/AUDIT.md` antérieures à ce soir laissées
+telles quelles (journal non réécrit rétroactivement, même règle que pour le renommage
+Fouilleur→Explorateur).

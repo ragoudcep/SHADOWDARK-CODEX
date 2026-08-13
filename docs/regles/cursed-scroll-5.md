@@ -2,7 +2,7 @@
 
 Fiche de référence compacte extraite du PDF `1026949710-Cursed-Scroll-5-Dwellers-in-the-Deep-V1-1.pdf` (68 pages, supplément tiers pour Shadowdark RPG). Ne contient que le contenu utile à la création de personnage et aux objets magiques. Cartes, scénario (Morzomotha), PNJ/monstres et lore générique ont été volontairement omis.
 
-Noms VF utilisés dans l'app (`index.html` / `docs/AUDIT.md`) : la classe **Delver** = **Explorateur**, sa capacité **Scavenger** = **Pilleur** ; la classe **Wyrdling** = **Corrompu**.
+Noms VF utilisés dans l'app (`index.html` / `docs/AUDIT.md`) : la classe **Delver** = **Explorateur**, sa capacité **Scavenger** = **Pilleur** ; la classe **Wyrdling** = **Mystique**.
 
 ---
 
@@ -56,7 +56,7 @@ Noms VF utilisés dans l'app (`index.html` / `docs/AUDIT.md`) : la classe **Delv
 
 ---
 
-### Corrompu (VO : Wyrdling)
+### Mystique (VO : Wyrdling)
 
 > Ceux que l'on a appelés dans les ténèbres, qui ont écouté le babil de vils monstres et senti la présence extatique du Perdu marchant avec eux dans l'abysse.
 
@@ -80,7 +80,7 @@ Noms VF utilisés dans l'app (`index.html` / `docs/AUDIT.md`) : la classe **Delv
 
 **Finesse (F).** Vous pouvez utiliser votre FOR ou votre DEX pour attaquer avec cette arme.
 
-#### Table de talents — Corrompu (2d6)
+#### Table de talents — Mystique (2d6)
 
 | 2d6 | Effet |
 |---|---|
@@ -105,7 +105,7 @@ Noms VF utilisés dans l'app (`index.html` / `docs/AUDIT.md`) : la classe **Delv
 | 9 | Immobilité inquiétante (Creepy Stillness) | Vous avez l'avantage aux tests de DEX pour vous cacher et vous faufiler. |
 | 10 | Évolution (Evolution) | Répartissez +3 points entre vos caractéristiques et vos PV. |
 
-#### Titres — Corrompu (Wyrdling)
+#### Titres — Mystique (Wyrdling)
 
 | Niveau | Loyal | Chaotique | Neutre |
 |---|---|---|---|
@@ -135,6 +135,6 @@ Le PDF ajoute une liste de sorts réservés aux magiciens chaotiques (« Chaotic
 ## À confirmer avec Tristan
 
 1. **Table de talents Explorateur, ligne « 2 ».** Le texte extrait du PDF montre une ligne « 2 » isolée suivie de la note « Effect (reroll 10-11 if Scavenger success range is 3-6) » avant la ligne « 3-6 ». Le PDF ne liste pas d'effet explicite pour le résultat « 2 » — dans les tables de talents standard de Shadowdark, le résultat le plus bas (2) reprend habituellement l'effet du résultat le plus haut (12, « choisissez un talent ou +2 points »), mais ce n'est pas confirmé texte en main pour cette classe précise. À vérifier si vous avez un exemplaire papier ou une autre version numérique du PDF avec une mise en page plus lisible à cet endroit (page 10-11 du PDF).
-2. **Table de talents Corrompu, ligne « 2 ».** Même remarque : le PDF ne montre pas de ligne d'effet distincte pour le résultat 2 dans la table WYRDLING TALENTS (page 11). Probablement le même principe (reprend l'effet du 12) mais non confirmé par le texte extrait.
+2. **Table de talents Mystique, ligne « 2 ».** Même remarque : le PDF ne montre pas de ligne d'effet distincte pour le résultat 2 dans la table WYRDLING TALENTS (page 11). Probablement le même principe (reprend l'effet du 12) mais non confirmé par le texte extrait.
 3. **Titres — paliers de niveau au-delà de 9-10.** Pour les deux classes, les trois dernières lignes des tables de titres (Antiquarian/Larcenist..., Chosen One/Haunted/Tortured/Crazed One...) n'affichent pas de numéro de niveau explicite dans l'extraction texte (la mise en page en colonnes du PDF semble avoir perdu cette colonne). Par convention Shadowdark habituelle, il s'agirait probablement des paliers 11-13, 14-16 et 17+, mais ce n'est **pas confirmé** par le texte du PDF lui-même — à vérifier visuellement sur les pages 13-14 du PDF si une lecture fiable est nécessaire.
 4. **Cohérence avec `docs/AUDIT.md`.** L'audit confirme bien le renommage « Fouilleur → Explorateur » et « Charognard → Pilleur » (lignes ~1938-1946 de AUDIT.md) et situe la table Corruption en page 12 — cette extraction la trouve en page 12 du PDF, ce qui confirme la référence déjà notée par ailleurs. Aucune contradiction détectée entre cette extraction et `index.html`/`AUDIT.md`.

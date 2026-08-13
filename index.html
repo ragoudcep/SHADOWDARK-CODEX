@@ -2025,7 +2025,7 @@ function openPrintNPCCardsModal(){
 /* =========================================================================
    PJ — fiches de personnages-joueurs (stat bloc + inventaire + talents 2d6)
    ========================================================================= */
-const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien","Chevalier de Saint Ydris","Ensorceleur","Sorcière","Cavalier du désert","Combattant de l'arène","Ras-Godai","Loup des mers","Augure","Guerrier basilic","Rôdeur","Explorateur","Corrompu","Barde","Duelliste"];
+const PC_CLASSES = ["Guerrier","Prêtre","Voleur","Magicien","Chevalier de Saint Ydris","Ensorceleur","Sorcière","Cavalier du désert","Combattant de l'arène","Ras-Godai","Loup des mers","Augure","Guerrier basilic","Rôdeur","Explorateur","Mystique","Barde","Duelliste"];
 
 /* =========================================================================
    GÉNÉRATION ALÉATOIRE DE PJ — règles de création de personnage tirées du
@@ -2407,7 +2407,7 @@ const CLASSES_DATA = {
       {roll:"12", text:"Choisissez un talent ou +2 points à répartir parmi vos caractéristiques."}
     ]
   },
-  "Corrompu": {
+  "Mystique": {
     hitDie:6, weapons:"Gourdin, arbalète, dague, pseudopode, arc court, épée courte, lance.", armor:"Armure de cuir, cotte de mailles, boucliers.",
     feature:[
       {name:"Langues", text:"Vous parlez le primordial."},
@@ -2473,7 +2473,7 @@ const TITRES = {
   "Guerrier basilic": {loyal:["Guerrier de pierre","Pierre forte","Protecteur","Serpent du soleil","Basilic d'ambre"], chaos:["Guerrier de pierre","Pierre acérée","Tueur","Serpent de lune","Basilic d'obsidienne"], neutre:["Guerrier de pierre","Pierre silencieuse","Veilleur","Serpent du ciel","Basilic de saphir"]},
   "Rôdeur": {loyal:["Vagabond","Arpenteur","Gardien","Protecteur","Sentinelle"], chaos:["Encapuchonné","Hors-la-loi","Fugitif","Exilé","Paria"], neutre:["Étranger","Voyageur","Étranger des terres","Reclus","Ermite"]},
   "Explorateur": {loyal:["Explorateur","Chercheur","Antiquaire","Archéologue","Professeur"], chaos:["Intrus","Opportuniste","Larcin","Pilleur de tombes","Profanateur"], neutre:["Enquêteur","Observateur","Éclaireur","Défricheur","Pionnier"]},
-  "Corrompu": {loyal:["Élu","Maudit","Hanté","Torturé","Fou furieux"], chaos:["Élu","Béni","Consacré","Révéré","Exalté"], neutre:["Élu","Chercheur","Auditeur","Guetteur","Érudit"]},
+  "Mystique": {loyal:["Élu","Maudit","Hanté","Torturé","Fou furieux"], chaos:["Élu","Béni","Consacré","Révéré","Exalté"], neutre:["Élu","Chercheur","Auditeur","Guetteur","Érudit"]},
   "Barde": {loyal:["Conteur","Ménestrel","Philosophe","Poète","Maître Poète"], chaos:["Vaurien","Charlatan","Satiriste","Langue d'Argent","Oiseau de mauvais augure"], neutre:["Chercheur","Témoin","Porte-parole","Voix","Porteur de vérité"]},
   "Duelliste": {loyal:["Escrimeur","Défenseur","Mangouste","Loup","Maître d'armes"], chaos:["Voyou","Provocateur","Vipère","Cobra","Maître d'armes"], neutre:["Étudiant","Challenger","Chat de gouttière","Panthère","Maître d'armes"]}
 };

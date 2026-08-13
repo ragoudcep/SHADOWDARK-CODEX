@@ -328,7 +328,7 @@ const CS4_TREASURES = [
   "La légendaire faucille d'obsidienne qui met fin à une vie ou en restaure une."
 ];
 
-/* Cursed Scroll #5 — Dwellers in the Deep (VO anglaise). Explorateur / Corrompu : non-casters — les
+/* Cursed Scroll #5 — Dwellers in the Deep (VO anglaise). Explorateur / Mystique : non-casters — les
    « Sorcerer Spells » (p.15-20) sont des sorts de Magicien réservés aux magiciens d'alignement
    Chaotique, extension au même titre que les Druid Spells du #4. VO gardée entre parenthèses,
    traduction non-officielle. */
@@ -457,11 +457,11 @@ const CURSED_SCROLL_DOCS = {
   },
   5: {
     label: "Cursed Scroll #5 — Dwellers in the Deep",
-    classNames: ["Explorateur","Corrompu"],
+    classNames: ["Explorateur","Mystique"],
     spells: CS5_SPELLS, spellsLabel: "Sorts de sorcier (variante Magicien chaotique)",
     spellsIntro: "Les magiciens Chaotiques peuvent choisir parmi les sorts ci-dessous, en plus des sorts de magicien standards — sorts propres à ce numéro, pas liés aux nouvelles classes.",
     treasures: {label:"Vous trouvez un livre perdu contenant…", rows:CS5_TREASURES},
-    note: "VO anglaise, traduction non officielle (pas de VF existante pour ce supplément tiers) — comme pour les classes de ce numéro. La table de talents « Corruption » (Corrompu) reste décrite en texte dans son talent de classe, pas reprise ici."
+    note: "VO anglaise, traduction non officielle (pas de VF existante pour ce supplément tiers) — comme pour les classes de ce numéro. La table de talents « Corruption » (Mystique) reste décrite en texte dans son talent de classe, pas reprise ici."
   },
   6: {
     label: "Cursed Scroll #6 — City of Masks",
