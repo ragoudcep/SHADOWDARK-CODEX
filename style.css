@@ -239,6 +239,27 @@
   .abilities-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:.4rem; margin:.8rem 0; text-align:center}
   .ab{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:.4rem .2rem}
   .ab .n{font-family:var(--ui); font-size:.62rem; letter-spacing:1px; color:var(--faint); text-transform:uppercase}
+
+  /* ---------- Fiche PJ graphique (2026-08-13) — cases cliquables, inspirée de la mise en page
+     d'une feuille de perso Shadowdark (colonnes encadrées, bandeaux de section noirs). ---------- */
+  .pc-sheet{display:grid; grid-template-columns:1fr 1fr 1.35fr; gap:.9rem; align-items:start; margin-top:.8rem}
+  .pc-sheet-col{display:flex; flex-direction:column; gap:.7rem; min-width:0}
+  .sheet-box{border:1px solid var(--border2); border-radius:8px; background:var(--panel); padding:.55rem .7rem; position:relative}
+  .sheet-box .lbl{font-family:var(--ui); font-size:.66rem; text-transform:uppercase; letter-spacing:1.2px; color:var(--gold); display:block; margin-bottom:.15rem}
+  .sheet-box .val{font-family:var(--font); font-size:1.05rem; word-break:break-word}
+  .sheet-box.clickable{cursor:pointer; transition:border-color .15s,background .15s}
+  .sheet-box.clickable:hover{border-color:var(--gold); background:var(--panel2)}
+  .sheet-box.clickable:active{transform:translateY(1px)}
+  .sheet-box .dice{position:absolute; top:.4rem; right:.55rem; font-size:.8rem; opacity:.55}
+  .sheet-row2{display:grid; grid-template-columns:1fr 1fr; gap:.5rem}
+  .sheet-abilities{display:grid; grid-template-columns:1fr 1fr; gap:.5rem}
+  .sheet-banner{background:#000; color:var(--gold2); font-family:var(--ui); font-size:.7rem; text-transform:uppercase;
+    letter-spacing:1.5px; font-weight:700; padding:.4rem .65rem; border-radius:7px 7px 0 0; margin:-.55rem -.7rem .5rem}
+  .sheet-box.sheet-panel{padding-top:0}
+  .sheet-gear-list{font-family:var(--ui); font-size:.85rem; margin:0; padding-left:1.1rem}
+  .sheet-gear-list li{margin:.15rem 0}
+  @media (max-width:900px){ .pc-sheet{grid-template-columns:1fr 1fr} .pc-sheet-col:nth-child(3){grid-column:1/-1} }
+  @media (max-width:600px){ .pc-sheet{grid-template-columns:1fr} .pc-sheet-col:nth-child(3){grid-column:auto} }
   .ab .v{font-size:1.2rem; font-weight:700; color:var(--text)}
   .attack-row{padding:.4rem 0; border-top:1px dashed var(--border); font-family:var(--ui); font-size:.88rem}
   .attack-row:first-child{border-top:none}

@@ -2412,3 +2412,61 @@ vérification que pour l'incident Fouilleur/Explorateur) — rien à migrer, bas
 Mentions de « Corrompu » dans `docs/TODO.md`/`docs/AUDIT.md` antérieures à ce soir laissées
 telles quelles (journal non réécrit rétroactivement, même règle que pour le renommage
 Fouilleur→Explorateur).
+
+### Fiche PJ graphique — cases cliquables (2026-08-13)
+
+**Demande de Tristan**, fichier de référence fourni : `Shazsod.pdf` (fiche de perso générée
+par shadowdarklings.net — colonnes encadrées, bandeaux de section noirs Talents/Sorts et
+Équipement). Objectif : remplacer la fiche PJ en prose (`detailPC()`) par une fiche en cases
+cliquables inspirée de cette mise en page, pour tous les PJ (existants compris), sans perdre
+la règle de sauvegarde différée déjà établie ailleurs dans l'appli.
+
+**Implémenté** dans `index.html` :
+- `.pc-sheet` (CSS, `style.css`) : grille à 3 colonnes (caractéristiques/PV/CA/Attaques —
+  infos de perso — Talents/Sorts/Équipement), repli à 2 colonnes puis 1 sous 900px/600px.
+  Bandeaux de section noirs (`.sheet-banner`) pour les panneaux Talents/Sorts et Équipement,
+  cases encadrées cliquables (`.sheet-box.clickable`, icône 🎲) pour les champs à relance
+  aléatoire.
+- `pcSheetDraft` (état global) : brouillon local de la fiche actuellement ouverte, cloné
+  depuis l'entité `db.pcs` à l'entrée. Chaque case cliquable (`handlePCSheetReroll(kind)`)
+  ne modifie QUE ce brouillon, jamais `db.pcs` directement — réutilise le même moteur de
+  tirage que l'assistant pas-à-pas et les anciens boutons de relance de `formPC()`
+  (`rollName`/`rollAscendance`/`rollClass`/`rollAlignment`/`rollAbilityScores`/`rollHP`/
+  `rollOrigin`/`rollLanguages`/`rollDeity`/`rollMentor`/`rollGold`).
+- Bandeau d'action en haut de fiche : tant que le brouillon diverge de l'entité enregistrée
+  (comparaison JSON), affiche **"✓ Enregistrer les modifications"** / **"↺ Annuler les
+  modifications"** ; sinon un simple rappel texte de la règle de sauvegarde différée.
+  `savePCSheet()` recopie le brouillon dans l'entité réelle + `saveDB()` ; `discardPCSheet()`
+  vide juste le brouillon (prochain rendu re-clone depuis l'entité intacte).
+  `pcSheetDraft` remis à `null` en quittant la fiche (`data-back`) ou en passant au
+  formulaire classique (`data-edit`) pour ne jamais mélanger les deux modes d'édition.
+- **`formPC()` (formulaire classique) reste disponible** via "✎ Modifier", pour les champs en
+  texte libre qui ne se prêtent pas à un clic-pour-relancer (inventaire détaillé, notes,
+  arme maîtrisée, niveau, images) — décision prise pour rester dans le temps imparti plutôt
+  que de tout rendre cliquable dès cette v1.
+- Origine : pas de champ dédié dans le modèle de données (repliée dans `p.skills`, première
+  ligne) — `pcOriginLine()`/`pcSetOriginLine()` lisent/remplacent uniquement cette première
+  ligne, le reste de `p.skills` (ex. la ligne de compétences du Voleur) reste intact et
+  s'affiche séparément sous le panneau Talents/Sorts.
+- Or : pas de champ numérique séparé non plus (`p.inventory` est du texte libre) — la case
+  n'affiche pas de valeur, un petit bouton 🎲 dans le panneau Équipement **ajoute** une ligne
+  d'or tirée au hasard à l'inventaire, même logique que les autres champs "insertion" déjà
+  utilisés dans `formPC()`.
+- **Hors périmètre de cette v1** (pas fait, à réévaluer si Tristan le redemande) : relance du
+  talent de classe directement depuis la fiche (le talent effectivement obtenu par ce PJ
+  n'a pas de champ dédié séparé de `p.info`, qui mélange plusieurs notes) ; niveau non
+  cliquable (pas aléatoire) ; pas de réplique pixel-perfect de la mise en page exacte du PDF
+  (torn-paper/police gothique) — juste la même logique de zones/panneaux, dans le style
+  visuel déjà en place ailleurs dans l'appli (fond sombre, accents dorés).
+
+**Testé en bac à sable** : génération d'un PJ, clic sur plusieurs cases (Nom, PV, Alignement,
+Origine, Caractéristiques) → `db.pcs` reste inchangé tant que "Enregistrer" n'est pas cliqué
+(vérifié par comparaison JSON avant/après) ; Enregistrer persiste bien dans `db.pcs` ; Annuler
+revient exactement à l'état enregistré ; case Divinité apparaît pour un Prêtre, case Mentor
+pour un Ensorceleur (conditions déjà existantes, réutilisées) ; relance d'Origine remplace
+bien la première ligne de `p.skills` sans toucher au reste ; retour arrière (`data-back`)
+vide bien le brouillon (pas de fuite d'un brouillon non enregistré vers une réouverture
+ultérieure de la même fiche). Rendu de la grille à 3 colonnes vérifié structurellement
+(nombre de colonnes, nombre de cases) — pas de vérification visuelle pixel par pixel possible
+dans ce sandbox (pas de panneau navigateur composé de frames), à confirmer par Tristan après
+déploiement.

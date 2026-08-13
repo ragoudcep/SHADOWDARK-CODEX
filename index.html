@@ -3301,54 +3301,158 @@ function pcClassSectionHTML(p){
     ${mentorBlock}
   </div>`;
 }
+/* =========================================================================
+   FICHE PJ GRAPHIQUE (2026-08-13, demande de Tristan) — remplace l'ancienne fiche en prose
+   par une fiche en cases encadrées cliquables, inspirée de la mise en page d'une feuille de
+   perso Shadowdark classique (fichier de référence : Shazsod.pdf, colonnes encadrées +
+   bandeaux de section noirs Talents/Sorts et Équipement). Chaque case cliquable relance CE
+   champ précis via le moteur de tirage partagé (rollAscendance() etc., voir plus haut) —
+   même sauvegarde différée que partout ailleurs dans l'appli : cliquer ne modifie qu'un
+   brouillon local (`pcSheetDraft`), rien n'est écrit en base tant que le bouton
+   "✓ Enregistrer les modifications" n'a pas été cliqué. `formPC()` (formulaire classique)
+   reste disponible via "✎ Modifier" pour les champs en texte libre (compétences, sorts,
+   inventaire, notes) qui ne se prêtent pas à un clic-pour-relancer. */
+let pcSheetDraft = null; // { ...champs du PJ..., id } — brouillon local de la fiche cliquable, null hors fiche
+function pcOriginLine(skills){ return firstLine(skills); }
+function pcSetOriginLine(skills, newOrigin){
+  const lines = String(skills||"").split(/\r?\n/);
+  if(!lines.length || !lines[0].trim()) return [newOrigin, ...lines.filter((l,i)=>i>0)].join("\n");
+  lines[0] = newOrigin;
+  return lines.join("\n");
+}
 function detailPC(p){
-  const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
-  const listSec = (icon,label,val)=> (val&&val.trim()) ? `<div class="section"><h2>${icon} ${label}</h2>${renderBullets(val)}</div>` : "";
-  const titre = p.cls ? titleFor(p.cls, p.alignment, p.level) : "";
-  // Avertissement persistant (pas juste un toast à la génération) si l'ascendance de ce PJ ne
-  // correspond à aucune entrée connue de ASCENDANCES — ascendance personnalisée ajoutée par le
-  // MJ dans la table live "Ascendances" (onglet Tables aléatoires) : reste affichée telle quelle
-  // (texte de la table), mais rappel explicite qu'aucun bonus mécanique automatique n'y est lié.
-  const ascTrait = p.ancestry
-    ? (ASCENDANCES[p.ancestry]
-        ? ascendanceTraitText(p.ancestry, p.cls)
-        : `Ascendance personnalisée (« ${p.ancestry} ») : non reconnue par les règles de l'appli, aucun bonus mécanique automatique (ex. le bonus de PV de « Robuste » ne s'applique qu'à ce nom exact).${ascendanceTableRawFor(p.ancestry) ? " Texte de la table : "+ascendanceTableRawFor(p.ancestry) : ""}`)
+  if(!pcSheetDraft || pcSheetDraft.id!==p.id) pcSheetDraft = JSON.parse(JSON.stringify(p));
+  const d = pcSheetDraft;
+  const dirty = JSON.stringify(d)!==JSON.stringify(p);
+  const cd = CLASSES_DATA[d.cls];
+  const titre = d.cls ? titleFor(d.cls, d.alignment, d.level) : "";
+  const ascTrait = d.ancestry
+    ? (ASCENDANCES[d.ancestry]
+        ? ascendanceTraitText(d.ancestry, d.cls)
+        : `Ascendance personnalisée (« ${d.ancestry} ») : non reconnue par les règles de l'appli, aucun bonus mécanique automatique.`)
     : "";
+  const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
+  const box = (label, val, kind, extra)=>`<div class="sheet-box${kind?" clickable":""}" ${kind?`data-sheet-reroll="${kind}"`:""}>
+    ${kind?`<span class="dice" title="Relancer">🎲</span>`:""}
+    <span class="lbl">${esc(label)}</span><span class="val">${val}</span>${extra||""}
+  </div>`;
+  const origin = pcOriginLine(d.skills);
+  const restSkills = String(d.skills||"").split(/\r?\n/).slice(1).filter(l=>l.trim());
+  const weaponBlock = d.masteredWeapon
+    ? `${esc(d.masteredWeapon)} : +${1+Math.floor((parseInt(d.level)||1)/2)}`
+    : (cd ? `Armes : ${esc(cd.weapons)}` : "—");
+  const spellCastLine = (cd && cd.spellClass && cd.spellAbility)
+    ? `Test d'incantation : 1d20${(()=>{const m=parseAbilityMod(d[cd.spellAbility]); return (m>=0?"+":"")+m;})()}`
+    : "";
+  const leftCol = `<div class="pc-sheet-col">
+    <div class="sheet-box clickable" data-sheet-reroll="abilities">
+      <span class="dice" title="Relancer les 6 caractéristiques (3d6)">🎲</span>
+      <span class="lbl">Caractéristiques</span>
+      <div class="sheet-abilities">${ab.map(([lbl,k])=>`<div><b>${lbl}</b> ${esc(d[k]||"—")}</div>`).join("")}</div>
+    </div>
+    <div class="sheet-row2">
+      ${box("PV", `${esc(d.hpCurrent||"—")} / ${esc(d.hp||"—")}`, "hp")}
+      ${box("CA", esc(d.ac||"—"))}
+    </div>
+    <div class="sheet-box">
+      <span class="lbl">Attaques</span>
+      <div class="val" style="font-size:.9rem">${weaponBlock}${spellCastLine?`<br>${spellCastLine}`:""}</div>
+    </div>
+  </div>`;
+  const midCol = `<div class="pc-sheet-col">
+    ${box("Nom", esc(d.name||"Sans nom"), "name")}
+    ${box("Ascendance", esc(d.ancestry||"—"), "ancestry")}
+    ${ascTrait?`<p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:-.4rem 0 0">${esc(ascTrait)}</p>`:""}
+    ${box("Classe", esc(d.cls||"—"), "cls")}
+    ${box("Titre", esc(titre||"—"))}
+    ${box("Alignement", esc(cap(d.alignment)||"—"), "alignment")}
+    ${box("Origine", esc(origin||"—"), "origin")}
+    ${box("Langues", esc(d.languages||"—"), "languages")}
+    ${d.cls==="Prêtre"?box("Divinité", esc(d.deity||"—"), "deity"):""}
+    ${cd&&cd.usesMentor?box("Mentor", esc(d.mentor||"—"), "mentor"):""}
+  </div>`;
+  const rightCol = `<div class="pc-sheet-col">
+    <div class="sheet-box sheet-panel">
+      <div class="sheet-banner">Talents / Sorts</div>
+      ${pcClassSectionHTML(d)}
+      ${restSkills.length?`<div style="${CLASS_SUBLABEL_STYLE}">Compétences</div>${renderBullets(restSkills.join("\n"))}`:""}
+    </div>
+    <div class="sheet-box sheet-panel">
+      <div class="sheet-banner">Équipement</div>
+      <p class="faint" style="font-family:var(--ui);font-size:.8rem;margin:0 0 .5rem">${d.invSlots?`${esc(d.invSlots)} emplacements`:""} <button type="button" class="icon-btn sm" data-sheet-reroll="gold" title="Ajouter un tirage d'or de départ" style="width:1.4rem;height:1.4rem;padding:0;border-radius:50%;vertical-align:middle">🎲</button></p>
+      ${d.inventory?`<ol class="sheet-gear-list">${String(d.inventory).split(/\r?\n/).filter(l=>l.trim()).map(l=>`<li>${renderText(l)}</li>`).join("")}</ol>`:'<p class="faint" style="font-family:var(--ui);font-size:.85rem">(vide)</p>'}
+    </div>
+  </div>`;
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PJ</button>
     <span class="tag pc">PJ</span>
-    ${p.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(p.portrait)}" alt="">`:""}
+    ${d.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(d.portrait)}" alt="">`:""}
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-      <h1>${esc(p.name||"Sans nom")}</h1>
+      <h1>${esc(d.name||"Sans nom")}</h1>
       ${favStarHTML("pc",p.id,p.favorite,true)}
     </div>
-    <p class="muted" style="font-family:var(--ui)">${esc([p.ancestry,p.cls,titre].filter(Boolean).join(" · "))}${p.alignment?` · ${esc(cap(p.alignment))}`:""}</p>
-    ${(p.languages||p.deity||p.mentor)?`<p class="muted" style="font-family:var(--ui);font-size:.85rem">${[p.languages?`Langues : ${esc(p.languages)}`:"", p.deity?`Divinité : ${esc(p.deity)}`:"", p.mentor?`Mentor : ${esc(p.mentor)}`:""].filter(Boolean).join(" · ")}</p>`:""}
     ${detailActions("pc",p.id)}
-    <div style="margin:.2rem 0 .8rem"><button class="btn ghost sm" data-print-pc="${p.id}">🖨 Imprimer cette fiche (PDF)</button></div>
-    <div class="statblock">
-      <div class="sb-line">
-        <span><b>CA</b> ${esc(p.ac||"—")}</span>
-        <span><b>PV</b> ${esc(p.hpCurrent||"—")} / ${esc(p.hp||"—")}</span>
-        <span><b>Niveau</b> ${esc(p.level||"—")}</span>
-        <span><b>Ascendance</b> ${esc(p.ancestry||"—")}</span>
-        <span><b>Classe</b> ${esc(p.cls||"—")}</span>
-      </div>
-      <div class="abilities-grid">
-        ${ab.map(([lbl,k])=>`<div class="ab"><div class="n">${lbl}</div><div class="v">${esc(p[k]||"—")}</div></div>`).join("")}
-      </div>
+    <div style="margin:.2rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <button class="btn ghost sm" data-print-pc="${p.id}">🖨 Imprimer cette fiche (PDF)</button>
+      ${dirty?`<button class="btn" data-sheet-save="${p.id}">✓ Enregistrer les modifications</button><button class="btn ghost" data-sheet-discard="${p.id}">↺ Annuler les modifications</button>`:`<span class="faint" style="font-family:var(--ui);font-size:.8rem">Clique une case 🎲 pour la relancer — rien n'est enregistré tant que tu ne cliques pas sur "Enregistrer".</span>`}
     </div>
-    ${ascTrait?`<p class="muted" style="font-family:var(--ui);font-size:.85rem;margin:.4rem 0 0">${esc(ascTrait)}</p>`:""}
-    ${pcClassSectionHTML(p)}
-    ${listSec("🎯","Compétences",p.skills)}
-    ${listSec("✨","Sortilèges",p.spells)}
-    ${listSec("🎒",`Inventaire${p.invSlots?` (${esc(p.invSlots)} emplacements)`:""}`,p.inventory)}
-    ${p.info?`<div class="section"><h2>📝 Informations</h2><div class="prose" style="font-family:var(--ui)">${renderText(p.info)}</div></div>`:""}
-    ${(p.images&&p.images.length)?`<div class="section"><h2>Portraits</h2>
-      <div class="gallery">${p.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
+    <div class="pc-sheet">${leftCol}${midCol}${rightCol}</div>
+    ${d.spells?`<div class="section"><h2>✨ Sortilèges connus</h2>${renderBullets(d.spells)}</div>`:""}
+    ${d.info?`<div class="section"><h2>📝 Informations</h2><div class="prose" style="font-family:var(--ui)">${renderText(d.info)}</div></div>`:""}
+    ${(d.images&&d.images.length)?`<div class="section"><h2>Portraits</h2>
+      <div class="gallery">${d.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
     ${backlinksBlock("pc",p.id)}
   </div>`;
 }
+/* Relance un champ de la fiche graphique — modifie uniquement pcSheetDraft (jamais db.pcs
+   directement), puis réaffiche. Réutilise le même moteur de tirage que l'assistant pas-à-pas
+   et les boutons de relance de formPC(). */
+function handlePCSheetReroll(kind){
+  const d = pcSheetDraft; if(!d) return;
+  const cd = CLASSES_DATA[d.cls];
+  const sgn = m=>(m>=0?"+":"")+m;
+  switch(kind){
+    case "name": d.name = rollName(); break;
+    case "ancestry": {
+      const r = rollAscendance();
+      d.ancestry = r.name;
+      if(r.unmatched) toast(`Ascendance tirée : « ${r.name} » — personnalisée, aucun bonus mécanique automatique.`);
+      break;
+    }
+    case "cls": d.cls = rollClass(); break;
+    case "alignment": d.alignment = rollAlignment(); break;
+    case "abilities": {
+      const scores = rollAbilityScores();
+      ["str","dex","con","int","wis","cha"].forEach(k=>{ d[k] = `${scores[k]} (${sgn(ABILITY_MOD(scores[k]))})`; });
+      break;
+    }
+    case "hp": {
+      if(!cd){ toast("Choisis d'abord une classe pour relancer les PV."); return; }
+      const conMod = parseAbilityMod(d.con);
+      const asc = ASCENDANCES[d.ancestry];
+      const hp = rollHP(cd, conMod, !!(asc&&asc.robust));
+      d.hp = String(hp); d.hpCurrent = String(hp);
+      break;
+    }
+    case "origin": d.skills = pcSetOriginLine(d.skills, rollOrigin()); break;
+    case "languages": {
+      if(!cd){ toast("Choisis d'abord une classe pour relancer les langues."); return; }
+      d.languages = rollLanguages(cd).join(", ");
+      break;
+    }
+    case "deity": d.deity = rollDeity(d.alignment); break;
+    case "mentor": d.mentor = rollMentor(); break;
+    case "gold": d.inventory = (d.inventory?d.inventory+"\n":"") + `${rollGold()} po pour acheter votre équipement de départ.`; break;
+  }
+  render();
+}
+function savePCSheet(id){
+  const o = getEntity("pc",id); if(!o || !pcSheetDraft) return;
+  Object.assign(o, pcSheetDraft);
+  pcSheetDraft = null;
+  saveDB(); toast("Personnage enregistré."); render();
+}
+function discardPCSheet(id){ pcSheetDraft = null; render(); }
 
 function rollTalents(id){
   const p = getEntity("pc",id); if(!p) return;
@@ -3845,12 +3949,13 @@ app.addEventListener("click", e=>{
   if((el=t.closest("[data-create]"))){ toast(`« ${el.dataset.create} » n'existe pas encore — créez cette entité pour activer le lien.`); return; }
   if(closest("data-back")){
     if(view.mode==="wizard") pcWizard = null; // abandon de l'assistant : rien n'a été enregistré
+    if(view.tab==="pcs" && view.mode==="detail") pcSheetDraft = null; // abandon des relances non enregistrées de la fiche graphique
     if(editReturnTo){ view={tab:editReturnTo.tab, mode:"detail", id:editReturnTo.id}; editReturnTo=null; }
     else{ view.mode="list"; view.id=null; }
     render(); return;
   }
   if((el=closest("data-new"))){ editReturnTo=null; view.mode="new"; view.id=null; render(); return; }
-  if((el=closest("data-edit"))){ editReturnTo=null; const [ty,id]=el.dataset.edit.split(":"); view={tab:TAB_OF[ty],mode:"edit",id}; render(); return; }
+  if((el=closest("data-edit"))){ editReturnTo=null; const [ty,id]=el.dataset.edit.split(":"); if(ty==="pc") pcSheetDraft=null; view={tab:TAB_OF[ty],mode:"edit",id}; render(); return; }
   if((el=closest("data-dup"))){ const [ty,id]=el.dataset.dup.split(":"); duplicateEntity(ty,id); return; }
   if((el=closest("data-toggle-gm-created"))){
     const [ty,id]=el.dataset.toggleGmCreated.split(":");
@@ -3909,6 +4014,10 @@ app.addEventListener("click", e=>{
   if(closest("data-wiz-save")){ finishPCWizard(); return; }
   // Boutons de relance champ par champ sur la fiche PJ existante (formPC) — voir handlePCFieldReroll()
   if((el=closest("data-reroll"))){ handlePCFieldReroll(el.dataset.reroll); return; }
+  // Fiche PJ graphique (cases cliquables) — voir detailPC()/handlePCSheetReroll()
+  if((el=closest("data-sheet-reroll"))){ handlePCSheetReroll(el.dataset.sheetReroll); return; }
+  if((el=closest("data-sheet-save"))){ savePCSheet(el.dataset.sheetSave); return; }
+  if((el=closest("data-sheet-discard"))){ discardPCSheet(el.dataset.sheetDiscard); return; }
   // Barre d'outils du point crawl
   if(closest("data-crawl-add")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openPickEventModal(c); return; }
   if(closest("data-crawl-new")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openNewEventModal(c); return; }
