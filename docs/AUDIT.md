@@ -2365,3 +2365,38 @@ n'empêche que de nouveaux doublons se recréent si deux sessions rechargent l'a
 instant à l'avenir. Pas de correctif de fond appliqué ce soir (demanderait soit une
 contrainte SQL `UNIQUE` sur `data->>'title'` côté Supabase avec gestion du conflit, soit un
 verrou applicatif — chantier à part, pas demandé ce soir). Noté dans `docs/TODO.md`.
+
+### Tables de potions ajoutées (2026-08-13) — exemple concret du mode multi-colonnes
+
+Tristan avait partagé un lien `claude.ai/share/...` en exemple pour le chantier « tables
+multi-colonnes » ci-dessus ; `WebFetch` n'avait pu en récupérer que la coquille vide de la
+page (SPA côté client, contenu non rendu par un simple fetch HTML). Récupéré cette fois en
+ouvrant le lien dans le vrai navigateur (Claude in Chrome, `get_page_text` après rendu JS) —
+la page contenait le texte complet de 4 tables de potions déjà mises en forme par une
+session précédente.
+
+- **Traits des potions** (d8, 3 colonnes) et **Mélanges de potions** (d12, 2 colonnes) :
+  multi-colonnes, `joinMode:"comma"`.
+- **Atout de potion** et **Malédiction de potion** (d12 chacune) : tables à un seul jet
+  classiques, pas de `columns`.
+
+Ajoutées à `SHADOWDARK_DEFAULT_TABLES` (catégorie « Trésors & Objets ») — s'ajouteront
+automatiquement partout ailleurs (nouvelles installations) via `ensure()`. **Insérées aussi
+directement dans la base live de Tristan** (via Claude in Chrome, `sb.from("tables").insert`,
+pas `saveDB()`) pour un effet immédiat sans attendre un rechargement — vérifié après
+rechargement complet : les 4 tables présentes, une seule copie chacune (le risque de
+doublon décrit juste au-dessus ne s'applique qu'à des tables déjà existantes qui rentrent
+en course, pas à un insert ponctuel comme celui-ci).
+
+**Nouveau `joinMode:"comma"`** (en plus de `"concat"`/`"space"`/liste par défaut) — retour
+de Tristan après un premier essai : « il faut combiner le résultat, c'est ça qui est amusant »,
+donc le résultat composé doit être mis en avant, pas seulement les lignes surlignées dans le
+tableau. Ajouté un encart dédié (`#roll-cols-out`, bordure dorée, texte en gros) qui affiche
+le résultat composé juste sous les boutons de jet pour les tables multi-colonnes — sépare
+visuellement les modes "texte à lire" (`concat`/`space`/`comma`, une phrase) et le mode liste
+(`Piège`/`Pièges`/etc., un jet indépendant par colonne affiché ligne par ligne dans le même
+encart plutôt qu'en `Label : valeur · Label : valeur` compact).
+Testé en bac à sable : les 4 tables se seedent correctement, le tirage colonne par colonne
+sur « Traits des potions » compose bien une description lisible (« Sulfureuse, Frémit et se
+secoue, Flammes à la surface »), l'encart de résultat s'affiche et se remplit comme prévu
+pour un mode "texte" (potions) et pour un mode "liste" (Pièges, testé en comparaison).

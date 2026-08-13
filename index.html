@@ -1008,6 +1008,8 @@ function crawlBacklinkBlock(eventId){
    - "concat" : mots à assembler (le générateur de noms) — les tirets de bordure de chaque
      segment sont retirés puis les segments sont collés (« Van- » + « -us » → « Vanus »).
    - "space"  : phrase à espaces (ex. Nom de taverne : « Le Sanglier » + « Ivre »).
+   - "comma"  : description à virgules (ex. Traits des potions : « Épicée, Bouillonne,
+     Traînées violettes »).
    - (par défaut) "list" : résultats indépendants affichés séparément, un par colonne (ex.
      Pièges : Piège / Déclencheur / Dégâts ne se concatènent pas, ce sont 3 effets distincts). */
 function splitTableRow(row, n){
@@ -1040,6 +1042,7 @@ function detailTable(t){
         ${isMultiCol?`<button class="btn ghost sm" data-roll-cols="${t.id}">🎲×${t.columns.length} Tirer chaque colonne séparément</button>`:""}
         <span id="roll-out" class="roll-result"></span>
         <button class="btn ghost sm hidden" id="roll-add-session">+ Ajouter à la session en cours</button></div>
+      ${isMultiCol?`<div id="roll-cols-out" class="hidden" style="margin:0 0 1rem;padding:.8rem 1rem;border:1px solid var(--gold,#b08d57);border-radius:.5rem;background:rgba(216,162,74,.08);font-family:var(--ui);font-size:1.15rem;font-weight:700;color:var(--gold2)"></div>`:""}
       <table class="tbl"><thead><tr><th style="width:2.5rem">#</th>${tableColumnsHeadHTML(isMultiCol?t:{})}</tr></thead>
         <tbody id="table-body">
         ${rows.map((r,i)=>`<tr data-rowidx="${i}"><td class="idx">${i+1}</td>${isMultiCol?tableColumnsRowHTML(t,r):`<td>${(isDynamic?renderText(`[[${r}]]`):renderText(r))||'<span class="faint">—</span>'}</td>`}</tr>`).join("")}
@@ -1075,9 +1078,21 @@ function rollTableColumns(id){
   } else if(t.joinMode==="space"){
     plain = segs.map(s=>s.value).filter(Boolean).join(" ");
     linked = plain;
+  } else if(t.joinMode==="comma"){
+    plain = segs.map(s=>s.value).filter(Boolean).join(", ");
+    linked = plain;
   } else {
     plain = segs.map(s=>`${s.label} : ${s.value}`).join(" · ");
     linked = plain;
+  }
+  // Résultat composé mis en avant dans un encart dédié (pas juste les lignes surlignées dans le
+  // tableau) — demande de Tristan : "il faut combiner le résultat, c'est ça qui est amusant".
+  const box = $("#roll-cols-out");
+  if(box){
+    box.classList.remove("hidden");
+    box.innerHTML = (t.joinMode==="concat"||t.joinMode==="space"||t.joinMode==="comma")
+      ? renderText(plain)
+      : segs.map(s=>`<div style="margin:.15rem 0"><span style="font-family:var(--ui);font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted,#999);font-weight:400">${esc(s.label)}</span><br>${renderText(s.value)}</div>`).join("");
   }
   const out = $("#roll-out"); out.textContent = `→ ${plain}`;
   lastTableRoll = `${t.title||"Table"} → ${linked}`;
@@ -4447,6 +4462,71 @@ const SHADOWDARK_DEFAULT_TABLES = [
       "Bas- / -fossé",
       "Fort- / -gué",
       "Roche- / -mare"
+    ] },
+  /* Potions (2026-08-13, demandées par Tristan — lien partagé claude.ai avec le texte complet).
+     Traits/Mélanges sont multi-colonnes (jet indépendant par colonne, cf. commentaire plus haut) ;
+     Atout/Malédiction sont des tables à un seul jet classiques. */
+  { title:"Traits des potions", category:"Trésors & Objets",
+    context:"d8 — trois traits combinés par ligne, dans l'ordre : Trait 1 / Trait 2 / Trait 3, décrivant l'apparence d'une potion. Roulez une fois par colonne pour un résultat plus varié.",
+    columns:["Trait 1","Trait 2","Trait 3"], joinMode:"comma",
+    rows:[
+      "Épicée / Contient de l'araignée marinée / Bouillonne",
+      "Limpide comme l'eau / Fumée verte / Traînées violettes",
+      "Bleu foncé / Petites étoiles et lunes / Flammes à la surface",
+      "Odeur d'agrume / Paillettes d'or en suspension / Odeur florale",
+      "Sulfureuse / Vortex tourbillonnant / Crâne en bouteille",
+      "Pétillante / Chuintement discret / Chaude",
+      "Glacée / Frémit et se secoue / Contient une grosse molaire",
+      "Rouge sang / Contient un œil / Vifs éclats roses"
+    ] },
+  { title:"Mélanges de potions", category:"Trésors & Objets",
+    context:"d12 — deux effets combinés par ligne, dans l'ordre : Effet 1 / Effet 2. Résultat de deux potions mélangées ensemble.",
+    columns:["Effet 1","Effet 2"], joinMode:"comma",
+    rows:[
+      "Le buveur flotte dans l'air (2 rd) / Vapeurs : CON ND 12 ou 1d4 dégâts",
+      "Gain de personnalité : 1 vertu / Débarrasse de toutes malédictions",
+      "Devient totalement inerte / Gain de personnalité : 1 défaut",
+      "Tirez 2 nouveaux atouts / Rend le buveur invisible (2 rounds)",
+      "Effets de malédiction /2 / Double les effets d'un atout",
+      "+1 malédiction / Explose : DEX ND 12 ou 1d6 dégâts",
+      "Le buveur oublie 1 langue / Gain de personnalité : 1 vertu",
+      "Gagne 1 atout supplémentaire / Effets des atouts réduits de moitié",
+      "Gain de personnalité : 1 défaut / Double les effets d'une malédiction",
+      "Tous les effets sont inversés / CON ND 12 (buveur) ou 1d8 dégâts",
+      "Perd tous les atouts / -1 à une carac. aléatoire du buveur",
+      "+1 à une carac. aléatoire / 1 effet aléatoire devient permanent"
+    ] },
+  { title:"Atout de potion", category:"Trésors & Objets",
+    context:"d12 — effet bénéfique d'une potion.",
+    rows:[
+      "Immunité (5 rounds), 1d4 : 1. Feu, 2. Froid, 3. Électricité, 4. Poison",
+      "Rend des PV, 1d4 : 1. 1d4, 2. 2d6, 3. 3d8, 4. 4d10",
+      "Révèle les pensées de toutes les créatures à portée intermédiaire (1 h)",
+      "Permet de voler à distance intermédiaire pendant 5 rounds",
+      "Pendant 5 rounds le buveur se déplace à portée intermédiaire ×2 et effectue quand même une action",
+      "Rend invisible pendant 5 rounds",
+      "Permet de respirer sous l'eau et de parler le merran pendant 1 heure",
+      "Une caractéristique passe à 18 (+4) pendant 5 rounds",
+      "Vous transforme en gaz violet et volant pendant 5 rounds",
+      "Soigne toute maladie ou affliction affectant le buveur",
+      "Permet de parler aux animaux et de les comprendre pendant 1 heure",
+      "Immunise contre tous les dégâts pendant 5 rounds"
+    ] },
+  { title:"Malédiction de potion", category:"Trésors & Objets",
+    context:"d12 — effet néfaste d'une potion.",
+    rows:[
+      "SAG ND 15 pour éviter d'attaquer la créature la plus proche pendant 3 rd",
+      "Vous transforme en salamandre (1 PV) pendant 3 rounds",
+      "Une caractéristique passe à 3 (-4) pendant 1 heure",
+      "CON ND 15 pour éviter de subir 2d10 dégâts",
+      "Vous oubliez toutes les langues que vous connaissez pendant 1 heure",
+      "Vous rétrécissez (moitié de votre taille), désavantage aux attaques (5 rd)",
+      "Vous chantez à tue-tête pendant 3 rounds",
+      "Vous attirez tous les métaux qui vous entourent pendant 1 heure",
+      "Vous devez sauter dans tous les trous que vous voyez pendant 1 heure",
+      "CON ND 15 pour éviter de devenir aveugle pendant 5 rounds",
+      "Vous êtes la source d'un sort coquille d'antimagie pendant 1 heure",
+      "Deux membres pétrifiés pendant 5 rounds, 1d4 : 1-2. Bras, 3-4. Jambes"
     ] }
 ];
 
