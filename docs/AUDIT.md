@@ -2470,3 +2470,38 @@ ultérieure de la même fiche). Rendu de la grille à 3 colonnes vérifié struc
 (nombre de colonnes, nombre de cases) — pas de vérification visuelle pixel par pixel possible
 dans ce sandbox (pas de panneau navigateur composé de frames), à confirmer par Tristan après
 déploiement.
+
+### Fiche PJ graphique — retour après le premier essai (2026-08-13)
+
+Trois corrections demandées par Tristan après avoir vu la v1 :
+
+1. **Deux clics, deux effets** — la v1 relançait au clic n'importe où sur une case, ce qui
+   revenait à devoir re-cliquer en boucle jusqu'à tomber sur la bonne classe/le bon nom
+   (« ça va être le chaos »). Séparé en deux cibles de clic distinctes : le petit bouton 🎲
+   (`.dice-btn`, positionné en haut à droite de la case) relance immédiatement, comme avant ;
+   cliquer sur la **valeur** elle-même (`.clickable-val`, nouveau) bascule la case en saisie
+   manuelle — menu déroulant pour les champs à liste fermée (Ascendance, Classe, Alignement,
+   Divinité, Mentor), champ texte pour le reste (Nom, Origine, Langues), grille de 6 nombres
+   pour les Caractéristiques — avec un bouton "✓ Valider"/"Annuler". Réutilise directement
+   `pcWizardManualHTML()`/`pcWizardReadManual()` déjà écrits pour l'assistant pas-à-pas
+   (mêmes id de champs `#wiz-in`/`#wiz-in-str` etc.) — `pcSheetManualCurrentValue()`/
+   `applyPCSheetManualValue()` font juste la conversion entre le format stocké sur le PJ
+   (ex. `"14 (+2)"` texte) et le format attendu par ces fonctions (ex. `14` nombre).
+   Un seul champ en saisie manuelle à la fois (`pcSheetManualField`), remis à `null` en
+   changeant de PJ.
+2. **Portrait mal placé** — flottait sous toute la fiche. Déplacé en haut de la colonne de
+   gauche, juste au-dessus de la case Caractéristiques.
+3. **CA toujours recalculée** — Tristan a eu raison de douter : CA = 10 + mod. DEX (confirmé
+   dans `docs/REGLES-CREATION-PERSONNAGE.md`). **Décision prise à part** : pas de recalcul
+   automatique à *chaque rendu* (ce qui écraserait silencieusement un bonus d'armure qu'un MJ
+   aurait ajouté à la main — l'appli ne modélise pas l'équipement, la CA stockée peut donc
+   légitimement différer de la formule nue) — un bouton 🎲 dédié recalcule la CA depuis la
+   Dextérité actuelle **sur demande explicite**, pas de case cliquable vers un menu (rien à
+   choisir dans une liste pour un nombre dérivé).
+
+**Testé en bac à sable** : bouton 🎲 sur Classe relance sans ouvrir de menu ; clic sur la
+valeur "Classe" ouvre un `<select>` sans rien changer tant que non validé ; validation change
+bien le brouillon sans toucher `db.pcs` ; même test sur les Caractéristiques (grille de 6
+inputs, reconversion correcte en `"18 (+4)"`) ; case CA a bien un bouton 🎲 mais pas de case
+valeur cliquable ; recalcul CA donne `10 + mod. DEX` correct ; portrait vérifié en première
+position du premier enfant de la colonne de gauche (avant la case Caractéristiques).

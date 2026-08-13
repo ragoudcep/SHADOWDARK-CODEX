@@ -247,10 +247,14 @@
   .sheet-box{border:1px solid var(--border2); border-radius:8px; background:var(--panel); padding:.55rem .7rem; position:relative}
   .sheet-box .lbl{font-family:var(--ui); font-size:.66rem; text-transform:uppercase; letter-spacing:1.2px; color:var(--gold); display:block; margin-bottom:.15rem}
   .sheet-box .val{font-family:var(--font); font-size:1.05rem; word-break:break-word}
-  .sheet-box.clickable{cursor:pointer; transition:border-color .15s,background .15s}
-  .sheet-box.clickable:hover{border-color:var(--gold); background:var(--panel2)}
-  .sheet-box.clickable:active{transform:translateY(1px)}
-  .sheet-box .dice{position:absolute; top:.4rem; right:.55rem; font-size:.8rem; opacity:.55}
+  /* Deux cibles de clic distinctes dans une case (retour de Tristan) : le bouton 🎲 relance
+     immédiatement ; cliquer sur la valeur bascule en saisie manuelle (menu déroulant/texte). */
+  .dice-btn{position:absolute; top:.4rem; right:.5rem; width:1.5rem; height:1.5rem; padding:0;
+    border-radius:50%; font-size:.8rem; line-height:1}
+  .clickable-val{cursor:pointer; border-radius:4px; transition:background .15s; display:inline-block}
+  .clickable-val:hover{background:rgba(216,162,74,.12); text-decoration:underline dotted}
+  .sheet-abilities.clickable-val{display:grid}
+  .sheet-abilities.clickable-val:hover{background:rgba(216,162,74,.12)}
   .sheet-row2{display:grid; grid-template-columns:1fr 1fr; gap:.5rem}
   .sheet-abilities{display:grid; grid-template-columns:1fr 1fr; gap:.5rem}
   .sheet-banner{background:#000; color:var(--gold2); font-family:var(--ui); font-size:.7rem; text-transform:uppercase;

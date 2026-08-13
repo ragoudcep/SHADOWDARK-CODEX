@@ -3313,6 +3313,14 @@ function pcClassSectionHTML(p){
    reste disponible via "✎ Modifier" pour les champs en texte libre (compétences, sorts,
    inventaire, notes) qui ne se prêtent pas à un clic-pour-relancer. */
 let pcSheetDraft = null; // { ...champs du PJ..., id } — brouillon local de la fiche cliquable, null hors fiche
+/* Champ actuellement basculé en saisie manuelle (menu déroulant/texte) sur la fiche graphique —
+   un seul à la fois. Distinct du clic sur le petit bouton 🎲 (relance immédiate, pas de menu) :
+   retour de Tristan après le premier essai, les deux clics doivent avoir des effets différents
+   ("le petit bouton avec le d... relance. Si je clique sur le nom... ça met le menu déroulant"). */
+let pcSheetManualField = null;
+// Champs qui proposent une saisie manuelle en plus de la relance — réutilise le même gabarit
+// d'input que l'assistant pas-à-pas (pcWizardManualHTML/pcWizardReadManual, voir plus haut).
+const PC_SHEET_MANUAL_KINDS = new Set(["name","ancestry","cls","alignment","origin","languages","deity","mentor","hp","abilities"]);
 function pcOriginLine(skills){ return firstLine(skills); }
 function pcSetOriginLine(skills, newOrigin){
   const lines = String(skills||"").split(/\r?\n/);
@@ -3320,8 +3328,42 @@ function pcSetOriginLine(skills, newOrigin){
   lines[0] = newOrigin;
   return lines.join("\n");
 }
+/* Valeur actuelle d'un champ de la fiche, reformatée dans la forme attendue par
+   pcWizardManualHTML()/pcWizardReadManual() (ex. les caractéristiques y sont des nombres bruts,
+   pas le texte "14 (+2)" stocké sur le PJ). */
+function pcSheetManualCurrentValue(kind, d){
+  switch(kind){
+    case "ancestry": return { name: d.ancestry, unmatched: !ASCENDANCES[d.ancestry] };
+    case "cls": return d.cls;
+    case "alignment": return d.alignment;
+    case "abilities": { const o={}; ["str","dex","con","int","wis","cha"].forEach(k=> o[k]=parseInt(d[k])||10); return o; }
+    case "hp": return parseInt(d.hp)||1;
+    case "origin": return pcOriginLine(d.skills);
+    case "name": return d.name;
+    case "languages": return String(d.languages||"").split(",").map(s=>s.trim()).filter(Boolean);
+    case "deity": return d.deity;
+    case "mentor": return d.mentor;
+  }
+}
+/* Applique une valeur saisie manuellement (lue par pcWizardReadManual) au brouillon de la
+   fiche — inverse de pcSheetManualCurrentValue, reconvertit vers le format stocké sur le PJ. */
+function applyPCSheetManualValue(kind, d, raw){
+  const sgn = m=>(m>=0?"+":"")+m;
+  switch(kind){
+    case "ancestry": d.ancestry = raw.name; break;
+    case "cls": d.cls = raw; break;
+    case "alignment": d.alignment = raw; break;
+    case "abilities": ["str","dex","con","int","wis","cha"].forEach(k=>{ d[k] = `${raw[k]} (${sgn(ABILITY_MOD(raw[k]))})`; }); break;
+    case "hp": d.hp = String(raw); d.hpCurrent = String(raw); break;
+    case "origin": d.skills = pcSetOriginLine(d.skills, raw); break;
+    case "name": d.name = raw; break;
+    case "languages": d.languages = raw.join(", "); break;
+    case "deity": d.deity = raw; break;
+    case "mentor": d.mentor = raw; break;
+  }
+}
 function detailPC(p){
-  if(!pcSheetDraft || pcSheetDraft.id!==p.id) pcSheetDraft = JSON.parse(JSON.stringify(p));
+  if(!pcSheetDraft || pcSheetDraft.id!==p.id){ pcSheetDraft = JSON.parse(JSON.stringify(p)); pcSheetManualField = null; }
   const d = pcSheetDraft;
   const dirty = JSON.stringify(d)!==JSON.stringify(p);
   const cd = CLASSES_DATA[d.cls];
@@ -3332,10 +3374,28 @@ function detailPC(p){
         : `Ascendance personnalisée (« ${d.ancestry} ») : non reconnue par les règles de l'appli, aucun bonus mécanique automatique.`)
     : "";
   const ab = [["FOR","str"],["DEX","dex"],["CON","con"],["INT","int"],["SAG","wis"],["CHA","cha"]];
-  const box = (label, val, kind, extra)=>`<div class="sheet-box${kind?" clickable":""}" ${kind?`data-sheet-reroll="${kind}"`:""}>
-    ${kind?`<span class="dice" title="Relancer">🎲</span>`:""}
-    <span class="lbl">${esc(label)}</span><span class="val">${val}</span>${extra||""}
-  </div>`;
+  /* Case de fiche : bouton 🎲 = relance immédiate ; cliquer sur la valeur = bascule en saisie
+     manuelle (menu déroulant pour les listes fermées, texte pour le reste) — deux actions
+     distinctes, demande explicite de Tristan. `kind` sans entrée dans PC_SHEET_MANUAL_KINDS
+     (ex. "ac") garde le bouton 🎲 mais pas de saisie manuelle (rien à choisir dans une liste). */
+  const box = (label, val, kind, extra)=>{
+    if(kind && pcSheetManualField===kind){
+      return `<div class="sheet-box">
+        <span class="lbl">${esc(label)}</span>
+        ${pcWizardManualHTML(kind, d, pcSheetManualCurrentValue(kind, d))}
+        <div style="margin-top:.45rem;display:flex;gap:.4rem">
+          <button type="button" class="btn ghost sm" data-sheet-manual-confirm="${kind}">✓ Valider</button>
+          <button type="button" class="btn ghost sm" data-sheet-manual-cancel="1">Annuler</button>
+        </div>
+      </div>`;
+    }
+    const canManual = kind && PC_SHEET_MANUAL_KINDS.has(kind);
+    return `<div class="sheet-box">
+      ${kind?`<button type="button" class="icon-btn sm dice-btn" data-sheet-reroll="${kind}" title="Relancer">🎲</button>`:""}
+      <span class="lbl">${esc(label)}</span>
+      <span class="val${canManual?" clickable-val":""}" ${canManual?`data-sheet-value="${kind}" title="Cliquer pour saisir/choisir manuellement"`:""}>${val}</span>${extra||""}
+    </div>`;
+  };
   const origin = pcOriginLine(d.skills);
   const restSkills = String(d.skills||"").split(/\r?\n/).slice(1).filter(l=>l.trim());
   const weaponBlock = d.masteredWeapon
@@ -3344,15 +3404,26 @@ function detailPC(p){
   const spellCastLine = (cd && cd.spellClass && cd.spellAbility)
     ? `Test d'incantation : 1d20${(()=>{const m=parseAbilityMod(d[cd.spellAbility]); return (m>=0?"+":"")+m;})()}`
     : "";
+  const abilitiesBoxHTML = (pcSheetManualField==="abilities")
+    ? `<div class="sheet-box">
+        <span class="lbl">Caractéristiques</span>
+        ${pcWizardManualHTML("abilities", d, pcSheetManualCurrentValue("abilities", d))}
+        <div style="margin-top:.45rem;display:flex;gap:.4rem">
+          <button type="button" class="btn ghost sm" data-sheet-manual-confirm="abilities">✓ Valider</button>
+          <button type="button" class="btn ghost sm" data-sheet-manual-cancel="1">Annuler</button>
+        </div>
+      </div>`
+    : `<div class="sheet-box">
+        <button type="button" class="icon-btn sm dice-btn" data-sheet-reroll="abilities" title="Relancer les 6 caractéristiques (3d6)">🎲</button>
+        <span class="lbl">Caractéristiques</span>
+        <div class="sheet-abilities clickable-val" data-sheet-value="abilities" title="Cliquer pour saisir manuellement">${ab.map(([lbl,k])=>`<div><b>${lbl}</b> ${esc(d[k]||"—")}</div>`).join("")}</div>
+      </div>`;
   const leftCol = `<div class="pc-sheet-col">
-    <div class="sheet-box clickable" data-sheet-reroll="abilities">
-      <span class="dice" title="Relancer les 6 caractéristiques (3d6)">🎲</span>
-      <span class="lbl">Caractéristiques</span>
-      <div class="sheet-abilities">${ab.map(([lbl,k])=>`<div><b>${lbl}</b> ${esc(d[k]||"—")}</div>`).join("")}</div>
-    </div>
+    ${d.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(d.portrait)}" alt="" style="margin:0 auto .3rem;display:block">`:""}
+    ${abilitiesBoxHTML}
     <div class="sheet-row2">
       ${box("PV", `${esc(d.hpCurrent||"—")} / ${esc(d.hp||"—")}`, "hp")}
-      ${box("CA", esc(d.ac||"—"))}
+      ${box("CA", esc(d.ac||"—"), "ac")}
     </div>
     <div class="sheet-box">
       <span class="lbl">Attaques</span>
@@ -3386,7 +3457,6 @@ function detailPC(p){
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PJ</button>
     <span class="tag pc">PJ</span>
-    ${d.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(d.portrait)}" alt="">`:""}
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
       <h1>${esc(d.name||"Sans nom")}</h1>
       ${favStarHTML("pc",p.id,p.favorite,true)}
@@ -3443,6 +3513,12 @@ function handlePCSheetReroll(kind){
     case "deity": d.deity = rollDeity(d.alignment); break;
     case "mentor": d.mentor = rollMentor(); break;
     case "gold": d.inventory = (d.inventory?d.inventory+"\n":"") + `${rollGold()} po pour acheter votre équipement de départ.`; break;
+    // CA = 10 + mod. DEX (règle p.13) — pas aléatoire, ce bouton la recalcule depuis la valeur
+    // actuelle de Dextérité plutôt que de la tirer ; laissé en action explicite (pas recalculé
+    // automatiquement à chaque rendu) pour ne jamais écraser silencieusement un bonus d'armure
+    // qu'un MJ aurait ajouté à la main (l'appli ne modélise pas l'équipement, cf. docs/REGLES-
+    // CREATION-PERSONNAGE.md) — recalculer est un choix explicite de l'utilisateur, pas un fait accompli.
+    case "ac": d.ac = String(computeAC(parseAbilityMod(d.dex))); break;
   }
   render();
 }
@@ -4018,6 +4094,14 @@ app.addEventListener("click", e=>{
   if((el=closest("data-sheet-reroll"))){ handlePCSheetReroll(el.dataset.sheetReroll); return; }
   if((el=closest("data-sheet-save"))){ savePCSheet(el.dataset.sheetSave); return; }
   if((el=closest("data-sheet-discard"))){ discardPCSheet(el.dataset.sheetDiscard); return; }
+  if((el=closest("data-sheet-value"))){ pcSheetManualField = el.dataset.sheetValue; render(); return; }
+  if(closest("data-sheet-manual-cancel")){ pcSheetManualField = null; render(); return; }
+  if((el=closest("data-sheet-manual-confirm"))){
+    const kind = el.dataset.sheetManualConfirm;
+    if(pcSheetDraft){ applyPCSheetManualValue(kind, pcSheetDraft, pcWizardReadManual(kind, pcSheetDraft)); }
+    pcSheetManualField = null;
+    render(); return;
+  }
   // Barre d'outils du point crawl
   if(closest("data-crawl-add")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openPickEventModal(c); return; }
   if(closest("data-crawl-new")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openNewEventModal(c); return; }
