@@ -343,3 +343,26 @@ jour en conséquence.
       statique + session MJ simulée), voir le détail dans `docs/AUDIT.md`. `outils/
       audit-check.sh` bloqué sur l'étape Python (non installée dans ce shell) mais l'étape 1
       (syntaxe JS de chaque bloc `<script>`) confirmée OK par un vérificateur équivalent.
+
+## Tables aléatoires — risque de doublons par course entre sessions concurrentes
+
+**Constat (2026-08-13)**, suite à un nettoyage de 13 tables dupliquées dans `db.tables`
+(détail dans `docs/AUDIT.md`) : `ensure()` (utilisé par `seedCharGenTables()`,
+`seedShadowdarkDefaultTables()`, `seedCursedScrollTables()`) déduplique par titre en lisant
+`db.tables` **en mémoire côté client**, sans contrainte d'unicité côté serveur. Si deux
+sessions démarrent l'appli à quelques secondes d'écart (deux onglets, deux appareils, MJ +
+un joueur), chacune peut décider indépendamment qu'une table "manque" avant de voir la
+sauvegarde de l'autre — les deux créent alors leur propre copie. Le nettoyage fait ce soir
+règle les doublons existants, mais **pas la cause** : rien n'empêche que ça se reproduise.
+
+**Pas fait ce soir** (pas demandé, chantier à part) — pistes possibles à discuter avec
+Tristan si ça redevient gênant :
+- Contrainte SQL `UNIQUE` sur `(data->>'title')` côté table Supabase `tables`, avec gestion
+  du conflit (upsert `on conflict do nothing` plutôt qu'un insert simple).
+- Verrou applicatif côté client (peu fiable sans coordination serveur).
+- Accepter le risque et proposer un bouton MJ "Vérifier les doublons" dans l'appli plutôt
+  qu'une prévention automatique (plus simple, cohérent avec le vérificateur de liens brisés
+  déjà existant).
+
+- [ ] Décider avec Tristan si ce risque mérite un correctif de fond, ou si un nettoyage
+      manuel occasionnel (comme celui fait ce soir) suffit.

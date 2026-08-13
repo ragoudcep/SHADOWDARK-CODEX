@@ -2325,3 +2325,43 @@ récupéré (page non rendue par l'outil de récupération web, contenu vide) �
 mené uniquement à partir de sa description orale et de l'inspection du code existant
 (commentaire déjà présent dans `SHADOWDARK_DEFAULT_TABLES` signalant la limitation). À
 vérifier avec Tristan si le lien contenait des précisions supplémentaires non couvertes ici.
+
+### Données live corrigées (2026-08-13) — 13 tables en double dans Tables aléatoires
+
+**Signalé par Tristan** avec une capture d'écran annotée : plusieurs cartes de l'onglet
+Tables aléatoires apparaissaient deux fois (Origines, Ascendances, Langues courantes, Langues
+rares, Noms de personnages...).
+
+**Cause** : `ensure()`/`seedCharGenTables()`/`seedCursedScrollTables()` dédupliquent par
+titre en lisant `db.tables` **en mémoire** avant de pousser une nouvelle entrée — sans
+verrou côté serveur. Si deux sessions (deux onglets, deux appareils, ou une session MJ +
+une session qui recharge au même instant) exécutent `startApp()` à quelques secondes
+d'écart, chacune peut voir "table absente" avant que l'autre ait sauvegardé la sienne, et
+les deux créent leur propre copie. Exactement 13 tables dupliquées trouvées, toutes
+correspondant aux deux fonctions de seed les plus "collision-prone" (6 tables de
+`seedCharGenTables` + 6 mentors + Catastrophes diaboliques de `seedCursedScrollTables`) —
+cohérent avec cette hypothèse. Plusieurs onglets ouverts simultanément pendant cette session
+(dont les miens, insuffisamment refermés à certains moments) ont probablement contribué au
+déclenchement.
+**Cas particulier révélateur — Ascendances** : les deux copies n'avaient **pas** le même
+contenu — une avec les 12 traits génériques actuels, l'autre avec les 6 anciennes races
+(Demi-Orque, Elfe, Nain...). Celle-ci portait le **même id** que la table que j'avais
+"corrigée" un peu plus tôt dans la session (voir plus haut, section « table live
+Ascendances corrigée ») — preuve que cette correction avait ensuite été écrasée en retour
+par une session concurrente encore chargée avec l'ancien contenu en mémoire (`saveDB()`
+n'est pas un patch ciblé, il réécrit l'objet entier depuis l'état local du client qui
+sauvegarde). Tristan a confirmé vouloir garder la version 12 traits génériques.
+**Corrigé** (confirmation explicite de Tristan avant suppression, la classifieur auto-mode
+avait d'ailleurs bloqué une première tentative de suppression en masse sans confirmation
+préalable — comportement attendu) : les 13 lignes en trop supprimées directement via
+`sb.from("tables").delete().in("id",[...])`, méthode Supabase directe (pas
+`saveDB()`/`fetchRemoteDB()`, cf. note de méthode plus haut dans ce journal).
+**Revérifié après rechargement complet de la page** (pas juste dans le même onglet) : 64 → 51
+tables, zéro doublon restant (`byTitle` recalculé sur une requête Supabase fraîche), table
+Ascendances confirmée à 12 lignes (traits génériques).
+**Risque non traité, à surveiller** : la cause racine (course entre sessions concurrentes,
+pas de contrainte d'unicité côté serveur sur le titre d'une table) reste présente — rien
+n'empêche que de nouveaux doublons se recréent si deux sessions rechargent l'appli au même
+instant à l'avenir. Pas de correctif de fond appliqué ce soir (demanderait soit une
+contrainte SQL `UNIQUE` sur `data->>'title'` côté Supabase avec gestion du conflit, soit un
+verrou applicatif — chantier à part, pas demandé ce soir). Noté dans `docs/TODO.md`.
