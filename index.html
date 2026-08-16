@@ -237,6 +237,18 @@ function filterGmCreated(list){ return gmCreatedOnly ? list.filter(o=>o.gmCreate
    masqué en aperçu joueur et pour un vrai compte joueur pour éviter toute confusion. */
 let pcFavOnly = false, npcFavOnly = false, creatureFavOnly = false, treasureFavOnly = false, spellFavOnly = false;
 function filterFavorites(list, only){ return only ? list.filter(o=>o.favorite) : list; }
+
+/* WIP trésor (2026-08-16), demandé par Tristan : marqueur "en cours d'édition" sur un objet de
+   trésorerie (t.wip), masqué PAR DÉFAUT dans la liste — contrairement à favori/gmCreated qui ne
+   filtrent que si on active le bouton, ici c'est l'inverse (caché par défaut, un bouton permet de
+   les réafficher) puisque le but est justement de ne pas polluer la liste avec des objets pas finis.
+   Réservé au trésor pour l'instant (pas de demande pour les autres onglets) et au MJ (même logique
+   que favori/gmCreated : masqué en aperçu joueur et pour un vrai compte joueur). */
+let treasureWipOnly = false;
+function filterWip(list, only){ return only ? list.filter(o=>o.wip) : list.filter(o=>!o.wip); }
+function wipFilterBtnHTML(only){
+  return `<button class="btn ghost sm${only?" active-mode":""}" data-toggle-wip-filter="1" title="Les objets WIP sont masqués de la liste normale — ce bouton bascule vers eux uniquement">${only?"🚧 WIP uniquement":"🚧 Voir les WIP"}</button>`;
+}
 function favStarHTML(type,id,fav,inline){
   if(effectiveRole()!=="gm") return "";
   return `<button class="fav-star${fav?" fav-star-on":""}${inline?" fav-star-inline":""}" data-toggle-fav="${type}:${id}" title="${fav?"Retirer des favoris":"Ajouter aux favoris"}">${fav?"★":"☆"}</button>`;
@@ -3559,21 +3571,24 @@ function treasureCard(t){
   return `<div class="card" data-open="treasure:${t.id}">
     ${favStarHTML("treasure",t.id,t.favorite)}
     ${(t.images&&t.images.length)?`<img class="thumb" src="${t.images[0].data}" alt="">`:""}
-    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span></div>
+    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${t.wip?`<span class="tag wip">🚧 WIP</span>`:""}</div>
     <h3 style="margin-top:.5rem">${esc(t.name||"Sans nom")}</h3>
     <p>${esc(firstLine(t.description)||"Pas de description")}</p>
   </div>`;
 }
 function listTreasures(){
   const itemsAll = db.treasures;
-  const items = filterFavorites(filterGmCreated(itemsAll), treasureFavOnly);
+  const gm = effectiveRole()==="gm";
+  const wipOnly = gm && treasureWipOnly;
+  const items = filterWip(filterFavorites(filterGmCreated(itemsAll), treasureFavOnly), wipOnly);
   const head = pageHead("Trésor", `${items.length} objet(s)`, "Nouvel objet", xmlToolbarHTML("treasure"));
   if(!itemsAll.length){ app.innerHTML = head + emptyState("💎","Aucun trésor. Répertoriez trouvailles, reliques et régalia."); return; }
-  if(!items.length){ app.innerHTML = head + (effectiveRole()==="gm"?`<div style="margin-bottom:1rem">${favFilterBtnHTML("treasure",treasureFavOnly)}</div>`:"") + emptyState("🖋",treasureFavOnly?"Aucun favori dans cet onglet.":"Aucune création marquée « MJ » dans cet onglet."); return; }
+  if(!items.length){ app.innerHTML = head + (gm?`<div style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.4rem">${favFilterBtnHTML("treasure",treasureFavOnly)}${wipFilterBtnHTML(treasureWipOnly)}</div>`:"") + emptyState("🖋",treasureFavOnly?"Aucun favori dans cet onglet.":(wipOnly?"Aucun objet WIP dans cet onglet.":"Aucune création marquée « MJ » dans cet onglet.")); return; }
   const allKeys = TREASURE_CATS.map(([k])=>"treasures:"+k).filter(key=>items.some(t=>(t.category||"trouvaille")===key.split(":")[1]));
   const allOpen = allKeys.length && allKeys.every(k=>expandedGroups.has(k));
-  const favBtn = effectiveRole()==="gm" ? favFilterBtnHTML("treasure",treasureFavOnly) : "";
-  const toggleBar = `<div style="margin-bottom:.8rem;display:flex;align-items:center;flex-wrap:wrap;gap:.4rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button>${favBtn}</div>`;
+  const favBtn = gm ? favFilterBtnHTML("treasure",treasureFavOnly) : "";
+  const wipBtn = gm ? wipFilterBtnHTML(treasureWipOnly) : "";
+  const toggleBar = `<div style="margin-bottom:.8rem;display:flex;align-items:center;flex-wrap:wrap;gap:.4rem"><button class="btn ghost sm" data-toggle-all="${allOpen?'close':'open'}" data-toggle-all-keys="${esc(allKeys.join('|'))}">${allOpen?'⊟ Tout fermer':'⊞ Tout ouvrir'}</button>${favBtn}${wipBtn}</div>`;
   const sections = TREASURE_CATS.map(([k,lbl])=>{
     const list = items.filter(t=>(t.category||"trouvaille")===k);
     if(!list.length) return "";
@@ -3594,6 +3609,7 @@ function formTreasure(){
       <div class="field" style="flex:2 1 200px"><label>Nom</label><input type="text" id="f-name" value="${esc(t.name)}" placeholder="Sceptre de l'Aube"></div>
       <div class="field" style="flex:1 1 150px"><label>Catégorie</label><select id="f-category">${catOpt}</select></div>
     </div>
+    <div class="field"><label style="display:flex;align-items:center;gap:.4rem;cursor:pointer"><input type="checkbox" id="f-wip" ${t.wip?"checked":""}> 🚧 Work in progress <span class="hint">(masqué de la liste par défaut tant que c'est coché)</span></label></div>
     <div class="field"><label>Description <span class="hint">(aspect, historique ; une ligne par effet ; liens [[…]] possibles)</span></label>
       <textarea id="f-description" placeholder="Une bouteille de verre contenant un liquide gazeux...">${esc(t.description)}</textarea></div>
     <div class="field"><label>Bonus <span class="hint">(facultatif — ex : « Épée longue +1 »)</span></label>
@@ -3618,6 +3634,7 @@ function saveTreasure(){
   const _old = view.mode==="edit" ? o.name : null;
   o.name = $("#f-name").value.trim();
   o.category = $("#f-category").value;
+  o.wip = $("#f-wip").checked;
   o.description = $("#f-description").value;
   o.bonus = $("#f-bonus").value;
   o.boon = $("#f-boon").value;
@@ -3632,7 +3649,7 @@ function saveTreasure(){
 function detailTreasure(t){
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Trésor</button>
-    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span></div>
+    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${t.wip?`<span class="tag wip">🚧 WIP</span>`:""}</div>
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
       <h1>${esc(t.name||"Sans nom")}</h1>
       ${favStarHTML("treasure",t.id,t.favorite,true)}
@@ -4020,6 +4037,7 @@ app.addEventListener("click", e=>{
     renderList();
     return;
   }
+  if(closest("data-toggle-wip-filter")){ treasureWipOnly=!treasureWipOnly; renderList(); return; }
   if((el=closest("data-open"))){ const [ty,id]=el.dataset.open.split(":"); goto(ty,id); return; }
   if((el=closest("data-goto"))){ const [ty,id]=el.dataset.goto.split(":"); goto(ty,id); return; }
   if((el=t.closest("[data-create]"))){ toast(`« ${el.dataset.create} » n'existe pas encore — créez cette entité pour activer le lien.`); return; }
