@@ -246,6 +246,10 @@ function filterFavorites(list, only){ return only ? list.filter(o=>o.favorite) :
    que favori/gmCreated : masqué en aperçu joueur et pour un vrai compte joueur). */
 let treasureWipOnly = false;
 function filterWip(list, only){ return only ? list.filter(o=>o.wip) : list.filter(o=>!o.wip); }
+function wipIconHTML(id,wip,inline){
+  if(effectiveRole()!=="gm") return "";
+  return `<button class="fav-star fav-star-wip${wip?" fav-star-on":""}${inline?" fav-star-inline":""}" data-toggle-wip="${id}" title="${wip?"Marquer comme terminé":"Marquer comme WIP"}">🚧</button>`;
+}
 function wipFilterBtnHTML(only){
   return `<button class="btn ghost sm${only?" active-mode":""}" data-toggle-wip-filter="1" title="Les objets WIP sont masqués de la liste normale — ce bouton bascule vers eux uniquement">${only?"🚧 WIP uniquement":"🚧 Voir les WIP"}</button>`;
 }
@@ -3570,6 +3574,7 @@ function rangeContains(range, n){
 function treasureCard(t){
   return `<div class="card" data-open="treasure:${t.id}">
     ${favStarHTML("treasure",t.id,t.favorite)}
+    ${wipIconHTML(t.id,t.wip)}
     ${(t.images&&t.images.length)?`<img class="thumb" src="${t.images[0].data}" alt="">`:""}
     <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${t.wip?`<span class="tag wip">🚧 WIP</span>`:""}</div>
     <h3 style="margin-top:.5rem">${esc(t.name||"Sans nom")}</h3>
@@ -3653,6 +3658,7 @@ function detailTreasure(t){
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
       <h1>${esc(t.name||"Sans nom")}</h1>
       ${favStarHTML("treasure",t.id,t.favorite,true)}
+      ${wipIconHTML(t.id,t.wip,true)}
     </div>
     ${detailActions("treasure",t.id)}
     ${(t.description&&t.description.trim())
@@ -4024,6 +4030,12 @@ app.addEventListener("click", e=>{
     const [ty,id]=el.dataset.toggleFav.split(":");
     const o=getEntity(ty,id); if(!o) return;
     o.favorite = !o.favorite;
+    saveDB(); renderList();
+    return;
+  }
+  if((el=closest("data-toggle-wip"))){
+    const o=getEntity("treasure",el.dataset.toggleWip); if(!o) return;
+    o.wip = !o.wip;
     saveDB(); renderList();
     return;
   }

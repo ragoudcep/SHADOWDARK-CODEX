@@ -165,6 +165,10 @@
   /* Variante vue détail (2026-08-11) : pas de .card autour pour ancrer le positionnement absolu, donc
      l'étoile est placée en flux normal à côté du <h1>, dans un conteneur flex ajouté au marquage. */
   .fav-star.fav-star-inline{position:static; margin:0}
+  /* Picto WIP (2026-08-17) : même bouton que le favori mais décalé à gauche de celui-ci sur la carte
+     pour ne pas se superposer (les deux sont en position:absolute sur le même coin par défaut). */
+  .fav-star.fav-star-wip{right:2.6rem}
+  .fav-star.fav-star-wip.fav-star-inline{right:auto}
   .fav-star.fav-star-on{color:var(--gold2); border-color:var(--gold); text-shadow:0 0 8px rgba(224,185,104,.6)}
   .tag{
     font-family:var(--ui); font-size:.68rem; font-weight:700; letter-spacing:.4px;
