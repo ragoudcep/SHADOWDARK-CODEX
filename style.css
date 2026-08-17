@@ -264,6 +264,12 @@
   .sheet-abilities.clickable-val:hover{background:rgba(216,162,74,.12)}
   .sheet-row2{display:grid; grid-template-columns:1fr 1fr; gap:.5rem}
   .sheet-abilities{display:grid; grid-template-columns:1fr 1fr; gap:.5rem}
+  /* Score / mod. de base / total avec bonus d'objets, 3 valeurs distinctes par caractéristique
+     (2026-08-18, demande de Tristan — plus besoin de calculer le bonus soi-même). */
+  .ab-line{display:flex; align-items:center; gap:.3rem; font-family:var(--font); font-size:.92rem; flex-wrap:wrap}
+  .ab-line .ab-mod{color:var(--muted); font-size:.85rem}
+  .ab-line .ab-total{color:var(--gold2); font-weight:700; font-size:.85rem}
+  .ab-line .ab-bonus{width:2.6rem; padding:.1rem .25rem; font-size:.78rem; text-align:center}
   .sheet-banner{background:#000; color:var(--gold2); font-family:var(--ui); font-size:.7rem; text-transform:uppercase;
     letter-spacing:1.5px; font-weight:700; padding:.4rem .65rem; border-radius:7px 7px 0 0; margin:-.55rem -.7rem .5rem}
   .sheet-box.sheet-panel{padding-top:0}

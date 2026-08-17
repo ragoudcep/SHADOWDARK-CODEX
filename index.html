@@ -2081,6 +2081,21 @@ function parseAbilityMod(raw){
   const n = parseInt(s);
   return isNaN(n) ? 0 : ABILITY_MOD(n);
 }
+/* Modificateur total d'une caractéristique = modificateur de base (parseAbilityMod) + bonus
+   d'objets/effets cumulés (p.abilityBonuses[k], ex : +1 INT d'un objet magique porté) — demande
+   explicite de Tristan (2026-08-18) : la fiche doit distinguer score → mod. de base → total avec
+   objets, et tout calcul en jeu (CA, attaque, DD d'incantation...) doit utiliser ce TOTAL, pas
+   juste le mod. de base, sans quoi porter l'objet n'aurait aucun effet réel. */
+function totalAbilityMod(d, k){ return parseAbilityMod(d[k]) + (Number(d.abilityBonuses && d.abilityBonuses[k]) || 0); }
+/* Score brut affichable (pas le modificateur) depuis le texte stocké sur une caractéristique —
+   "16 (+3)" et "16" donnent "16" ; un simple modificateur déjà saisi (ex. ancien PJ en "+2", sans
+   score) ne permet pas de retrouver le score, d'où le "—". */
+function abilityScoreOf(raw){
+  const s = String(raw||"").trim();
+  if(!s || /^[+-]/.test(s)) return null;
+  const m = s.match(/^(\d+)/);
+  return m ? m[1] : null;
+}
 const LANGUES_COURANTES = ["Elfique","Géant","Gobelin","Langue naine","Merran","Orque","Reptilien","Sylvestre","Thanien"];
 const LANGUES_RARES = ["Céleste","Diabolique","Draconique","Originel"];
 const DIVINITES = [
@@ -2684,6 +2699,71 @@ function rollSpellsKnown(cd, clsName){
 }
 function rollGold(){ return rollDice(2,6)*5; }
 function computeAC(dexMod){ return 10 + dexMod; }
+/* Équipement de base (2026-08-18, sources/regles/équipement.pdf p.36-37) : règles du jeu, donc
+   données figées dans le code comme CLASSES_DATA/ASCENDANCES — pas du contenu de campagne, pas de
+   raison que ce soit dans Supabase. dexMode : "full" = CA = base + mod. DEX en entier (cuir, sans
+   armure) ; "cap2" = mod. DEX plafonné à +2 (cotte de mailles) ; "none" = CA fixe, la DEX ne
+   compte pas (plates). */
+const ARMOR_DATA = [
+  {id:"none",    name:"Sans armure",      cost:"—",     slots:0, acBase:10, dexMode:"full", properties:"—"},
+  {id:"cuir",    name:"Armure de cuir",   cost:"10 po", slots:1, acBase:11, dexMode:"full", properties:"—"},
+  {id:"mailles", name:"Cotte de mailles", cost:"60 po", slots:2, acBase:13, dexMode:"cap2", properties:"Désavantage discrétion, nage"},
+  {id:"plates",  name:"Armure de plates", cost:"130 po",slots:3, acBase:15, dexMode:"none", properties:"Impossible de nager, désavantage discrétion"}
+];
+const SHIELD_DATA = {name:"Bouclier", cost:"10 po", slots:1, acBonus:2, properties:"Occupe une main"};
+function armorACBase(armorId, dexMod){
+  const a = ARMOR_DATA.find(x=>x.id===armorId) || ARMOR_DATA[0];
+  if(a.dexMode==="none") return a.acBase;
+  if(a.dexMode==="cap2") return a.acBase + Math.min(dexMod, 2);
+  return a.acBase + dexMod;
+}
+/* CA totale depuis l'équipement porté (armure + bouclier + bonus magiques d'objets), plus le
+   bonus de caractéristique total (base + objets, cf. totalAbilityMod()) — remplace le simple
+   10+DEX de computeAC() partout où un PJ a un équipement renseigné ; si rien n'est renseigné
+   (p.equippedArmor vide, pas de bouclier), équivaut exactement à l'ancien calcul (CA = 10+DEX). */
+function computeACFromLoadout(p, dexMod){
+  let ac = armorACBase(p.equippedArmor||"none", dexMod) + (Number(p.armorMagicBonus)||0);
+  if(p.equippedShield) ac += SHIELD_DATA.acBonus + (Number(p.shieldMagicBonus)||0);
+  return ac;
+}
+const WEAPONS_DATA = [
+  {id:"arbalete",      name:"Arbalète",            cost:"8 po",  type:"D",     range:"L",   damage:"1d6",        properties:"2M, R"},
+  {id:"arc_court",     name:"Arc court",           cost:"6 po",  type:"D",     range:"L",   damage:"1d4",        properties:"2M"},
+  {id:"arc_long",      name:"Arc long",            cost:"8 po",  type:"D",     range:"L",   damage:"1d8",        properties:"2M"},
+  {id:"baton",         name:"Bâton",               cost:"5 pa",  type:"CàC",   range:"C",   damage:"1d4",        properties:"2M"},
+  {id:"dague",         name:"Dague",               cost:"1 po",  type:"CàC/D", range:"C/I", damage:"1d4",        properties:"F, J"},
+  {id:"epee_batarde",  name:"Épée bâtarde",        cost:"10 po", type:"CàC",   range:"C",   damage:"1d8/1d10",   properties:"P, 2 empl."},
+  {id:"epee_2mains",   name:"Épée à deux mains",   cost:"12 po", type:"CàC",   range:"C",   damage:"1d12",       properties:"2M, 2 empl."},
+  {id:"epee_courte",   name:"Épée courte",         cost:"7 po",  type:"CàC",   range:"C",   damage:"1d6",        properties:"—"},
+  {id:"epee_longue",   name:"Épée longue",         cost:"9 po",  type:"CàC",   range:"C",   damage:"1d8",        properties:"—"},
+  {id:"gourdin",       name:"Gourdin",             cost:"5 pc",  type:"CàC",   range:"C",   damage:"1d4",        properties:"—"},
+  {id:"hache_2mains",  name:"Hache à deux mains",  cost:"10 po", type:"CàC",   range:"C",   damage:"1d8/1d10",   properties:"P, 2 empl."},
+  {id:"javelot",       name:"Javelot",             cost:"5 pa",  type:"CàC/D", range:"C/L", damage:"1d4",        properties:"J"},
+  {id:"lance",         name:"Lance",               cost:"5 pa",  type:"CàC/D", range:"C/I", damage:"1d6",        properties:"J"},
+  {id:"marteau_guerre",name:"Marteau de guerre",   cost:"10 po", type:"CàC",   range:"C",   damage:"1d10",       properties:"2M"},
+  {id:"masse",         name:"Masse d'armes",       cost:"5 po",  type:"CàC",   range:"C",   damage:"1d6",        properties:"—"}
+];
+/* Bonus d'attaque d'une arme équipée : caractéristique utilisée = FOR/DEX au mieux si la propriété
+   Finesse (F) est présente, DEX seule si l'arme est purement à distance (type "D" pur, ex. arc),
+   FOR sinon (mêlée). Simplification assumée pour Javelot/Lance (CàC/D avec Jet) : traitées comme
+   des armes de mêlée (FOR) — la règle du Jet à distance en FOR OU DEX n'est pas distinguée du jet
+   de mêlée normal, cas rare laissé de côté pour l'instant. */
+function weaponAttackAbilityMod(wd, d){
+  const str = totalAbilityMod(d,"str"), dex = totalAbilityMod(d,"dex");
+  if(/F/.test(wd.properties)) return Math.max(str, dex);
+  if(wd.type==="D") return dex;
+  return str;
+}
+function weaponLoadoutLine(w, d){
+  const wd = WEAPONS_DATA.find(x=>x.id===w.weaponId);
+  if(!wd) return null;
+  const magic = Number(w.magicBonus)||0;
+  const mastery = (d.masteredWeapon && d.masteredWeapon.trim().toLowerCase()===wd.name.toLowerCase())
+    ? 1+Math.floor((parseInt(d.level)||1)/2) : 0;
+  const atk = weaponAttackAbilityMod(wd,d) + magic + mastery;
+  const dmg = wd.damage + (magic ? (magic>0?"+":"")+magic : "");
+  return { name: wd.name + (magic? ` ${magic>0?"+":""}${magic}`:""), atk, dmg };
+}
 /* Équipement p.13 : emplacements = le plus élevé entre 10 et la
    caractéristique de Force ; + bonus de Constitution (s'il est positif) pour
    un Guerrier (talent Bête de somme). */
@@ -3424,11 +3504,16 @@ function detailPC(p){
   };
   const origin = pcOriginLine(d.skills);
   const restSkills = String(d.skills||"").split(/\r?\n/).slice(1).filter(l=>l.trim());
-  const weaponBlock = d.masteredWeapon
-    ? `${esc(d.masteredWeapon)} : +${1+Math.floor((parseInt(d.level)||1)/2)}`
-    : (cd ? `Armes : ${esc(cd.weapons)}` : "—");
+  const sgn = m=>(m>=0?"+":"")+m;
+  const weaponLoadout = (d.weapons||[]).map(w=>weaponLoadoutLine(w,d)).filter(Boolean);
+  const weaponBlock = [
+    d.masteredWeapon
+      ? `${esc(d.masteredWeapon)} (maîtrisée) : +${1+Math.floor((parseInt(d.level)||1)/2)}`
+      : (cd ? `Armes autorisées : ${esc(cd.weapons)}` : "—"),
+    ...weaponLoadout.map(w=>`${esc(w.name)} : attaque ${sgn(w.atk)}, dégâts ${esc(w.dmg)}`)
+  ].join("<br>");
   const spellCastLine = (cd && cd.spellClass && cd.spellAbility)
-    ? `Test d'incantation : 1d20${(()=>{const m=parseAbilityMod(d[cd.spellAbility]); return (m>=0?"+":"")+m;})()}`
+    ? `Test d'incantation : 1d20${sgn(totalAbilityMod(d,cd.spellAbility))}`
     : "";
   const abilitiesBoxHTML = (pcSheetManualField==="abilities")
     ? `<div class="sheet-box">
@@ -3442,7 +3527,18 @@ function detailPC(p){
     : `<div class="sheet-box">
         <button type="button" class="icon-btn sm dice-btn" data-sheet-reroll="abilities" title="Relancer les 6 caractéristiques (3d6)">🎲</button>
         <span class="lbl">Caractéristiques</span>
-        <div class="sheet-abilities clickable-val" data-sheet-value="abilities" title="Cliquer pour saisir manuellement">${ab.map(([lbl,k])=>`<div><b>${lbl}</b> ${esc(d[k]||"—")}</div>`).join("")}</div>
+        <div class="sheet-abilities">${ab.map(([lbl,k])=>{
+          const score = abilityScoreOf(d[k]);
+          const base = parseAbilityMod(d[k]);
+          const bonus = Number(d.abilityBonuses && d.abilityBonuses[k]) || 0;
+          const total = base + bonus;
+          return `<div class="ab-line">
+            <b class="clickable-val" data-sheet-value="abilities" title="Cliquer pour saisir le score manuellement">${lbl} ${score||"—"}</b>
+            <span class="ab-mod" title="Modificateur de base">${sgn(base)}</span>
+            <input type="text" class="ab-bonus" data-pc-ability-bonus="${k}" value="${bonus?esc(String(bonus)):""}" placeholder="+0" title="Bonus d'objets/effets sur cette caractéristique">
+            <span class="ab-total" title="Total (mod. de base + bonus)">= ${sgn(total)}</span>
+          </div>`;
+        }).join("")}</div>
       </div>`;
   const leftCol = `<div class="pc-sheet-col">
     ${d.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(d.portrait)}" alt="" style="margin:0 auto .3rem;display:block">`:""}
@@ -3475,7 +3571,29 @@ function detailPC(p){
       ${restSkills.length?`<div style="${CLASS_SUBLABEL_STYLE}">Compétences</div>${renderBullets(restSkills.join("\n"))}`:""}
     </div>
     <div class="sheet-box sheet-panel">
-      <div class="sheet-banner">Équipement</div>
+      <div class="sheet-banner">Équipement porté</div>
+      <p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:0 0 .5rem">Détermine la CA et le bonus d'attaque/dégâts ci-dessus — clique 🎲 sur la case CA pour la recalculer après un changement.</p>
+      <div class="row" style="gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+        <div class="field" style="flex:1 1 160px;margin:0"><label style="font-size:.75rem">Armure</label>
+          <select data-pc-armor="1">${ARMOR_DATA.map(a=>`<option value="${a.id}" ${(d.equippedArmor||"none")===a.id?"selected":""}>${esc(a.name)}</option>`).join("")}</select></div>
+        <div class="field" style="flex:0 1 100px;margin:0"><label style="font-size:.75rem">Bonus magique</label>
+          <input type="text" data-pc-armor-bonus="1" value="${d.armorMagicBonus?esc(String(d.armorMagicBonus)):""}" placeholder="+0"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.82rem;margin-bottom:.5rem;cursor:pointer">
+        <input type="checkbox" data-pc-shield="1" ${d.equippedShield?"checked":""} style="width:auto"> Bouclier (+2 CA)
+        ${d.equippedShield?`<input type="text" data-pc-shield-bonus="1" value="${d.shieldMagicBonus?esc(String(d.shieldMagicBonus)):""}" placeholder="+0" style="width:4rem">`:""}
+      </label>
+      <div id="pc-weapons-wrap">
+        ${(d.weapons||[]).map((w,i)=>`<div class="row" style="gap:.4rem;align-items:flex-end;margin-bottom:.4rem">
+          <div class="field" style="flex:1 1 140px;margin:0"><select data-pc-weapon-select="${i}">
+            <option value="">— Choisir une arme —</option>
+            ${WEAPONS_DATA.map(wd=>`<option value="${wd.id}" ${w.weaponId===wd.id?"selected":""}>${esc(wd.name)} (${wd.damage})</option>`).join("")}
+          </select></div>
+          <div class="field" style="flex:0 1 80px;margin:0"><input type="text" data-pc-weapon-bonus="${i}" value="${w.magicBonus?esc(String(w.magicBonus)):""}" placeholder="+0"></div>
+          <button type="button" class="btn danger sm" data-pc-weapon-remove="${i}">✕</button>
+        </div>`).join("")}
+      </div>
+      <button type="button" class="btn ghost sm" data-pc-weapon-add="1" style="margin-bottom:.7rem">+ Ajouter une arme</button>
       <p class="faint" style="font-family:var(--ui);font-size:.8rem;margin:0 0 .5rem">${d.invSlots?`${esc(d.invSlots)} emplacements`:""} <button type="button" class="icon-btn sm" data-sheet-reroll="gold" title="Ajouter un tirage d'or de départ" style="width:1.4rem;height:1.4rem;padding:0;border-radius:50%;vertical-align:middle">🎲</button></p>
       ${d.inventory?`<ol class="sheet-gear-list">${String(d.inventory).split(/\r?\n/).filter(l=>l.trim()).map(l=>`<li>${renderText(l)}</li>`).join("")}</ol>`:'<p class="faint" style="font-family:var(--ui);font-size:.85rem">(vide)</p>'}
     </div>
@@ -3539,12 +3657,13 @@ function handlePCSheetReroll(kind){
     case "deity": d.deity = rollDeity(d.alignment); break;
     case "mentor": d.mentor = rollMentor(); break;
     case "gold": d.inventory = (d.inventory?d.inventory+"\n":"") + `${rollGold()} po pour acheter votre équipement de départ.`; break;
-    // CA = 10 + mod. DEX (règle p.13) — pas aléatoire, ce bouton la recalcule depuis la valeur
-    // actuelle de Dextérité plutôt que de la tirer ; laissé en action explicite (pas recalculé
-    // automatiquement à chaque rendu) pour ne jamais écraser silencieusement un bonus d'armure
-    // qu'un MJ aurait ajouté à la main (l'appli ne modélise pas l'équipement, cf. docs/REGLES-
-    // CREATION-PERSONNAGE.md) — recalculer est un choix explicite de l'utilisateur, pas un fait accompli.
-    case "ac": d.ac = String(computeAC(parseAbilityMod(d.dex))); break;
+    // CA = calculée depuis l'armure/bouclier équipés (ARMOR_DATA/SHIELD_DATA, 2026-08-18) + mod.
+    // DEX total (base + bonus d'objets) — pas aléatoire, ce bouton la recalcule depuis l'équipement
+    // et les caractéristiques actuelles plutôt que de la tirer ; laissé en action explicite (pas
+    // recalculé automatiquement à chaque rendu) pour ne jamais écraser silencieusement une valeur
+    // que le MJ aurait ajustée à la main pour un cas particulier — recalculer reste un choix
+    // explicite de l'utilisateur, pas un fait accompli.
+    case "ac": d.ac = String(computeACFromLoadout(d, totalAbilityMod(d,"dex"))); break;
   }
   render();
 }
@@ -4026,6 +4145,19 @@ app.addEventListener("change", e=>{
     const filterWrap = document.getElementById("dynamic-filter-wrap");
     if(filterWrap) filterWrap.classList.toggle("hidden", e.target.value!=="treasure");
   }
+  else if(e.target.matches("[data-pc-armor]")){ if(pcSheetDraft){ pcSheetDraft.equippedArmor = e.target.value; render(); } }
+  else if(e.target.matches("[data-pc-armor-bonus]")){ if(pcSheetDraft){ pcSheetDraft.armorMagicBonus = e.target.value; render(); } }
+  else if(e.target.matches("[data-pc-shield]")){ if(pcSheetDraft){ pcSheetDraft.equippedShield = e.target.checked; render(); } }
+  else if(e.target.matches("[data-pc-shield-bonus]")){ if(pcSheetDraft){ pcSheetDraft.shieldMagicBonus = e.target.value; render(); } }
+  else if(e.target.matches("[data-pc-weapon-select]")){
+    if(pcSheetDraft){ const i=+e.target.dataset.pcWeaponSelect; if(pcSheetDraft.weapons&&pcSheetDraft.weapons[i]){ pcSheetDraft.weapons[i].weaponId = e.target.value; render(); } }
+  }
+  else if(e.target.matches("[data-pc-weapon-bonus]")){
+    if(pcSheetDraft){ const i=+e.target.dataset.pcWeaponBonus; if(pcSheetDraft.weapons&&pcSheetDraft.weapons[i]){ pcSheetDraft.weapons[i].magicBonus = e.target.value; render(); } }
+  }
+  else if(e.target.matches("[data-pc-ability-bonus]")){
+    if(pcSheetDraft){ const k=e.target.dataset.pcAbilityBonus; if(!pcSheetDraft.abilityBonuses) pcSheetDraft.abilityBonuses={}; pcSheetDraft.abilityBonuses[k] = e.target.value; render(); }
+  }
 });
 
 // Clics globaux dans l'app (délégation)
@@ -4144,6 +4276,14 @@ app.addEventListener("click", e=>{
     if(pcSheetDraft){ applyPCSheetManualValue(kind, pcSheetDraft, pcWizardReadManual(kind, pcSheetDraft)); }
     pcSheetManualField = null;
     render(); return;
+  }
+  if(closest("data-pc-weapon-add")){
+    if(pcSheetDraft){ if(!pcSheetDraft.weapons) pcSheetDraft.weapons=[]; pcSheetDraft.weapons.push({weaponId:"", magicBonus:0}); render(); }
+    return;
+  }
+  if((el=closest("data-pc-weapon-remove"))){
+    if(pcSheetDraft && pcSheetDraft.weapons){ pcSheetDraft.weapons.splice(+el.dataset.pcWeaponRemove,1); render(); }
+    return;
   }
   // Barre d'outils du point crawl
   if(closest("data-crawl-add")){ const c=getEntity("pointcrawl",crawlState.id); if(c) openPickEventModal(c); return; }
