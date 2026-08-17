@@ -43,10 +43,8 @@ function fondPickerHTML(selected){
      </button>`);
   return `<div class="overlay-picker biome-picker" id="hex-fond-picker">${tiles.join("")}</div>`;
 }
-/* "Volcan" (1-foundation_vulcano.png) absent de la liste : ce fichier manque dans le dossier
-   Overlays réuploadé par Tristan le 2026-08-17 (26 fichiers sur 27, 2 à 27 seulement) — à réajouter
-   ici si/quand il le retrouve et le remet dans tuiles hexcrawl/Overlays/. */
 const OVERLAY_LIST = [
+  {file:"tuiles hexcrawl/Overlays/1-foundation_vulcano.png", label:"Volcan"},
   {file:"tuiles hexcrawl/Overlays/2-foundation_forest.png", label:"Forêt"},
   {file:"tuiles hexcrawl/Overlays/3-foundation_tundra.png", label:"Toundra / herbe légère"},
   {file:"tuiles hexcrawl/Overlays/4-foundation_trees.png", label:"Arbres épars"},
