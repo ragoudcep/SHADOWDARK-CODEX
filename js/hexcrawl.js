@@ -258,6 +258,11 @@ function initHexMapGestures(container){
   }, {passive:false});
   container.addEventListener("pointerdown", e=>{
     if(e.pointerType==="mouse" && e.button!==0) return;
+    /* Ne JAMAIS démarrer un pan (ni capturer le pointeur) depuis la barre d'outils flottante :
+       setPointerCapture redirige les événements pointeur vers le conteneur, ce qui empêche le
+       bouton sous le doigt de recevoir son clic — sur mobile, le bouton « Quitter le plein écran »
+       devenait alors impossible à actionner, sans Échap pour s'en sortir (2026-08-17). */
+    if(e.target.closest(".crawl-map-toolbar")) return;
     dragging=true; moved=0; lastX=e.clientX; lastY=e.clientY;
     try{ container.setPointerCapture(e.pointerId); }catch(err){}
   });
