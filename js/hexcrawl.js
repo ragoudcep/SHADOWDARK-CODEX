@@ -458,13 +458,15 @@ function hexTileImageSVG(href, c, size){
   return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" class="hex-tile-img"></image>`;
 }
 /* Fond (5 images pleines) + overlay (27 images, contour dessiné, transparent autour) empilés sur
-   la boîte englobante de l'hexagone — système réintégré (2026-08-17), voir le commentaire sur
-   FOND_LIST/OVERLAY_LIST plus haut pour le pourquoi de la rotation (images flat-top, grille
-   pointy-top). Repris tel quel de l'ancien hexBiomeImageSVG (git blame). */
-function hexFondOverlayImageSVG(href, c, size, cls){
+   la boîte englobante de l'hexagone. `deg` est le paramètre au lieu d'une constante 30° fixe
+   (2026-08-17) : les FONDS sont le set flat-top d'origine (jamais retouché, 30° reste correct),
+   mais les OVERLAYS ont été réexportés par Tristan depuis un art déjà pointy-top — malheureusement
+   tourné à 90° par erreur pendant l'export (confirmé par Tristan + vérifié visuellement : "Tour"
+   devient une tourelle droite à +90°, à l'envers à -90°). Undo de cette erreur = +90°, pas 30°. */
+function hexFondOverlayImageSVG(href, c, size, cls, deg){
   const w = size*2, h = size*Math.sqrt(3);
   const x = (c.x - w/2).toFixed(1), y = (c.y - h/2).toFixed(1);
-  const rot = `rotate(30 ${c.x.toFixed(1)} ${c.y.toFixed(1)})`;
+  const rot = `rotate(${deg} ${c.x.toFixed(1)} ${c.y.toFixed(1)})`;
   return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" transform="${rot}" class="${cls}"></image>`;
 }
 function hexTerrainLayerSVG(h, c, size){
@@ -475,13 +477,13 @@ function hexTerrainLayerSVG(h, c, size){
   }
   if(h.fond || h.overlay){
     let out = `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>`;
-    if(h.fond){ const f=FOND_LIST.find(x=>x.id===h.fond); if(f) out += hexFondOverlayImageSVG(f.file, c, size, "hex-fond-img"); }
+    if(h.fond){ const f=FOND_LIST.find(x=>x.id===h.fond); if(f) out += hexFondOverlayImageSVG(f.file, c, size, "hex-fond-img", 30); }
     /* h.overlay stocke le CHEMIN complet depuis peu (tuiles hexcrawl/Overlays/…) mais des cartes
        plus anciennes ont pu garder l'ancien format court (juste le nom de fichier, ex.
        "3-foundation_tundra.png") d'avant la réorganisation des dossiers (2026-08-17) — normalisé
        ici au lieu de migrer toutes les cartes existantes en base, plus sûr en cas d'oubli. */
     const overlayHref = h.overlay && !h.overlay.startsWith("tuiles hexcrawl/") ? "tuiles hexcrawl/Overlays/"+h.overlay : h.overlay;
-    if(overlayHref) out += hexFondOverlayImageSVG(overlayHref, c, size, "hex-overlay-img");
+    if(overlayHref) out += hexFondOverlayImageSVG(overlayHref, c, size, "hex-overlay-img", 90);
     return out;
   }
   const info = terrainInfo(h.hexType);
