@@ -509,16 +509,24 @@ function revealAllHexes(reveal){
   (m.hexes||[]).forEach(h=> h.fogState = reveal ? "visible" : "hidden");
   saveDB(); detailHexmap(m);
 }
-function openHexPointModal(pointId){
+/* Ouvre en LECTURE par défaut, y compris pour le MJ (2026-08-17, demande de Tristan : en jeu on
+   consulte un point bien plus souvent qu'on ne l'édite — tomber sur le formulaire à chaque tap
+   était pénible). Le MJ a un bouton « Modifier » pour basculer sur le formulaire ; `mode:"edit"`
+   permet d'y aller directement, ce dont se sert createHexPointAt() pour un point tout neuf. */
+function openHexPointModal(pointId, mode){
   const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
   const p = (m.points||[]).find(x=>x.id===pointId); if(!p) return;
-  if(effectiveRole()!=="gm"){
+  const isGM = effectiveRole()==="gm";
+  if(!isGM || mode!=="edit"){
     openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
         <h2 style="margin:0;color:var(--gold2)">${esc(p.name||"Point d'intérêt")}</h2>
         <button class="icon-btn" data-modal-close="1">✕</button></div>
       ${p.type?`<p class="faint" style="font-family:var(--ui);margin:.3rem 0 0">${esc(p.type)}</p>`:""}
+      ${isGM && p.dmOnly?`<p class="faint" style="font-family:var(--ui);margin:.3rem 0 0">🚫 Masqué aux joueurs</p>`:""}
       ${(p.description&&p.description.trim())?`<div style="margin-top:.7rem">${renderBullets(p.description)}</div>`:`<p class="faint" style="font-family:var(--ui);margin-top:.7rem">Pas de description.</p>`}
-      <div class="form-actions"><button class="btn ghost" data-modal-close="1">Fermer</button></div>`);
+      <div class="form-actions">${isGM?`<button class="btn ghost" id="hp-edit">✎ Modifier</button>`:""}<button class="btn ghost" data-modal-close="1">Fermer</button></div>`);
+    const btnEdit = document.getElementById("hp-edit");
+    if(btnEdit) btnEdit.addEventListener("click", ()=>openHexPointModal(pointId, "edit"));
     return;
   }
   openModal(`<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
@@ -596,7 +604,7 @@ function createHexPointAt(q,r){
   hexPlacingPoint = false;
   saveDB();
   detailHexmap(m);
-  openHexPointModal(p.id);
+  openHexPointModal(p.id, "edit"); // point tout neuf : rien à consulter, on va droit au formulaire
 }
 let _hexImportTarget = null; // null = nouvelle carte, sinon id de la carte à remplacer
 function importHexmapJSON(file){
