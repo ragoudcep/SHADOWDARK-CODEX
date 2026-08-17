@@ -559,9 +559,10 @@ function buildHexSVG(m){
 /* Export PDF de la carte (2026-08-17, demande de Tristan) : version imprimable, brouillard ignoré
    (tout le terrain réel est affiché, peu importe fogState — c'est une carte de préparation MJ) et
    sans le calque des points d'intérêt (déjà connus du MJ). Ajoute une numérotation q/r en bordure
-   (haut+bas pour les colonnes, gauche+droite pour les lignes) pour repérer un hexagone comme des
-   coordonnées abscisse/ordonnée. Réutilise le même pipeline que printCrawl() : on remplit
-   #print-area puis window.print() (voir style.css, règles @media print / #print-area). */
+   (colonnes en haut, lignes à gauche seulement — une seule fois chacune, pas de doublon en bas/à
+   droite) pour repérer un hexagone comme des coordonnées abscisse/ordonnée. Réutilise le même
+   pipeline que printCrawl() : on remplit #print-area puis window.print() (voir style.css, règles
+   @media print / #print-area). */
 function buildHexPrintSVG(m){
   const size = (m.settings&&m.settings.hexSize)||30;
   const hexes = m.hexes||[];
@@ -573,7 +574,7 @@ function buildHexPrintSVG(m){
   const rs = [...new Set(hexes.map(h=>h.r))].sort((a,b)=>a-b);
   const pad = 10, axisPad = Math.max(30, size*1.1);
   const vbx = minX-pad-axisPad, vby = minY-pad-axisPad;
-  const vbw = (maxX-minX)+pad*2+axisPad*2, vbh = (maxY-minY)+pad*2+axisPad*2;
+  const vbw = (maxX-minX)+pad*2+axisPad, vbh = (maxY-minY)+pad*2+axisPad;
   const edgeMap = new Map();
   const cells = centers.map(({h,c})=>{
     const corners = hexCornerPoints(c.x,c.y,size);
@@ -585,15 +586,15 @@ function buildHexPrintSVG(m){
     return `<g>${hexTerrainLayerSVG(h,c,size)}</g>`;
   }).join("");
   const gridLines = [...edgeMap.values()].map(([a,b])=>`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="hex-print-line"></line>`).join("");
-  const topY = (minY-pad-axisPad*0.4).toFixed(1), botY = (maxY+pad+axisPad*0.55).toFixed(1);
-  const leftX = (minX-pad-axisPad*0.4).toFixed(1), rightX = (maxX+pad+axisPad*0.55).toFixed(1);
+  const topY = (minY-pad-axisPad*0.4).toFixed(1);
+  const leftX = (minX-pad-axisPad*0.4).toFixed(1);
   const colLabels = qs.map(q=>{
     const x = hexCenter(q,0,size).x.toFixed(1);
-    return `<text x="${x}" y="${topY}" text-anchor="middle" class="hex-print-axis">${q}</text><text x="${x}" y="${botY}" text-anchor="middle" class="hex-print-axis">${q}</text>`;
+    return `<text x="${x}" y="${topY}" text-anchor="middle" class="hex-print-axis">${q}</text>`;
   }).join("");
   const rowLabels = rs.map(r=>{
     const y = (hexCenter(0,r,size).y+4).toFixed(1);
-    return `<text x="${leftX}" y="${y}" text-anchor="middle" class="hex-print-axis">${r}</text><text x="${rightX}" y="${y}" text-anchor="middle" class="hex-print-axis">${r}</text>`;
+    return `<text x="${leftX}" y="${y}" text-anchor="middle" class="hex-print-axis">${r}</text>`;
   }).join("");
   return `<svg viewBox="${vbx.toFixed(1)} ${vby.toFixed(1)} ${vbw.toFixed(1)} ${vbh.toFixed(1)}" class="pp-hexsvg" xmlns="http://www.w3.org/2000/svg">
     <rect x="${vbx.toFixed(1)}" y="${vby.toFixed(1)}" width="${vbw.toFixed(1)}" height="${vbh.toFixed(1)}" class="hex-print-bg"></rect>
