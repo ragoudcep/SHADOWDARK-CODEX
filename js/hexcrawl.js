@@ -457,17 +457,23 @@ function hexTileImageSVG(href, c, size){
   const x = (c.x - w/2).toFixed(1), y = (c.y - h/2).toFixed(1);
   return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" class="hex-tile-img"></image>`;
 }
-/* Fond (5 images pleines) + overlay (27 images, contour dessiné, transparent autour) empilés sur
-   la boîte englobante de l'hexagone. `deg` est le paramètre au lieu d'une constante 30° fixe
-   (2026-08-17) : les FONDS sont le set flat-top d'origine (jamais retouché, 30° reste correct),
-   mais les OVERLAYS ont été réexportés par Tristan depuis un art déjà pointy-top — malheureusement
-   tourné à 90° par erreur pendant l'export (confirmé par Tristan + vérifié visuellement : "Tour"
-   devient une tourelle droite à +90°, à l'envers à -90°). Undo de cette erreur = +90°, pas 30°. */
-function hexFondOverlayImageSVG(href, c, size, cls, deg){
+/* Fond (5 images pleines, flat-top, jamais retouché) empilé sur la boîte englobante de
+   l'hexagone avec rotation 30° — voir FOND_LIST plus haut pour le pourquoi. */
+function hexFondImageSVG(href, c, size){
   const w = size*2, h = size*Math.sqrt(3);
   const x = (c.x - w/2).toFixed(1), y = (c.y - h/2).toFixed(1);
-  const rot = `rotate(${deg} ${c.x.toFixed(1)} ${c.y.toFixed(1)})`;
-  return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" transform="${rot}" class="${cls}"></image>`;
+  const rot = `rotate(30 ${c.x.toFixed(1)} ${c.y.toFixed(1)})`;
+  return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" transform="${rot}" class="hex-fond-img"></image>`;
+}
+/* Overlay (27 images, contour dessiné, transparent autour) — réexporté par Tristan en art
+   pointy-top natif (2026-08-17, vérifié : 207×238, même ratio que les tuiles), donc AUCUNE
+   rotation, comme hexTileImageSVG. Deux exports précédents ont dû être corrigés au fil de l'eau
+   (30° pour l'ancien set flat-top, puis 90° pour un export intermédiaire mal tourné) — celui-ci
+   est le bon, cf. conversation avec Tristan. */
+function hexOverlayImageSVG(href, c, size){
+  const w = size*Math.sqrt(3), h = size*2;
+  const x = (c.x - w/2).toFixed(1), y = (c.y - h/2).toFixed(1);
+  return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" class="hex-overlay-img"></image>`;
 }
 function hexTerrainLayerSVG(h, c, size){
   const pts = hexCorners(c.x, c.y, size-1);
@@ -477,13 +483,13 @@ function hexTerrainLayerSVG(h, c, size){
   }
   if(h.fond || h.overlay){
     let out = `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>`;
-    if(h.fond){ const f=FOND_LIST.find(x=>x.id===h.fond); if(f) out += hexFondOverlayImageSVG(f.file, c, size, "hex-fond-img", 30); }
+    if(h.fond){ const f=FOND_LIST.find(x=>x.id===h.fond); if(f) out += hexFondImageSVG(f.file, c, size); }
     /* h.overlay stocke le CHEMIN complet depuis peu (tuiles hexcrawl/Overlays/…) mais des cartes
        plus anciennes ont pu garder l'ancien format court (juste le nom de fichier, ex.
        "3-foundation_tundra.png") d'avant la réorganisation des dossiers (2026-08-17) — normalisé
        ici au lieu de migrer toutes les cartes existantes en base, plus sûr en cas d'oubli. */
     const overlayHref = h.overlay && !h.overlay.startsWith("tuiles hexcrawl/") ? "tuiles hexcrawl/Overlays/"+h.overlay : h.overlay;
-    if(overlayHref) out += hexFondOverlayImageSVG(overlayHref, c, size, "hex-overlay-img", 90);
+    if(overlayHref) out += hexOverlayImageSVG(overlayHref, c, size);
     return out;
   }
   const info = terrainInfo(h.hexType);
