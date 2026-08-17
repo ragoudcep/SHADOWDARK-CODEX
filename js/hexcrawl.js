@@ -495,6 +495,29 @@ function hexTerrainLayerSVG(h, c, size){
   const info = terrainInfo(h.hexType);
   return `<polygon points="${pts}" fill="${info.color}"></polygon><text x="${c.x.toFixed(1)}" y="${(c.y+5).toFixed(1)}" text-anchor="middle" class="hex-icon">${info.icon}</text>`;
 }
+/* Contour (frame) des hexagones, réglable par carte (2026-08-17, demande de Tristan) — stocké
+   dans m.settings.frameColor / m.settings.frameWidth, avec les anciennes valeurs codées en dur
+   comme défaut pour toute carte antérieure au réglage (aucune migration nécessaire).
+   Épaisseur 0 = aucun contour. */
+const HEX_FRAME_DEFAULT_COLOR = "#1a1510";
+const HEX_FRAME_DEFAULT_WIDTH = 1;
+function hexFrameColor(m){ return (m.settings && m.settings.frameColor) || HEX_FRAME_DEFAULT_COLOR; }
+function hexFrameWidth(m){
+  const w = m.settings && m.settings.frameWidth;
+  return (w===undefined || w===null || w==="") ? HEX_FRAME_DEFAULT_WIDTH : Number(w);
+}
+function hexFrameStyle(m){ return `--hex-stroke:${esc(hexFrameColor(m))};--hex-stroke-w:${hexFrameWidth(m)}`; }
+function setHexFrame(prop, value){
+  const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
+  if(!m.settings) m.settings = {};
+  m.settings[prop] = value;
+  saveDB();
+  // Mise à jour directe des variables CSS plutôt qu'un detailHexmap() complet : le réglage se fait
+  // en glissant un curseur / bougeant un sélecteur de couleur, un re-render à chaque pixel
+  // reconstruirait tout le SVG (et ferait perdre le focus du contrôle en cours d'utilisation).
+  const svg = document.getElementById("hex-svg");
+  if(svg) svg.setAttribute("style", hexFrameStyle(m));
+}
 function buildHexSVG(m){
   const size = (m.settings&&m.settings.hexSize)||30;
   const hexes = (m.hexes||[]);
@@ -508,12 +531,16 @@ function buildHexSVG(m){
     const revealed = h.fogState!=="hidden";
     const showTerrain = isGM || revealed;
     const terrainLayer = showTerrain ? hexTerrainLayerSVG(h,c,size) : `<polygon points="${pts}" fill="#15130f"></polygon>`;
+    /* Contour dessiné EN DERNIER, par-dessus tuile/fond/overlay et le brouillard : les images de
+       terrain remplissent toute la boîte de l'hexagone et masqueraient sinon complètement le trait
+       du polygone de fond (2026-08-17 — le réglage de couleur/épaisseur semblait sans effet). */
     return `<g class="hexcell${isGM?' hex-editable':''}" data-hexq="${h.q}" data-hexr="${h.r}">
       ${terrainLayer}
       ${!revealed?`<polygon points="${pts}" class="${isGM?'hex-fog-gm':'hex-fog'}"></polygon>`:""}
+      <polygon points="${pts}" class="hex-frame"></polygon>
     </g>`;
   }).join("");
-  return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
+  return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg" style="${hexFrameStyle(m)}">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
 function detailHexmap(m){
   if(hexmapCurrentId !== m.id){ _hexClearPaintModes(); hexMapZoom = { scale:1, tx:0, ty:0 }; hexMapFullscreen = false; document.body.classList.remove("hex-fullscreen-lock"); }
@@ -543,6 +570,11 @@ function detailHexmap(m){
       <button class="btn ghost sm${hexPaintingFond?' active-mode':''}" data-hex-paint-fond="1">🎨 ${hexPaintingFond?"Clique un hexagone…":"Peindre un fond"}</button>
       <button class="btn ghost sm${hexPaintingOverlay?' active-mode':''}" data-hex-paint-overlay="1">🖼 ${hexPaintingOverlay?"Clique un hexagone…":"Peindre un overlay"}</button>
       <button class="btn ghost sm" data-hex-import="1">⭱ Importer / remplacer le JSON</button>
+    </div>
+    <div class="hex-frame-controls">
+      <label>Contour <input type="color" id="hex-frame-color" value="${esc(hexFrameColor(m))}"></label>
+      <label>Épaisseur <input type="range" id="hex-frame-width" min="0" max="6" step="0.5" value="${hexFrameWidth(m)}">
+        <span id="hex-frame-width-val">${hexFrameWidth(m)}</span></label>
     </div>
     ${hexPaintingTile ? packPickerHTML(hexPaintPackId) : ""}
     ${hexPaintingTile && paintPack ? tilePickerHTML(paintPack.id, hexPaintTileValue) : ""}
@@ -604,6 +636,14 @@ function detailHexmap(m){
       const help = document.querySelector(".crawl-help");
       if(help) help.textContent = `Clique un hexagone pour lui appliquer l'overlay « ${hexPaintOverlayValue?overlayLabel(hexPaintOverlayValue):"Aucun"} » (ou re-clique le bouton pour annuler).`;
     });
+  });
+  const frameColor = document.getElementById("hex-frame-color");
+  if(frameColor) frameColor.addEventListener("input", e=>setHexFrame("frameColor", e.target.value));
+  const frameWidth = document.getElementById("hex-frame-width");
+  if(frameWidth) frameWidth.addEventListener("input", e=>{
+    setHexFrame("frameWidth", Number(e.target.value));
+    const out = document.getElementById("hex-frame-width-val");
+    if(out) out.textContent = e.target.value;
   });
   const mapContainer = document.getElementById("hex-map-container");
   if(mapContainer){
