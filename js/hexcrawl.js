@@ -240,9 +240,15 @@ function resetHexZoom(){ hexMapZoom = { scale:1, tx:0, ty:0 }; applyHexMapTransf
    au lieu du clic qu'il visait vraiment. Remplacé par un simple drapeau posé/consommé par un
    unique listener permanent, avec une purge de sécurité (setTimeout) si aucun clic n'arrive du
    tout. */
+let _hexWindowGestureCleanup = null;
 function initHexMapGestures(container){
   if(!container || container.dataset.gesturesBound) return;
   container.dataset.gesturesBound = "1";
+  /* detailHexmap() reconstruit le conteneur à chaque interaction, donc cette fonction est
+     rappelée sur un élément neuf à chaque fois. Les écouteurs posés sur `container` disparaissent
+     avec lui, mais ceux posés sur `window` (voir plus bas) survivraient et s'empileraient à
+     l'infini — d'où le retrait explicite du jeu précédent avant d'en poser un nouveau. */
+  if(_hexWindowGestureCleanup) _hexWindowGestureCleanup();
   let dragging=false, lastX=0, lastY=0, moved=0;
   let pinch=null;
   let suppressNextClick=false;
@@ -256,29 +262,37 @@ function initHexMapGestures(container){
     const rect = container.getBoundingClientRect();
     setHexZoom(hexMapZoom.scale*(e.deltaY<0?1.12:1/1.12), e.clientX-rect.left, e.clientY-rect.top);
   }, {passive:false});
+  /* PAS de setPointerCapture ici — testé et retiré (2026-08-17) : capturer le pointeur sur le
+     conteneur fait que le navigateur RETARGETE le click qui suit vers l'élément capturant. Tous
+     les clics de la carte arrivaient donc sur #hex-map-container au lieu de l'hexagone/point sous
+     le doigt, et les `closest("[data-hexq]")` / `closest("[data-point-id]")` du routeur de clics
+     ne matchaient plus jamais : plus rien ne fonctionnait (révéler un hexagone, ouvrir un point,
+     peindre une tuile). Le suivi du drag passe donc par window, ce qui couvre aussi bien le cas
+     "le doigt sort du conteneur en cours de glissement" sans toucher au ciblage des clics. */
   container.addEventListener("pointerdown", e=>{
     if(e.pointerType==="mouse" && e.button!==0) return;
-    /* Ne JAMAIS démarrer un pan (ni capturer le pointeur) depuis la barre d'outils flottante :
-       setPointerCapture redirige les événements pointeur vers le conteneur, ce qui empêche le
-       bouton sous le doigt de recevoir son clic — sur mobile, le bouton « Quitter le plein écran »
-       devenait alors impossible à actionner, sans Échap pour s'en sortir (2026-08-17). */
-    if(e.target.closest(".crawl-map-toolbar")) return;
+    if(e.target.closest(".crawl-map-toolbar")) return; // les boutons de la barre ne déclenchent pas de pan
     dragging=true; moved=0; lastX=e.clientX; lastY=e.clientY;
-    try{ container.setPointerCapture(e.pointerId); }catch(err){}
   });
-  container.addEventListener("pointermove", e=>{
+  const onMove = e=>{
     if(!dragging) return;
     const dx=e.clientX-lastX, dy=e.clientY-lastY;
     hexMapZoom.tx += dx; hexMapZoom.ty += dy; moved += Math.abs(dx)+Math.abs(dy);
     lastX=e.clientX; lastY=e.clientY;
     applyHexMapTransform();
-  });
+  };
   const endDrag = ()=>{
     if(dragging && moved>6){ suppressNextClick=true; setTimeout(()=>{ suppressNextClick=false; }, 400); }
     dragging=false;
   };
-  container.addEventListener("pointerup", endDrag);
-  container.addEventListener("pointercancel", endDrag);
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", endDrag);
+  window.addEventListener("pointercancel", endDrag);
+  _hexWindowGestureCleanup = ()=>{
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", endDrag);
+    window.removeEventListener("pointercancel", endDrag);
+  };
   container.addEventListener("touchstart", e=>{
     if(e.touches.length===2){
       const [a,b]=e.touches;
