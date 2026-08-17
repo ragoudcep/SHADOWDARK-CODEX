@@ -566,14 +566,12 @@ function openWheelEditModal(){
       </div>
     </div>
     <div class="field" style="margin-bottom:.9rem">
-      <label>Depuis une table aléatoire <span class="hint">(remplace la liste ci-dessous par le contenu actuel d'une table de l'onglet Aléatoire — statique ou dynamique)</span></label>
+      <label>Depuis une table aléatoire <span class="hint">(remplace la liste ci-dessous par le contenu actuel d'une table de l'onglet Aléatoire — statique ou dynamique ; seules les tables cochées « Proposer dans le menu de la roue » apparaissent ici)</span></label>
       <div style="display:flex; gap:.4rem; flex-wrap:wrap">
-        <select id="wheel-table-select" style="flex:1 1 220px; min-width:0">
-          ${db.tables.length
-            ? [...db.tables].sort((a,b)=>(a.title||"").localeCompare(b.title||"")).map(t=>`<option value="${esc(t.id)}">${esc(t.title||"Sans titre")} (${tableSize(t)})</option>`).join("")
-            : `<option value="">Aucune table pour l'instant</option>`}
-        </select>
-        <button type="button" class="btn ghost sm" data-wheel-preset-table="1" style="flex:0 0 auto" ${db.tables.length?"":"disabled"}>🎲 Appliquer cette table</button>
+        ${(()=>{ const wheelTables = db.tables.filter(t=>t.wheelInclude); return wheelTables.length
+            ? `<select id="wheel-table-select" style="flex:1 1 220px; min-width:0">${[...wheelTables].sort((a,b)=>(a.title||"").localeCompare(b.title||"")).map(t=>`<option value="${esc(t.id)}">${esc(t.title||"Sans titre")} (${tableSize(t)})</option>`).join("")}</select>
+               <button type="button" class="btn ghost sm" data-wheel-preset-table="1" style="flex:0 0 auto">🎲 Appliquer cette table</button>`
+            : `<span class="faint" style="font-family:var(--ui);font-size:.82rem">Aucune table cochée pour la roue — coche « Proposer dans le menu de la roue » sur une table depuis l'onglet Aléatoire.</span>`; })()}
       </div>
     </div>
     <div class="field" style="margin-bottom:.9rem">

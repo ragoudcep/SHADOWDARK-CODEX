@@ -1311,6 +1311,7 @@ function formTable(){
       <p class="hint" style="margin:-.3rem 0 .8rem">La table tire au hasard, à chaque jet, parmi les entités déjà créées dans cette collection — elle se remplit automatiquement au fil de la campagne et affiche un message tant qu'elle est vide.</p>
     </div>
     <div class="field"><label>Contexte / description</label><textarea id="f-context" placeholder="À lancer chaque nuit de voyage...">${esc(t.context)}</textarea></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:.4rem;cursor:pointer"><input type="checkbox" id="f-wheel-include" ${t.wheelInclude?"checked":""}> 🎡 Proposer cette table dans le menu déroulant de la roue <span class="hint">(décoché par défaut — évite d'y noyer les tables qui ne servent pas de bonus)</span></label></div>
     <div class="field${isDynamic?" hidden":""}" id="rows-section">
       <label>Rangées <span class="hint">(nombre configurable — texte libre + liens [[…]])</span></label>
       <div class="row" style="margin-bottom:.6rem; align-items:flex-end">
@@ -1343,6 +1344,7 @@ function saveTable(){
   o.title = $("#f-title").value.trim();
   o.category = $("#f-category").value.trim();
   o.context = $("#f-context").value;
+  o.wheelInclude = $("#f-wheel-include").checked;
   o.kind = $("#f-kind").value==="dynamic" ? "dynamic" : "static";
   if(o.kind==="dynamic"){
     o.source = $("#f-source").value;
