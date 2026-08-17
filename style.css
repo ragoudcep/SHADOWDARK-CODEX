@@ -349,10 +349,10 @@
   .hexcell polygon{ stroke:#1a1510; stroke-width:1; }
   .hex-editable{ cursor:pointer; }
   .hex-editable:hover polygon:first-child{ filter:brightness(1.3); }
-  .hex-editable:hover .hex-biome-img, .hex-editable:hover .hex-overlay-img{ filter:brightness(1.15); }
-  .hex-placing .hex-editable, .hex-painting-biome .hex-editable, .hex-painting-overlay .hex-editable{ cursor:crosshair; }
+  .hex-editable:hover .hex-tile-img{ filter:brightness(1.15); }
+  .hex-placing .hex-editable, .hex-painting-biome .hex-editable{ cursor:crosshair; }
   .hex-icon{ font-size:14px; pointer-events:none; user-select:none; }
-  .hex-biome-img, .hex-overlay-img{ pointer-events:none; }
+  .hex-tile-img{ pointer-events:none; }
   .overlay-picker{ display:flex; flex-wrap:wrap; gap:.4rem; margin:.3rem 0 .6rem; max-height:230px; overflow-y:auto;
     padding:.6rem; background:var(--bg2); border:1px solid var(--border2); border-radius:8px; }
   .overlay-pick{ width:60px; height:52px; background:#1a1510; border:1px solid #3a3226; border-radius:4px; cursor:pointer;

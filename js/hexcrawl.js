@@ -14,62 +14,131 @@ const HEX_TERRAIN = {
   canyon:{color:"#b0693f",icon:"🪨"}
 };
 function terrainInfo(t){ return HEX_TERRAIN[t] || {color:"#6b6455", icon:"?"}; }
-const BIOME_LIST = [
-  {id:"deadlands", label:"Terres mortes"},
-  {id:"drylands", label:"Terres arides"},
-  {id:"greenlands", label:"Terres vertes"},
-  {id:"icelands", label:"Terres glacées"},
-  {id:"sandlands", label:"Terres sablonneuses"}
-];
-function biomeLabel(id){ const b=BIOME_LIST.find(x=>x.id===id); return b?b.label:""; }
-function biomePickerHTML(selected){
-  const tiles = BIOME_LIST.map(b=>
-    `<button type="button" class="overlay-pick${selected===b.id?' active':''}" data-biome="${b.id}" title="${esc(b.label)}">
-       <img src="Hextiles/${b.id}.png" alt="${esc(b.label)}">
-     </button>`);
-  return `<div class="overlay-picker biome-picker" id="hex-biome-picker">${tiles.join("")}</div>`;
-}
-/* Fond (biome) et overlay (foundation_*.png) sont des choix 100% manuels, indépendants l'un de l'autre et du
-   type de terrain — même principe que le picker d'icônes POI. Couleur de secours neutre (HEX_NEUTRAL_FILL)
-   quand un overlay est choisi sans fond biome. */
+/* Tuiles hexcrawl (2026-08-17) : remplace l'ancien système fond biome (5 images) + overlay
+   (27 images), toutes deux en orientation flat-top et donc tournées de 30° au rendu pour coller à
+   la grille pointy-top de l'app (voir git blame pour l'ancien hexBiomeImageSVG). Le nouveau pack
+   "tuiles hexcrawl/" est nativement pointy-top (ratio largeur/hauteur ≈ 0.87, vérifié sur les PNG)
+   donc plus aucune rotation n'est nécessaire — voir hexTileImageSVG. Une seule tuile par hexagone
+   (plus de fond+overlay superposés) : chaque tuile du pack est déjà une scène complète. */
 const HEX_NEUTRAL_FILL = "#55524a";
-const OVERLAY_LIST = [
-  {file:"1-foundation_vulcano.png", label:"Volcan"},
-  {file:"2-foundation_forest.png", label:"Forêt"},
-  {file:"3-foundation_tundra.png", label:"Toundra / herbe légère"},
-  {file:"4-foundation_trees.png", label:"Arbres épars"},
-  {file:"5-foundation_water.png", label:"Eau"},
-  {file:"6-foundation_hills.png", label:"Collines"},
-  {file:"7-foundation_river.png", label:"Rivière"},
-  {file:"8-foundation_portal.png", label:"Portail"},
-  {file:"9-foundation_mountains.png", label:"Montagnes"},
-  {file:"10-foundation_lake.png", label:"Lac"},
-  {file:"11-foundation_village.png", label:"Village"},
-  {file:"12-foundation_city.png", label:"Ville"},
-  {file:"13-foundation_tower.png", label:"Tour"},
-  {file:"14-foundation_community.png", label:"Communauté"},
-  {file:"15-foundation_cave.png", label:"Grotte"},
-  {file:"16-foundation_hole.png", label:"Trou / fondrière"},
-  {file:"17-foundation_dead-Trees.png", label:"Arbres morts"},
-  {file:"18-foundation_ruins.png", label:"Ruines"},
-  {file:"19-foundation_graveyard.png", label:"Cimetière"},
-  {file:"20-foundation_swamp.png", label:"Marécage"},
-  {file:"21-foundation_floating-Island.png", label:"Île flottante"},
-  {file:"22-foundation_keep.png", label:"Donjon / forteresse"},
-  {file:"23-foundation_wonder.png", label:"Merveille"},
-  {file:"24-foundation_cristals.png", label:"Cristaux"},
-  {file:"25-foundation_stones.png", label:"Pierres dressées"},
-  {file:"26-foundation_farms.png", label:"Fermes"},
-  {file:"27-foundation_fog.png", label:"Brume"}
+const TILE_PACKS = [
+  {id:"desertPack", label:"Désert", tiles:[
+    {file:"desert_01_full.png", label:"Désert (plein)"},
+    {file:"desert_02_fewSand.png", label:"Un peu de sable"},
+    {file:"desert_03_clearing.png", label:"Clairière"},
+    {file:"desert_04_graveyard.png", label:"Cimetière"},
+    {file:"desert_05_rift.png", label:"Faille"},
+    {file:"desert_06_cactus.png", label:"Cactus"},
+    {file:"desert_07_dry.png", label:"Terre sèche"},
+    {file:"desert_08_barrier.png", label:"Barrière rocheuse"},
+    {file:"desert_09_oasis.png", label:"Oasis"},
+    {file:"desert_10_hole.png", label:"Trou / fondrière"},
+    {file:"desert_11_cave.png", label:"Grotte"},
+    {file:"desert_12_hillsAndTrees.png", label:"Collines et arbres"},
+    {file:"desert_13_floatingIsland.png", label:"Île flottante"},
+    {file:"desert_14_house.png", label:"Maison"},
+    {file:"desert_15_village.png", label:"Village"},
+    {file:"desert_16_watchTower.png", label:"Tour de guet"},
+    {file:"desert_17_ruins.png", label:"Ruines"},
+    {file:"desert_18_blast.png", label:"Cratère / explosion"},
+    {file:"desert_19_road.png", label:"Route"},
+    {file:"desert_20_temple.png", label:"Temple"}
+  ]},
+  {id:"forestPack", label:"Forêt", tiles:[
+    {file:"forest_01_full.png", label:"Forêt (pleine)"},
+    {file:"forest_02_fewTrees.png", label:"Quelques arbres"},
+    {file:"forest_03_clearing.png", label:"Clairière"},
+    {file:"forest_04_dead.png", label:"Arbres morts"},
+    {file:"forest_05_rift.png", label:"Faille"},
+    {file:"forest_06_wildBushes.png", label:"Buissons sauvages"},
+    {file:"forest_07_spikes.png", label:"Pics / ronces"},
+    {file:"forest_08_spider.png", label:"Araignée géante"},
+    {file:"forest_09_tree.png", label:"Arbre isolé"},
+    {file:"forest_10_mushroom.png", label:"Champignons"},
+    {file:"forest_11_cave.png", label:"Grotte"},
+    {file:"forest_12_hill.png", label:"Colline"},
+    {file:"forest_13_stones.png", label:"Pierres dressées"},
+    {file:"forest_14_house.png", label:"Maison"},
+    {file:"forest_15_village.png", label:"Village"},
+    {file:"forest_16_watchTower.png", label:"Tour de guet"},
+    {file:"forest_17_ruins.png", label:"Ruines"},
+    {file:"forest_18_blast.png", label:"Cratère / explosion"},
+    {file:"forest_19_road.png", label:"Route"},
+    {file:"forest_20_temple.png", label:"Temple"}
+  ]},
+  {id:"mountainPack", label:"Montagne", tiles:[
+    {file:"mountain_01_full.png", label:"Montagne (pleine)"},
+    {file:"mountain_02_fewMount.png", label:"Quelques sommets"},
+    {file:"mountain_03_plateau.png", label:"Plateau"},
+    {file:"mountain_04_vulcano.png", label:"Volcan"},
+    {file:"mountain_05_rift.png", label:"Faille"},
+    {file:"mountain_06_hills.png", label:"Collines"},
+    {file:"mountain_07_spikes.png", label:"Pics rocheux"},
+    {file:"mountain_08_gates.png", label:"Porte / défilé"},
+    {file:"mountain_09_peak.png", label:"Pic"},
+    {file:"mountain_10_bridge.png", label:"Pont"},
+    {file:"mountain_11_cave.png", label:"Grotte"},
+    {file:"mountain_12_forest.png", label:"Forêt de montagne"},
+    {file:"mountain_13_obelisk.png", label:"Obélisque"},
+    {file:"mountain_14_house.png", label:"Maison"},
+    {file:"mountain_15_village.png", label:"Village"},
+    {file:"mountain_16_watchTower.png", label:"Tour de guet"},
+    {file:"mountain_17_ruins.png", label:"Ruines"},
+    {file:"mountain_18_blast.png", label:"Cratère / explosion"},
+    {file:"mountain_19_road.png", label:"Route"},
+    {file:"mountain_20_temple.png", label:"Temple"}
+  ]},
+  {id:"tundraPack", label:"Toundra", tiles:[
+    {file:"tundra_01_full.png", label:"Toundra (pleine)"},
+    {file:"tundra_02_few.png", label:"Toundra clairsemée"},
+    {file:"tundra_04_snowStorm.png", label:"Tempête de neige"},
+    {file:"tundra_05_rift.png", label:"Faille"},
+    {file:"tundra_06_forest.png", label:"Forêt gelée"},
+    {file:"tundra_07_shatteredLand.png", label:"Terre brisée"},
+    {file:"tundra_08_barrier.png", label:"Barrière de glace"},
+    {file:"tundra_09_summit.png", label:"Sommet"},
+    {file:"tundra_10_iceBridge.png", label:"Pont de glace"},
+    {file:"tundra_11_cave.png", label:"Grotte"},
+    {file:"tundra_12_shards.png", label:"Éclats de glace"},
+    {file:"tundra_13_iceblock.png", label:"Bloc de glace"},
+    {file:"tundra_14_house.png", label:"Maison"},
+    {file:"tundra_15_village.png", label:"Village"},
+    {file:"tundra_16_tower.png", label:"Tour de guet"},
+    {file:"tundra_17_ruins.png", label:"Ruines"},
+    {file:"tundra_18_blast.png", label:"Cratère / explosion"},
+    {file:"tundra_19_road.png", label:"Route"},
+    {file:"tundra_20_temple.png", label:"Temple"}
+  ]}
 ];
-function overlayLabel(file){ const o=OVERLAY_LIST.find(x=>x.file===file); return o?o.label:file; }
-function overlayPickerHTML(selected){
-  const tiles = [`<button type="button" class="overlay-pick${!selected?' active':''}" data-overlay="" title="Aucun overlay">✕</button>`]
-    .concat(OVERLAY_LIST.map(o=>
-      `<button type="button" class="overlay-pick${selected===o.file?' active':''}" data-overlay="${esc(o.file)}" title="${esc(o.label)}">
-         <img src="Hextiles/${esc(o.file)}" alt="${esc(o.label)}">
-       </button>`));
-  return `<div class="overlay-picker" id="hex-overlay-picker">${tiles.join("")}</div>`;
+function tilePath(packId, file){ return `tuiles hexcrawl/${packId}/${file}`; }
+function tileLabel(path){
+  for(const pack of TILE_PACKS){ const t = pack.tiles.find(x=>tilePath(pack.id,x.file)===path); if(t) return `${pack.label} — ${t.label}`; }
+  return path;
+}
+/* Sélection en deux temps (2026-08-17), demandé par Tristan : d'abord le biome (vignette = 1re
+   tuile "pleine" du pack), puis seulement les tuiles de ce biome — plutôt qu'un unique picker à
+   plat avec les ~80 tuiles mélangées. */
+function packPickerHTML(selectedPackId){
+  const tiles = TILE_PACKS.map(pack=>{
+    const swatch = tilePath(pack.id, pack.tiles[0].file);
+    return `<button type="button" class="overlay-pick${selectedPackId===pack.id?' active':''}" data-tile-pack="${pack.id}" title="${esc(pack.label)}">
+      <img src="${esc(swatch)}" alt="${esc(pack.label)}">
+    </button>`;
+  }).join("");
+  return `<div class="overlay-picker biome-picker" id="hex-pack-picker">${tiles}</div>`;
+}
+function tilePickerHTML(packId, selected){
+  const pack = TILE_PACKS.find(p=>p.id===packId); if(!pack) return "";
+  const buttons = pack.tiles.map(t=>{
+    const path = tilePath(pack.id, t.file);
+    return `<button type="button" class="overlay-pick${selected===path?' active':''}" data-tile="${esc(path)}" title="${esc(t.label)}">
+      <img src="${esc(path)}" alt="${esc(t.label)}">
+    </button>`;
+  }).join("");
+  return `<div class="overlay-picker" id="hex-tile-picker">
+    <button type="button" class="overlay-pick${!selected?' active':''}" data-tile="" title="Aucune tuile">✕</button>
+    ${buttons}
+  </div>`;
 }
 const POI_ICON_LIST = ["icon-waves","icon-temple-gate","icon-high-grass","icon-lighthouse","icon-pine-tree",
   "icon-grass","icon-anchor","icon-peaks","icon-custom-hills","icon-forest","icon-house","icon-summits",
@@ -105,10 +174,9 @@ function hexCorners(cx,cy,size){
 let hexmapCurrentId = null;
 let hexPointsVisible = true;
 let hexPlacingPoint = false;
-let hexPaintingBiome = false;
-let hexPaintBiomeValue = "greenlands";
-let hexPaintingOverlay = false;
-let hexPaintOverlayValue = "";
+let hexPaintingTile = false;
+let hexPaintPackId = "forestPack";
+let hexPaintTileValue = tilePath("forestPack","forest_01_full.png");
 
 function listHexmaps(){
   const itemsAll = db.hexmaps;
@@ -169,35 +237,21 @@ function buildHexPoints(m, isGM){
     </g>`;
   }).join("");
 }
-/* Fond biome (5 tuiles pleines) + overlay foundation_*.png (contour dessiné, transparent autour) empilés sur
-   la boîte englobante de l'hexagone. Les deux images sont en orientation "flat-top" (plus larges que hautes,
-   boîte naturelle size*2 × size*racine(3)) alors que la grille de l'app est "pointy-top" (sommet en haut/bas).
-   Un hexagone a une symétrie à 60° (6 côtés) : flat-top et pointy-top ne diffèrent que d'un quart de tour de
-   cette symétrie, soit 30° — n'importe quel angle ≡ 30° (mod 60°) réaligne donc le CONTOUR de l'image sur la
-   cellule pointy-top, exactement. 30° et 90°(=30+60) sont tous les deux valides à ce titre, mais 90° fait
-   paraître le contenu de l'image (arbres, chemins…) complètement sur le côté, alors que 30° ne le tourne que
-   d'un tiers de moins — demande de Tristan (2026-08-10) après un premier essai en jeu : tourner d'un cran
-   hexagonal (60°, l'unité de symétrie naturelle de la forme — à ne pas confondre avec le "cran" de 30° évoqué
-   dans docs/TODO.md, qui parlait lui de réorienter toute la grille, un chantier différent et plus lourd, pas
-   fait ici) vers la gauche par rapport à l'ancien 90°. Le contour reste donc parfaitement calé sur la cellule
-   (aucun débordement/décalage introduit), seul le rendu de la scène à l'intérieur devient moins vertical. */
-function hexBiomeImageSVG(href, c, size){
-  const w = size*2, h = size*Math.sqrt(3);
+/* Les tuiles du pack "tuiles hexcrawl/" sont nativement pointy-top (sommet en haut/bas), comme la
+   grille de l'app — contrairement à l'ancien set Hextiles (flat-top, corrigé par une rotation de
+   30°, cf. git blame). Boîte englobante pointy-top : size*racine(3) de large × size*2 de haut. */
+function hexTileImageSVG(href, c, size){
+  const w = size*Math.sqrt(3), h = size*2;
   const x = (c.x - w/2).toFixed(1), y = (c.y - h/2).toFixed(1);
-  const rot = `rotate(30 ${c.x.toFixed(1)} ${c.y.toFixed(1)})`;
-  return { x, y, w:w.toFixed(1), h:h.toFixed(1), rot,
-    tag:(cls)=>`<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" transform="${rot}" class="${cls}"></image>` };
+  return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" class="hex-tile-img"></image>`;
 }
 function hexTerrainLayerSVG(h, c, size){
   const pts = hexCorners(c.x, c.y, size-1);
-  if(!h.biome && !h.overlay){
+  if(!h.tile){
     const info = terrainInfo(h.hexType);
     return `<polygon points="${pts}" fill="${info.color}"></polygon><text x="${c.x.toFixed(1)}" y="${(c.y+5).toFixed(1)}" text-anchor="middle" class="hex-icon">${info.icon}</text>`;
   }
-  let out = `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>`;
-  if(h.biome) out += hexBiomeImageSVG("Hextiles/"+h.biome+".png", c, size).tag("hex-biome-img");
-  if(h.overlay) out += hexBiomeImageSVG("Hextiles/"+h.overlay, c, size).tag("hex-overlay-img");
-  return out;
+  return `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>${hexTileImageSVG(h.tile, c, size)}`;
 }
 function buildHexSVG(m){
   const size = (m.settings&&m.settings.hexSize)||30;
@@ -220,17 +274,16 @@ function buildHexSVG(m){
   return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
 function detailHexmap(m){
-  if(hexmapCurrentId !== m.id){ hexPlacingPoint = false; hexPaintingBiome = false; hexPaintingOverlay = false; }
+  if(hexmapCurrentId !== m.id){ hexPlacingPoint = false; hexPaintingTile = false; }
   hexmapCurrentId = m.id;
   const total = (m.hexes||[]).length;
   const revealed = (m.hexes||[]).filter(h=>h.fogState!=="hidden").length;
+  const paintPack = TILE_PACKS.find(p=>p.id===hexPaintPackId);
   const modeHelp = hexPlacingPoint
     ? "Clique l'hexagone où placer le nouveau point d'intérêt (ou re-clique le bouton pour annuler)."
-    : hexPaintingBiome
-      ? `Clique un hexagone pour lui donner le fond « ${biomeLabel(hexPaintBiomeValue)} » (ou re-clique le bouton pour annuler).`
-      : hexPaintingOverlay
-        ? `Clique un hexagone pour lui appliquer l'overlay « ${hexPaintOverlayValue?overlayLabel(hexPaintOverlayValue):"Aucun"} » (ou re-clique le bouton pour annuler).`
-        : `Clique un hexagone pour le révéler ou le recacher aux joueurs · ${revealed}/${total} révélé(s).`;
+    : hexPaintingTile
+      ? `Choisis un biome puis une tuile, ensuite clique un hexagone pour l'appliquer (tuile actuelle : « ${hexPaintTileValue?tileLabel(hexPaintTileValue):"Aucune"} »).`
+      : `Clique un hexagone pour le révéler ou le recacher aux joueurs · ${revealed}/${total} révélé(s).`;
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Hexcrawl</button>
     <h1>${esc(m.title||"Sans titre")}</h1>
@@ -240,17 +293,16 @@ function detailHexmap(m){
       <button class="btn ghost sm" data-hex-reveal-all="1">👁 Tout révéler</button>
       <button class="btn ghost sm" data-hex-hide-all="1">🌫 Tout masquer</button>
       <button class="btn ghost sm${hexPlacingPoint?' active-mode':''}" data-hex-add-point="1">📍 ${hexPlacingPoint?"Clique un hexagone…":"Ajouter un point"}</button>
-      <button class="btn ghost sm${hexPaintingBiome?' active-mode':''}" data-hex-paint-biome="1">🖌 ${hexPaintingBiome?"Clique un hexagone…":"Peindre un fond"}</button>
-      <button class="btn ghost sm${hexPaintingOverlay?' active-mode':''}" data-hex-paint-overlay="1">🖼 ${hexPaintingOverlay?"Clique un hexagone…":"Peindre un overlay"}</button>
+      <button class="btn ghost sm${hexPaintingTile?' active-mode':''}" data-hex-paint-tile="1">🖌 ${hexPaintingTile?"Clique un hexagone…":"Peindre une tuile"}</button>
       <button class="btn ghost sm" data-hex-import="1">⭱ Importer / remplacer le JSON</button>
     </div>
-    ${hexPaintingBiome ? biomePickerHTML(hexPaintBiomeValue) : ""}
-    ${hexPaintingOverlay ? overlayPickerHTML(hexPaintOverlayValue) : ""}
+    ${hexPaintingTile ? packPickerHTML(hexPaintPackId) : ""}
+    ${hexPaintingTile && paintPack ? tilePickerHTML(paintPack.id, hexPaintTileValue) : ""}
     <div class="crawl-help">${modeHelp}</div>` : ""}
     ${total && (m.points||[]).length ? `<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:.5rem 0 0;cursor:pointer">
       <input type="checkbox" id="hex-points-toggle" ${hexPointsVisible?"checked":""} style="width:auto"> Afficher les points d'intérêt
     </label>` : ""}
-    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingBiome?' hex-painting-biome':''}${hexPaintingOverlay?' hex-painting-overlay':''}">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${effectiveRole()==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
+    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingTile?' hex-painting-biome':''}">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${effectiveRole()==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
   </div>`;
   const hpt = document.getElementById("hex-points-toggle");
   if(hpt) hpt.addEventListener("change", e=>{
@@ -258,18 +310,23 @@ function detailHexmap(m){
     const layer = document.getElementById("hex-points-layer");
     if(layer) layer.style.display = hexPointsVisible ? "" : "none";
   });
-  const biomePicker = document.getElementById("hex-biome-picker");
-  if(biomePicker) biomePicker.querySelectorAll(".overlay-pick").forEach(btn=>{
+  const packPicker = document.getElementById("hex-pack-picker");
+  if(packPicker) packPicker.querySelectorAll(".overlay-pick").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      hexPaintBiomeValue = btn.dataset.biome;
-      biomePicker.querySelectorAll(".overlay-pick").forEach(b=>b.classList.toggle("active", b===btn));
+      hexPaintPackId = btn.dataset.tilePack;
+      const pack = TILE_PACKS.find(p=>p.id===hexPaintPackId);
+      hexPaintTileValue = pack ? tilePath(pack.id, pack.tiles[0].file) : "";
+      const mm = getEntity("hexmap", hexmapCurrentId);
+      if(mm) detailHexmap(mm);
     });
   });
-  const overlayPicker = document.getElementById("hex-overlay-picker");
-  if(overlayPicker) overlayPicker.querySelectorAll(".overlay-pick").forEach(btn=>{
+  const tilePicker = document.getElementById("hex-tile-picker");
+  if(tilePicker) tilePicker.querySelectorAll(".overlay-pick").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      hexPaintOverlayValue = btn.dataset.overlay;
-      overlayPicker.querySelectorAll(".overlay-pick").forEach(b=>b.classList.toggle("active", b===btn));
+      hexPaintTileValue = btn.dataset.tile;
+      tilePicker.querySelectorAll(".overlay-pick").forEach(b=>b.classList.toggle("active", b===btn));
+      const help = document.querySelector(".crawl-help");
+      if(help) help.textContent = `Choisis un biome puis une tuile, ensuite clique un hexagone pour l'appliquer (tuile actuelle : « ${hexPaintTileValue?tileLabel(hexPaintTileValue):"Aucune"} »).`;
     });
   });
 }
@@ -346,33 +403,20 @@ function openHexPointModal(pointId){
 }
 function toggleHexPlacingPoint(){
   hexPlacingPoint = !hexPlacingPoint;
-  if(hexPlacingPoint){ hexPaintingBiome = false; hexPaintingOverlay = false; }
+  if(hexPlacingPoint){ hexPaintingTile = false; }
   const m = getEntity("hexmap", hexmapCurrentId);
   if(m) detailHexmap(m);
 }
-function toggleHexPaintingBiome(){
-  hexPaintingBiome = !hexPaintingBiome;
-  if(hexPaintingBiome){ hexPlacingPoint = false; hexPaintingOverlay = false; }
+function toggleHexPaintingTile(){
+  hexPaintingTile = !hexPaintingTile;
+  if(hexPaintingTile){ hexPlacingPoint = false; }
   const m = getEntity("hexmap", hexmapCurrentId);
   if(m) detailHexmap(m);
 }
-function toggleHexPaintingOverlay(){
-  hexPaintingOverlay = !hexPaintingOverlay;
-  if(hexPaintingOverlay){ hexPlacingPoint = false; hexPaintingBiome = false; }
-  const m = getEntity("hexmap", hexmapCurrentId);
-  if(m) detailHexmap(m);
-}
-function setHexBiome(q,r,biome){
+function setHexTile(q,r,tile){
   const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
   const h = (m.hexes||[]).find(x=>x.q===q && x.r===r); if(!h) return;
-  h.biome = biome;
-  saveDB();
-  detailHexmap(m);
-}
-function setHexOverlay(q,r,overlay){
-  const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
-  const h = (m.hexes||[]).find(x=>x.q===q && x.r===r); if(!h) return;
-  h.overlay = overlay;
+  h.tile = tile;
   saveDB();
   detailHexmap(m);
 }
@@ -394,7 +438,7 @@ function importHexmapJSON(file){
       const data = JSON.parse(r.result);
       const hexesObj = data.hexes || {};
       const hexes = Object.values(hexesObj).filter(h=>!h.layer||h.layer==="surface")
-        .map(h=>({ q:h.q, r:h.r, hexType:h.hexType||"", fogState:h.fogState||"hidden", biome:h.biome||"", overlay:h.overlay||"" }));
+        .map(h=>({ q:h.q, r:h.r, hexType:h.hexType||"", fogState:h.fogState||"hidden", tile:h.tile||"" }));
       const points = ((data.pointCrawl&&data.pointCrawl.nodes)||[]).map(p=>({
         id:p.id||uid(), name:p.name||"", description:p.description||"", type:p.type||"", icon:p.icon||"",
         hex:p.hex||{q:0,r:0}, color:p.color||"", size:p.size||"medium", dmOnly:!!p.dmOnly
