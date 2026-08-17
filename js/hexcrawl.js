@@ -239,11 +239,12 @@ function poiIconPickerHTML(selected){
 }
 /* Coordonnées "offset" (colonne q, ligne r) — grille rectangulaire, lignes impaires décalées d'un demi-hexagone */
 function hexCenter(q,r,size){ return { x: size*Math.sqrt(3)*(q+0.5*(r&1)), y: size*1.5*r }; }
-function hexCorners(cx,cy,size){
+function hexCornerPoints(cx,cy,size){
   const pts=[];
-  for(let i=0;i<6;i++){ const a=Math.PI/180*(60*i-30); pts.push((cx+size*Math.cos(a)).toFixed(1)+","+(cy+size*Math.sin(a)).toFixed(1)); }
-  return pts.join(" ");
+  for(let i=0;i<6;i++){ const a=Math.PI/180*(60*i-30); pts.push({x:+(cx+size*Math.cos(a)).toFixed(1), y:+(cy+size*Math.sin(a)).toFixed(1)}); }
+  return pts;
 }
+function hexCorners(cx,cy,size){ return hexCornerPoints(cx,cy,size).map(p=>p.x+","+p.y).join(" "); }
 let hexmapCurrentId = null;
 let hexPointsVisible = true;
 let hexPlacingPoint = false;
@@ -476,7 +477,7 @@ function hexOverlayImageSVG(href, c, size){
   return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" class="hex-overlay-img"></image>`;
 }
 function hexTerrainLayerSVG(h, c, size){
-  const pts = hexCorners(c.x, c.y, size-1);
+  const pts = hexCorners(c.x, c.y, size);
   if(h.tile){
     if(h.tile==="water") return `<polygon points="${pts}" fill="${TILE_PACKS.find(p=>p.id==="water").color}"></polygon>`;
     return `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>${hexTileImageSVG(h.tile, c, size)}`;
@@ -526,21 +527,34 @@ function buildHexSVG(m){
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   centers.forEach(({c})=>{ minX=Math.min(minX,c.x-size); maxX=Math.max(maxX,c.x+size); minY=Math.min(minY,c.y-size); maxY=Math.max(maxY,c.y+size); });
   const pad=12, vbx=(minX-pad).toFixed(1), vby=(minY-pad).toFixed(1), vbw=((maxX-minX)+pad*2).toFixed(1), vbh=((maxY-minY)+pad*2).toFixed(1);
+  /* Bordure = une ligne PAR ARÊTE PARTAGÉE, pas un contour redessiné par chaque hexagone
+     (2026-08-17, demande de Tristan) : deux polygones voisins qui tracent chacun leur propre trait
+     sur leur bord commun ne posent pas de problème en soi tant que les cellules se touchent
+     exactement — mais avec l'ancien radius size-1 (cellules légèrement rétractées pour laisser voir
+     la texture de fond en pointillés), rien ne couvrait plus l'écart entre deux hexagones dès que
+     l'épaisseur du trait descendait sous ~1px : le fond de la carte devenait visible en creux.
+     Solution : cellules pleines (radius = size, plus d'écart) + une grille de traits séparée,
+     dédupliquée par clé d'arête, dessinée UNE fois par frontière (partagée ou en bord de carte)
+     par-dessus tout le reste. */
+  const edgeMap = new Map();
   const cells = centers.map(({h,c})=>{
-    const pts = hexCorners(c.x,c.y,size-1);
+    const corners = hexCornerPoints(c.x,c.y,size);
+    const pts = corners.map(p=>p.x+","+p.y).join(" ");
+    for(let i=0;i<6;i++){
+      const a=corners[i], b=corners[(i+1)%6];
+      const key = a.x<b.x || (a.x===b.x && a.y<b.y) ? `${a.x},${a.y}|${b.x},${b.y}` : `${b.x},${b.y}|${a.x},${a.y}`;
+      if(!edgeMap.has(key)) edgeMap.set(key, [a,b]);
+    }
     const revealed = h.fogState!=="hidden";
     const showTerrain = isGM || revealed;
     const terrainLayer = showTerrain ? hexTerrainLayerSVG(h,c,size) : `<polygon points="${pts}" fill="#15130f"></polygon>`;
-    /* Contour dessiné EN DERNIER, par-dessus tuile/fond/overlay et le brouillard : les images de
-       terrain remplissent toute la boîte de l'hexagone et masqueraient sinon complètement le trait
-       du polygone de fond (2026-08-17 — le réglage de couleur/épaisseur semblait sans effet). */
     return `<g class="hexcell${isGM?' hex-editable':''}" data-hexq="${h.q}" data-hexr="${h.r}">
       ${terrainLayer}
       ${!revealed?`<polygon points="${pts}" class="${isGM?'hex-fog-gm':'hex-fog'}"></polygon>`:""}
-      <polygon points="${pts}" class="hex-frame"></polygon>
     </g>`;
   }).join("");
-  return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg" style="${hexFrameStyle(m)}">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
+  const gridLines = [...edgeMap.values()].map(([a,b])=>`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="hex-frame-line"></line>`).join("");
+  return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg" style="${hexFrameStyle(m)}">${cells}<g id="hex-grid-lines">${gridLines}</g><g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
 function detailHexmap(m){
   if(hexmapCurrentId !== m.id){ _hexClearPaintModes(); hexMapZoom = { scale:1, tx:0, ty:0 }; hexMapFullscreen = false; document.body.classList.remove("hex-fullscreen-lock"); }
@@ -573,8 +587,8 @@ function detailHexmap(m){
     </div>
     <div class="hex-frame-controls">
       <label>Contour <input type="color" id="hex-frame-color" value="${esc(hexFrameColor(m))}"></label>
-      <label>Épaisseur <input type="range" id="hex-frame-width" min="0" max="6" step="0.5" value="${hexFrameWidth(m)}">
-        <span id="hex-frame-width-val">${hexFrameWidth(m)}</span></label>
+      <label>Épaisseur <input type="range" id="hex-frame-width" min="0" max="4" step="0.05" value="${hexFrameWidth(m)}">
+        <span id="hex-frame-width-val">${hexFrameWidth(m).toFixed(2)}</span></label>
     </div>
     ${hexPaintingTile ? packPickerHTML(hexPaintPackId) : ""}
     ${hexPaintingTile && paintPack ? tilePickerHTML(paintPack.id, hexPaintTileValue) : ""}
@@ -643,7 +657,7 @@ function detailHexmap(m){
   if(frameWidth) frameWidth.addEventListener("input", e=>{
     setHexFrame("frameWidth", Number(e.target.value));
     const out = document.getElementById("hex-frame-width-val");
-    if(out) out.textContent = e.target.value;
+    if(out) out.textContent = Number(e.target.value).toFixed(2);
   });
   const mapContainer = document.getElementById("hex-map-container");
   if(mapContainer){

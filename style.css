@@ -371,13 +371,14 @@
   .crawl-map-toolbar{ position:absolute; top:.6rem; left:.6rem; z-index:5; display:flex; align-items:center; gap:.4rem;
     background:rgba(10,9,11,.72); padding:.3rem; border-radius:8px; border:1px solid var(--border2); }
   #hex-zoom-label{ min-width:3.4em; text-align:center; }
-  /* Contour des hexagones réglable par carte (2026-08-17) : couleur/épaisseur pilotées par deux
-     variables CSS posées sur le <svg> depuis m.settings (voir buildHexSVG), avec les anciennes
-     valeurs en repli pour toute carte qui n'a pas encore de réglage enregistré. */
-  .hexcell polygon{ stroke:var(--hex-stroke,#1a1510); stroke-width:var(--hex-stroke-w,1); }
-  /* Contour posé par-dessus les images de terrain (voir buildHexSVG) : pas de remplissage pour ne
-     rien masquer, et transparent aux clics pour laisser passer le tap vers la cellule. */
-  .hexcell polygon.hex-frame{ fill:none; pointer-events:none; }
+  /* Bordure des hexagones réglable par carte (2026-08-17) : couleur/épaisseur pilotées par deux
+     variables CSS posées sur le <svg> depuis m.settings (voir buildHexSVG et son commentaire sur
+     edgeMap), avec les anciennes valeurs en repli pour toute carte qui n'a pas encore de réglage
+     enregistré. UNE ligne par arête partagée (#hex-grid-lines), pas un stroke par polygone de
+     cellule — sinon, à faible épaisseur, l'écart entre deux hexagones (qui ne se touchaient pas
+     exactement, radius size-1) laissait voir le fond de la carte en creux. */
+  .hex-frame-line{ stroke:var(--hex-stroke,#1a1510); stroke-width:var(--hex-stroke-w,1); stroke-linecap:round; pointer-events:none; }
+  #hex-grid-lines{ pointer-events:none; }
   .hex-editable{ cursor:pointer; }
   .hex-editable:hover polygon:first-child{ filter:brightness(1.3); }
   .hex-editable:hover .hex-tile-img, .hex-editable:hover .hex-fond-img, .hex-editable:hover .hex-overlay-img{ filter:brightness(1.15); }
