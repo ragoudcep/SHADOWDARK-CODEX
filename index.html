@@ -942,9 +942,14 @@ function renderDetail(){
   if(type==="dungeonmap") return effectiveRole()==="gm" ? detailDungeonMap(o) : playerDungeonMapView();
 }
 
-function detailActions(type,id){
+/* opts.hideReading (2026-08-17) : le "mode table de jeu" (agrandit le texte, masque les contrôles
+   MJ) n'a pas de sens sur une vue essentiellement visuelle comme la carte hexcrawl — pas de texte
+   à agrandir, contrôles déjà masqués aux joueurs indépendamment de ce mode. Demande de Tristan :
+   plutôt que de l'y laisser sans effet utile, on le retire sur cette vue (voir detailHexmap). */
+function detailActions(type,id,opts){
+  opts = opts||{};
   const reading = document.body.classList.contains("reading-mode");
-  const toggleBtn = `<button class="btn ghost sm reading-toggle" data-toggle-reading="1">${reading?"👁 Quitter le mode table":"👁 Mode table de jeu"}</button>`;
+  const toggleBtn = opts.hideReading ? "" : `<button class="btn ghost sm reading-toggle" data-toggle-reading="1">${reading?"👁 Quitter le mode table":"👁 Mode table de jeu"}</button>`;
   if(effectiveRole()!=="gm") return `<div class="actions-row">${toggleBtn}</div>`;
   // Marqueur "créé par le MJ" — demandé par Tristan (2026-08-11) pour distinguer, plus tard, ce
   // qu'il a écrit à la main de ce qui vient d'un import en masse, d'une génération aléatoire

@@ -88,6 +88,13 @@ const TILE_PACKS = [
     {file:"mountain_19_road.png", label:"Route"},
     {file:"mountain_20_temple.png", label:"Temple"}
   ]},
+  /* Pseudo-pack (2026-08-17) : les nouveaux packs de tuiles n'ont pas d'équivalent à l'ancienne
+     tuile "Eau" (Hextiles/5-foundation_water.png, supprimée avec le reste de l'ancien système —
+     et de toute façon en orientation flat-top, incompatible avec le rendu sans rotation actuel).
+     Demande de Tristan : à défaut de tuile récupérable, un remplissage de couleur unie suffit.
+     Un seul "tile" à choix unique, identifié par le sentinel "water" (pas un chemin de fichier) —
+     voir tilePath/tileSwatchHTML/hexTerrainLayerSVG pour les 3 endroits qui le traitent à part. */
+  {id:"water", label:"Eau", color:"#2f6f9e", tiles:[{file:"", label:"Eau (couleur unie)"}]},
   {id:"tundraPack", label:"Toundra", tiles:[
     {file:"tundra_01_full.png", label:"Toundra (pleine)"},
     {file:"tundra_02_few.png", label:"Toundra clairsemée"},
@@ -110,10 +117,16 @@ const TILE_PACKS = [
     {file:"tundra_20_temple.png", label:"Temple"}
   ]}
 ];
-function tilePath(packId, file){ return `tuiles hexcrawl/${packId}/${file}`; }
+function tilePath(packId, file){ return packId==="water" ? "water" : `tuiles hexcrawl/${packId}/${file}`; }
 function tileLabel(path){
+  if(path==="water") return "Eau — Eau (couleur unie)";
   for(const pack of TILE_PACKS){ const t = pack.tiles.find(x=>tilePath(pack.id,x.file)===path); if(t) return `${pack.label} — ${t.label}`; }
   return path;
+}
+/* Vignette d'un pack/tuile : une image pour les packs illustrés, un carré de couleur unie pour le
+   pseudo-pack "Eau" (pas de fichier associé, voir TILE_PACKS). */
+function tileSwatchHTML(color, imgPath, alt){
+  return color ? `<div class="overlay-pick-swatch" style="background:${esc(color)}"></div>` : `<img src="${esc(imgPath)}" alt="${esc(alt)}">`;
 }
 /* Sélection en deux temps (2026-08-17), demandé par Tristan : d'abord le biome (vignette = 1re
    tuile "pleine" du pack), puis seulement les tuiles de ce biome — plutôt qu'un unique picker à
@@ -122,7 +135,7 @@ function packPickerHTML(selectedPackId){
   const tiles = TILE_PACKS.map(pack=>{
     const swatch = tilePath(pack.id, pack.tiles[0].file);
     return `<button type="button" class="overlay-pick${selectedPackId===pack.id?' active':''}" data-tile-pack="${pack.id}" title="${esc(pack.label)}">
-      <img src="${esc(swatch)}" alt="${esc(pack.label)}">
+      ${tileSwatchHTML(pack.color, swatch, pack.label)}
     </button>`;
   }).join("");
   return `<div class="overlay-picker biome-picker" id="hex-pack-picker">${tiles}</div>`;
@@ -132,7 +145,7 @@ function tilePickerHTML(packId, selected){
   const buttons = pack.tiles.map(t=>{
     const path = tilePath(pack.id, t.file);
     return `<button type="button" class="overlay-pick${selected===path?' active':''}" data-tile="${esc(path)}" title="${esc(t.label)}">
-      <img src="${esc(path)}" alt="${esc(t.label)}">
+      ${tileSwatchHTML(pack.color, path, t.label)}
     </button>`;
   }).join("");
   return `<div class="overlay-picker" id="hex-tile-picker">
@@ -177,6 +190,88 @@ let hexPlacingPoint = false;
 let hexPaintingTile = false;
 let hexPaintPackId = "forestPack";
 let hexPaintTileValue = tilePath("forestPack","forest_01_full.png");
+/* Zoom/pan carte (2026-08-17), demandé par Tristan pour l'usage mobile : pincer/zoomer et faire
+   glisser la carte, plus un vrai plein écran. Remplace le simple overflow:auto (scroll natif) qui
+   ne permettait aucun zoom. État en dehors de detailHexmap() car la vue est entièrement
+   reconstruite (innerHTML) à chaque interaction (révéler un hexagone, peindre...) — sans ça le
+   zoom/pan sauterait à chaque clic. Réinitialisé uniquement quand on change de carte (voir
+   detailHexmap, même endroit que le reset de hexPlacingPoint/hexPaintingTile). */
+let hexMapZoom = { scale:1, tx:0, ty:0 };
+function clampHexZoomScale(s){ return Math.min(4, Math.max(0.6, s)); }
+function applyHexMapTransform(){
+  const svg = document.getElementById("hex-svg");
+  if(svg) svg.style.transform = `translate(${hexMapZoom.tx}px,${hexMapZoom.ty}px) scale(${hexMapZoom.scale})`;
+  const label = document.getElementById("hex-zoom-label");
+  if(label) label.textContent = Math.round(hexMapZoom.scale*100)+"%";
+}
+/* Zoom centré sur un point donné en coordonnées écran RELATIVES au conteneur (pas la page) — le
+   point sous le doigt/curseur doit rester immobile pendant le zoom, d'où le recalcul de tx/ty
+   proportionnel au facteur d'échelle plutôt qu'un simple remplacement de hexMapZoom.scale. */
+function setHexZoom(scale, originX, originY){
+  const prevScale = hexMapZoom.scale;
+  const newScale = clampHexZoomScale(scale);
+  if(newScale===prevScale) return;
+  const factor = newScale/prevScale;
+  hexMapZoom.tx = originX - (originX-hexMapZoom.tx)*factor;
+  hexMapZoom.ty = originY - (originY-hexMapZoom.ty)*factor;
+  hexMapZoom.scale = newScale;
+  applyHexMapTransform();
+}
+function resetHexZoom(){ hexMapZoom = { scale:1, tx:0, ty:0 }; applyHexMapTransform(); }
+/* Un tap simple (pointerdown+up quasi immobile) doit continuer à basculer le brouillard/peindre —
+   seul un déplacement net doit être traité comme un pan et NE PAS déclencher le clic sur
+   l'hexagone dessous. Le seuil (6px) tranche entre les deux sans bloquer les taps légèrement
+   tremblants sur mobile. */
+function initHexMapGestures(container){
+  if(!container || container.dataset.gesturesBound) return;
+  container.dataset.gesturesBound = "1";
+  let dragging=false, lastX=0, lastY=0, moved=0;
+  let pinch=null;
+  const suppressNextClick = e=>{ e.stopPropagation(); e.preventDefault(); container.removeEventListener("click", suppressNextClick, true); };
+  container.addEventListener("wheel", e=>{
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    setHexZoom(hexMapZoom.scale*(e.deltaY<0?1.12:1/1.12), e.clientX-rect.left, e.clientY-rect.top);
+  }, {passive:false});
+  container.addEventListener("pointerdown", e=>{
+    if(e.pointerType==="mouse" && e.button!==0) return;
+    dragging=true; moved=0; lastX=e.clientX; lastY=e.clientY;
+    try{ container.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  container.addEventListener("pointermove", e=>{
+    if(!dragging) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    hexMapZoom.tx += dx; hexMapZoom.ty += dy; moved += Math.abs(dx)+Math.abs(dy);
+    lastX=e.clientX; lastY=e.clientY;
+    applyHexMapTransform();
+  });
+  const endDrag = ()=>{
+    if(dragging && moved>6) container.addEventListener("click", suppressNextClick, true);
+    dragging=false;
+  };
+  container.addEventListener("pointerup", endDrag);
+  container.addEventListener("pointercancel", endDrag);
+  container.addEventListener("touchstart", e=>{
+    if(e.touches.length===2){
+      const [a,b]=e.touches;
+      pinch = { dist: Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY), scale: hexMapZoom.scale };
+    }
+  }, {passive:true});
+  container.addEventListener("touchmove", e=>{
+    if(e.touches.length===2 && pinch){
+      e.preventDefault();
+      const [a,b]=e.touches;
+      const dist = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+      const rect = container.getBoundingClientRect();
+      setHexZoom(pinch.scale*(dist/pinch.dist), (a.clientX+b.clientX)/2-rect.left, (a.clientY+b.clientY)/2-rect.top);
+    }
+  }, {passive:false});
+  container.addEventListener("touchend", e=>{ if(e.touches.length<2) pinch=null; });
+}
+function toggleHexMapFullscreen(container){
+  if(!document.fullscreenElement) container.requestFullscreen().catch(()=>toast("Plein écran indisponible sur ce navigateur."));
+  else document.exitFullscreen();
+}
 
 function listHexmaps(){
   const itemsAll = db.hexmaps;
@@ -254,6 +349,7 @@ function hexTerrainLayerSVG(h, c, size){
     const info = terrainInfo(h.hexType);
     return `<polygon points="${pts}" fill="${info.color}"></polygon><text x="${c.x.toFixed(1)}" y="${(c.y+5).toFixed(1)}" text-anchor="middle" class="hex-icon">${info.icon}</text>`;
   }
+  if(h.tile==="water") return `<polygon points="${pts}" fill="${TILE_PACKS.find(p=>p.id==="water").color}"></polygon>`;
   return `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>${hexTileImageSVG(h.tile, c, size)}`;
 }
 function buildHexSVG(m){
@@ -277,7 +373,7 @@ function buildHexSVG(m){
   return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
 function detailHexmap(m){
-  if(hexmapCurrentId !== m.id){ hexPlacingPoint = false; hexPaintingTile = false; }
+  if(hexmapCurrentId !== m.id){ hexPlacingPoint = false; hexPaintingTile = false; hexMapZoom = { scale:1, tx:0, ty:0 }; }
   hexmapCurrentId = m.id;
   const total = (m.hexes||[]).length;
   const revealed = (m.hexes||[]).filter(h=>h.fogState!=="hidden").length;
@@ -291,7 +387,7 @@ function detailHexmap(m){
     <button class="back" data-back="1">← Hexcrawl</button>
     <h1>${esc(m.title||"Sans titre")}</h1>
     ${m.description?`<p class="muted" style="font-family:var(--ui)">${renderText(m.description)}</p>`:""}
-    ${detailActions("hexmap",m.id)}
+    ${detailActions("hexmap",m.id,{hideReading:true})}
     ${effectiveRole()==="gm" ? `<div class="crawl-toolbar">
       <button class="btn ghost sm" data-hex-reveal-all="1">👁 Tout révéler</button>
       <button class="btn ghost sm" data-hex-hide-all="1">🌫 Tout masquer</button>
@@ -305,7 +401,13 @@ function detailHexmap(m){
     ${total && (m.points||[]).length ? `<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:.5rem 0 0;cursor:pointer">
       <input type="checkbox" id="hex-points-toggle" ${hexPointsVisible?"checked":""} style="width:auto"> Afficher les points d'intérêt
     </label>` : ""}
-    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingTile?' hex-painting-biome':''}">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${effectiveRole()==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
+    ${total ? `<div class="crawl-map-toolbar">
+      <button class="btn ghost sm" data-hex-zoom-out="1">➖</button>
+      <button class="btn ghost sm" data-hex-zoom-reset="1" id="hex-zoom-label">${Math.round(hexMapZoom.scale*100)}%</button>
+      <button class="btn ghost sm" data-hex-zoom-in="1">➕</button>
+      <button class="btn ghost sm" data-hex-fullscreen="1">⛶ Plein écran</button>
+    </div>` : ""}
+    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingTile?' hex-painting-biome':''}" id="hex-map-container">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${effectiveRole()==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
   </div>`;
   const hpt = document.getElementById("hex-points-toggle");
   if(hpt) hpt.addEventListener("change", e=>{
@@ -332,7 +434,32 @@ function detailHexmap(m){
       if(help) help.textContent = `Choisis un biome puis une tuile, ensuite clique un hexagone pour l'appliquer (tuile actuelle : « ${hexPaintTileValue?tileLabel(hexPaintTileValue):"Aucune"} »).`;
     });
   });
+  const mapContainer = document.getElementById("hex-map-container");
+  if(mapContainer){
+    initHexMapGestures(mapContainer);
+    applyHexMapTransform();
+    const zOut = document.querySelector("[data-hex-zoom-out]"), zIn = document.querySelector("[data-hex-zoom-in]"), zReset = document.querySelector("[data-hex-zoom-reset]"), fsBtn = document.querySelector("[data-hex-fullscreen]");
+    const rect = ()=>mapContainer.getBoundingClientRect();
+    if(zOut) zOut.addEventListener("click", ()=>{ const r=rect(); setHexZoom(hexMapZoom.scale/1.3, r.width/2, r.height/2); });
+    if(zIn) zIn.addEventListener("click", ()=>{ const r=rect(); setHexZoom(hexMapZoom.scale*1.3, r.width/2, r.height/2); });
+    if(zReset) zReset.addEventListener("click", resetHexZoom);
+    if(fsBtn) fsBtn.addEventListener("click", ()=>toggleHexMapFullscreen(mapContainer));
+  }
 }
+/* Écouteur unique posé une seule fois au chargement du script (pas dans detailHexmap, qui
+   reconstruit tout le DOM à chaque interaction) — sinon un addEventListener("fullscreenchange", …)
+   à l'intérieur de detailHexmap s'empilerait à chaque render sans jamais être retiré (le
+   conteneur qu'il capture en closure devient orphelin mais le listener reste vivant sur
+   `document`, qui lui ne disparaît jamais). Ré-interroge le DOM courant à chaque déclenchement au
+   lieu de fermer sur un élément précis, donc reste correct même après plusieurs renders. */
+document.addEventListener("fullscreenchange", ()=>{
+  const container = document.getElementById("hex-map-container");
+  const fsBtn = document.querySelector("[data-hex-fullscreen]");
+  if(!container) return;
+  const isFs = document.fullscreenElement===container;
+  container.classList.toggle("hex-map-fullscreen", isFs);
+  if(fsBtn) fsBtn.textContent = isFs ? "⛶ Quitter le plein écran" : "⛶ Plein écran";
+});
 function toggleHexFog(q,r){
   const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
   const h = (m.hexes||[]).find(x=>x.q===q && x.r===r); if(!h) return;
