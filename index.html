@@ -72,7 +72,7 @@
     <button data-tab="spells">Sorts</button>
     <button data-tab="pcs">PJ</button>
     <button data-tab="npcs">PNJ</button>
-    <button data-tab="treasures">Trésor</button>
+    <button data-tab="treasures">Armurerie</button>
     <button data-tab="hexmaps">Hexcrawl</button>
     <button data-tab="dungeonmaps">Cartes de donjon</button>
     <button data-tab="initiative">Initiative</button>
@@ -291,7 +291,7 @@ function nodeColorMeta(v){ return NODE_COLORS.find(c=>c.value===v) || null; }
 const TYPE_LABEL = { creature:"Créature", event:"Événement", table:"Table", session:"Session", npc:"PNJ", pointcrawl:"Point Crawl", pc:"PJ", treasure:"Trésor", hexmap:"Hexcrawl", spell:"Sort" };
 const TABS = ["sessions","tables","events","pointcrawls","creatures","spells","pcs","npcs","treasures","hexmaps","dungeonmaps","initiative","wheel","gmnotes","cursedscroll"];
 const TYPE_OF_TAB = { sessions:"session", tables:"table", events:"event", creatures:"creature", spells:"spell", npcs:"npc", pointcrawls:"pointcrawl", pcs:"pc", treasures:"treasure", hexmaps:"hexmap", dungeonmaps:"dungeonmap", initiative:"initiative", wheel:"wheel", gmnotes:"gmnote" };
-const TREASURE_CATS = [["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
+const TREASURE_CATS = [["equipement","Équipement"],["trouvaille","Trouvaille"],["relique","Relique"],["regalia","Régalia"]];
 function treasureCatLabel(k){ const f=TREASURE_CATS.find(c=>c[0]===k); return f?f[1]:(k||"Trésor"); }
 
 /* ------------------------------ Utilitaires ------------------------------ */
@@ -2743,6 +2743,29 @@ const WEAPONS_DATA = [
   {id:"marteau_guerre",name:"Marteau de guerre",   cost:"10 po", type:"CàC",   range:"C",   damage:"1d10",       properties:"2M"},
   {id:"masse",         name:"Masse d'armes",       cost:"5 po",  type:"CàC",   range:"C",   damage:"1d6",        properties:"—"}
 ];
+/* Équipement de base hors armes/armures (sources/regles/équipement.pdf p.35) — matériel courant
+   (torches, corde, sac à dos...), affiché comme référence dans l'onglet Armurerie (catégorie
+   "Équipement") mais sans calcul associé (contrairement aux armes/armures) : pas de mécanique de
+   jeu à en dériver automatiquement. */
+const GEAR_DATA = [
+  {name:"Briquet d'amadou", cost:"5 pa", qty:"1"},
+  {name:"Carreaux d'arbalète (20)", cost:"1 po", qty:"1-20"},
+  {name:"Chausse-trappes (un sac)", cost:"5 pa", qty:"1"},
+  {name:"Clous de fer (10)", cost:"1 po", qty:"1-10"},
+  {name:"Corde (18 m)", cost:"1 po", qty:"1"},
+  {name:"Flasque d'huile", cost:"5 pa", qty:"1"},
+  {name:"Flasque ou bouteille", cost:"3 pa", qty:"1"},
+  {name:"Flèches (20)", cost:"1 po", qty:"1-20"},
+  {name:"Grappin", cost:"1 po", qty:"1"},
+  {name:"Lanterne", cost:"5 po", qty:"1"},
+  {name:"Miroir", cost:"10 po", qty:"1"},
+  {name:"Perche", cost:"5 pa", qty:"1"},
+  {name:"Pied-de-biche", cost:"5 pa", qty:"1"},
+  {name:"Pierre précieuse", cost:"Variable", qty:"1-10"},
+  {name:"Rations (3)", cost:"5 pa", qty:"1-3"},
+  {name:"Sac à dos", cost:"2 po", qty:"1 (n'occupe pas d'emplacement)"},
+  {name:"Torche", cost:"5 pa", qty:"1"}
+];
 /* Bonus d'attaque d'une arme équipée : caractéristique utilisée = FOR/DEX au mieux si la propriété
    Finesse (F) est présente, DEX seule si l'arme est purement à distance (type "D" pur, ex. arc),
    FOR sinon (mêlée). Simplification assumée pour Javelot/Lance (CàC/D avec Jet) : traitées comme
@@ -2769,6 +2792,40 @@ function weaponLoadoutLine(w, d){
    un Guerrier (talent Bête de somme). */
 function computeInvSlots(cls, strScore, conMod){
   return Math.max(10, strScore) + (cls==="Guerrier" && conMod>0 ? conMod : 0);
+}
+/* Éligibilité armes/armures par classe (2026-08-18, étape "Équipement" de l'assistant de création)
+   — CLASSES_DATA.weapons/armor est du texte libre écrit à la main pour chaque classe (ex. "Toutes
+   les armes de corps à corps, arbalète.", "Armure de cuir, cotte de mailles en mithral."), donc pas
+   de liste structurée à matcher directement : on cherche le NOM de chaque arme/armure d'ARMOR_DATA/
+   WEAPONS_DATA comme sous-chaîne de ce texte. "Toutes" autorise tout (simplification assumée :
+   inclut aussi les armes à distance même quand le texte visait surtout le corps à corps, cas rare).
+   Sans classe choisie (formulaire libre), tout est autorisé. */
+function classAllowedWeapons(cd){
+  if(!cd || !cd.weapons) return WEAPONS_DATA;
+  const t = cd.weapons.toLowerCase();
+  if(t.includes("toutes")) return WEAPONS_DATA;
+  const list = WEAPONS_DATA.filter(w=> t.includes(w.name.toLowerCase()));
+  return list.length ? list : WEAPONS_DATA;
+}
+function classAllowedArmor(cd){
+  if(!cd || !cd.armor) return ARMOR_DATA;
+  const t = cd.armor.toLowerCase();
+  if(t.includes("toutes")) return ARMOR_DATA;
+  if(t.includes("aucune")) return [ARMOR_DATA[0]];
+  const list = ARMOR_DATA.filter(a=> a.id==="none" || t.includes(a.name.toLowerCase()));
+  return list.length>1 ? list : [ARMOR_DATA[0], ...ARMOR_DATA.filter(a=>a.id!=="none")];
+}
+function classAllowsShield(cd){ return !cd || !cd.armor || /boucliers?/i.test(cd.armor); }
+/* Tirage d'équipement de départ : une armure (pondérée vers "sans armure"/légère, cohérent avec un
+   personnage niveau 1 qui n'a pas forcément les moyens d'une armure de plates à 130 po), un
+   bouclier si la classe l'autorise (1 chance sur 3), une arme au hasard parmi celles permises. */
+function rollStartingEquipment(cd){
+  const armors = classAllowedArmor(cd);
+  const armor = armors[Math.floor(Math.random()*armors.length)];
+  const shield = classAllowsShield(cd) && Math.random()<(1/3);
+  const weapons = classAllowedWeapons(cd);
+  const weapon = weapons.length ? weapons[Math.floor(Math.random()*weapons.length)] : null;
+  return { armorId: armor.id, shield, weaponIds: weapon ? [weapon.id] : [] };
 }
 
 function generateRandomPC(){
@@ -2813,7 +2870,8 @@ function generateRandomPC(){
   const spellLines = (cd.spellClass && cd.spellsKnownLvl1>0) ? rollSpellsKnown(cd, cls) : [];
 
   const gold = rollGold();
-  const ac = computeAC(mods.dex);
+  const equip = rollStartingEquipment(cd);
+  const ac = computeACFromLoadout({equippedArmor:equip.armorId, armorMagicBonus:0, equippedShield:equip.shield, shieldMagicBonus:0}, mods.dex);
   const sgn = m => (m>=0?"+":"")+m;
   const invSlots = computeInvSlots(cls, scores.str, mods.con);
 
@@ -2825,11 +2883,14 @@ function generateRandomPC(){
     skills: [origine, cls==="Voleur" ? "Formé (avantage) : Grimper ; Se mouvoir en silence et se cacher ; Adopter des déguisements ; Repérer/désamorcer des pièges ; Tâches délicates (crochetage, pickpocket)." : ""].filter(Boolean).join("\n"),
     spells: spellLines.join("\n"),
     invSlots: String(invSlots),
-    inventory: `${gold} po pour acheter votre équipement de départ (armes/armure autorisées par la classe — l'appli ne connaît pas encore les prix, à compléter manuellement).`,
+    inventory: `${gold} po pour acheter le reste de votre équipement de départ (nourriture, corde, torches... — voir l'onglet Armurerie).`,
     languages: languages.join(", "),
     deity: deity,
     masteredWeapon: "",
     mentor: mentor,
+    equippedArmor: equip.armorId, armorMagicBonus: 0,
+    equippedShield: !!equip.shield, shieldMagicBonus: 0,
+    weapons: (equip.weaponIds||[]).map(id=>({weaponId:id, magicBonus:0})),
     // Titre, langues (déjà stockées à part), armes/armures/capacités de classe et talents ne
     // sont plus figés ici : ils sont recalculés en direct depuis p.cls/p.ascendance à
     // l'affichage (voir detailPC/printPCSheet) — seul le jet de talent initial (un événement
@@ -2897,7 +2958,7 @@ const PC_WIZARD_LABELS = {
   abilities:"Caractéristiques (3d6 × 6)", hp:"Points de vie",
   origin:"Origine", talent:"Talent de classe (2d6)", talent2:"Talent supplémentaire (Ambitieux)",
   name:"Nom", languages:"Langues", deity:"Divinité", mentor:"Mentor",
-  spells:"Sorts connus (rang 1)", gold:"Or de départ", review:"Récapitulatif"
+  spells:"Sorts connus (rang 1)", gold:"Or de départ", equipment:"Équipement de départ", review:"Récapitulatif"
 };
 /* Liste ordonnée des étapes, recalculée à chaque rendu depuis le brouillon en
    cours — les étapes conditionnelles (talent supplémentaire, divinité,
@@ -2922,6 +2983,7 @@ function pcWizardStepList(d){
   if(cd && cd.usesMentor) steps.push({id:"mentor", group:"Historique"});
   if(cd && cd.spellClass && cd.spellsKnownLvl1>0) steps.push({id:"spells", group:"Historique"});
   steps.push({id:"gold", group:"Équipement"});
+  steps.push({id:"equipment", group:"Équipement"});
   steps.push({id:"review", group:"Équipement"});
   return steps;
 }
@@ -2941,6 +3003,7 @@ function pcWizardRoll(id, d){
     case "mentor": return rollMentor();
     case "spells": return rollSpellsKnown(cd, d.cls);
     case "gold": return rollGold();
+    case "equipment": return rollStartingEquipment(cd);
   }
 }
 function pcWizardApply(id, d, value){
@@ -2959,6 +3022,7 @@ function pcWizardApply(id, d, value){
     case "mentor": d.mentor=value; break;
     case "spells": d.spellLines=value; break;
     case "gold": d.gold=value; break;
+    case "equipment": d.equipment=value; break;
   }
 }
 function pcWizardDisplayHTML(id, value, d){
@@ -2984,6 +3048,14 @@ function pcWizardDisplayHTML(id, value, d){
     case "mentor": { const m=MENTORS[value]; return P(`<b>${esc(value)}</b>`) + (m?`<p class="muted" style="font-family:var(--ui)">${esc(m.desc)}</p>`:""); }
     case "spells": return value.length ? `<ul class="bullets">${value.map(s=>`<li>${renderText(s)}</li>`).join("")}</ul>` : P("Aucun sort disponible pour l'instant.");
     case "gold": return P(`<b>${value} po</b>`);
+    case "equipment": {
+      const armor = ARMOR_DATA.find(a=>a.id===value.armorId);
+      const weapons = (value.weaponIds||[]).map(id=>WEAPONS_DATA.find(w=>w.id===id)).filter(Boolean);
+      return P([
+        `<b>${esc(armor?armor.name:"Sans armure")}</b>${value.shield?" + Bouclier":""}`,
+        weapons.length?weapons.map(w=>esc(w.name)).join(", "):"Aucune arme"
+      ].join(" · "));
+    }
   }
 }
 function pcWizardManualHTML(id, d, currentValue){
@@ -3014,6 +3086,16 @@ function pcWizardManualHTML(id, d, currentValue){
     case "mentor": return `<div class="field"><label>Mentor</label><select id="wiz-in">${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${currentValue===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>`;
     case "spells": return `<div class="field"><label>Sorts <span class="hint">(un par ligne)</span></label><textarea id="wiz-in">${esc((currentValue||[]).join("\n"))}</textarea></div>`;
     case "gold": return `<div class="field"><label>Or de départ (po)</label><input type="number" id="wiz-in" value="${esc(currentValue||0)}"></div>`;
+    case "equipment": {
+      const cd = CLASSES_DATA[d.cls];
+      const armors = classAllowedArmor(cd), weapons = classAllowedWeapons(cd);
+      const v = currentValue || {armorId:"none", shield:false, weaponIds:[]};
+      return `<div class="field"><label>Armure</label><select id="wiz-in-armor">${armors.map(a=>`<option value="${a.id}" ${v.armorId===a.id?"selected":""}>${esc(a.name)}${a.id!=="none"?` (${esc(a.cost)})`:""}</option>`).join("")}</select></div>
+        ${classAllowsShield(cd)?`<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;margin:.3rem 0;cursor:pointer"><input type="checkbox" id="wiz-in-shield" ${v.shield?"checked":""} style="width:auto"> Bouclier (+2 CA, ${esc(SHIELD_DATA.cost)})</label>`:""}
+        <div class="field"><label>Armes <span class="hint">(une ou plusieurs)</span></label>
+          <div style="display:flex;flex-direction:column;gap:.25rem">${weapons.map(w=>`<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;cursor:pointer"><input type="checkbox" class="wiz-in-weapon" value="${w.id}" ${(v.weaponIds||[]).includes(w.id)?"checked":""} style="width:auto"> ${esc(w.name)} (${esc(w.damage)}, ${esc(w.cost)})</label>`).join("")}</div>
+        </div>`;
+    }
   }
 }
 function pcWizardReadManual(id, d){
@@ -3031,6 +3113,12 @@ function pcWizardReadManual(id, d){
     case "mentor": return $("#wiz-in").value;
     case "spells": return $("#wiz-in").value.split("\n").map(s=>s.trim()).filter(Boolean);
     case "gold": return Math.max(0, parseInt($("#wiz-in").value)||0);
+    case "equipment": {
+      const armorSel = document.getElementById("wiz-in-armor");
+      const shieldEl = document.getElementById("wiz-in-shield");
+      const weaponIds = [...document.querySelectorAll(".wiz-in-weapon:checked")].map(el=>el.value);
+      return { armorId: armorSel?armorSel.value:"none", shield: !!(shieldEl&&shieldEl.checked), weaponIds };
+    }
   }
 }
 /* Une ligne de journal par jet (initial ou relance) — sert à ne jamais perdre le fil de "quel dé
@@ -3054,6 +3142,11 @@ function pcWizardFieldLog(id, value, d, manual){
     case "mentor": return `${icon} Mentor → ${value}`;
     case "spells": return `${icon} Sorts de rang 1 → ${value.length?value.join(", "):"aucun disponible"}`;
     case "gold": return `${icon} 2d6 × 5 Or → ${value} po`;
+    case "equipment": {
+      const armor = ARMOR_DATA.find(a=>a.id===value.armorId);
+      const weapons = (value.weaponIds||[]).map(id=>WEAPONS_DATA.find(w=>w.id===id)).filter(Boolean).map(w=>w.name);
+      return `${icon} Équipement de départ → ${armor?armor.name:"Sans armure"}${value.shield?" + Bouclier":""}${weapons.length?" · "+weapons.join(", "):""}`;
+    }
     default: return `${icon} ${id}`;
   }
 }
@@ -3076,7 +3169,9 @@ function pcWizardSheetHTML(d){
     parts.push(`<p class="muted" style="font-family:var(--ui);font-size:.85rem">${esc(asc?asc.trait:"Ascendance personnalisée — aucun bonus mécanique automatique.")}</p>`);
   }
   if(d.scores){
-    const ac = computeAC(mods.dex);
+    const ac = d.equipment
+      ? computeACFromLoadout({equippedArmor:d.equipment.armorId, armorMagicBonus:0, equippedShield:d.equipment.shield, shieldMagicBonus:0}, mods.dex)
+      : computeAC(mods.dex);
     parts.push(`<div class="statblock">
       <div class="sb-line">
         <span><b>CA</b> ${ac}</span>
@@ -3103,9 +3198,11 @@ function pcWizardSheetHTML(d){
   if(d.spellLines && d.spellLines.length){
     parts.push(`<div class="section"><h2>✨ Sortilèges</h2>${renderBullets(d.spellLines.join("\n"))}</div>`);
   }
-  if(d.gold!=null){
+  if(d.gold!=null || d.equipment){
     const invSlots = d.scores ? computeInvSlots(d.cls, d.scores.str, mods.con) : null;
-    parts.push(`<div class="section"><h2>🎒 Équipement</h2><p style="font-family:var(--ui)">${d.gold} po de départ${invSlots!=null?` · ${invSlots} emplacements d'inventaire`:""}</p></div>`);
+    const armor = d.equipment ? ARMOR_DATA.find(a=>a.id===d.equipment.armorId) : null;
+    const weapons = d.equipment ? (d.equipment.weaponIds||[]).map(id=>WEAPONS_DATA.find(w=>w.id===id)).filter(Boolean) : [];
+    parts.push(`<div class="section"><h2>🎒 Équipement</h2><p style="font-family:var(--ui)">${d.gold!=null?`${d.gold} po de départ`:""}${invSlots!=null?` · ${invSlots} emplacements d'inventaire`:""}${armor?` · ${esc(armor.name)}${d.equipment.shield?" + Bouclier":""}`:""}${weapons.length?` · ${weapons.map(w=>esc(w.name)).join(", ")}`:""}</p></div>`);
   }
   return parts.join("\n");
 }
@@ -3167,8 +3264,9 @@ function finishPCWizard(){
   const d = pcWizard.draft;
   const mods = {}; ["str","dex","con","int","wis","cha"].forEach(k=> mods[k]=ABILITY_MOD(d.scores[k]));
   const sgn=m=>(m>=0?"+":"")+m;
-  const ac = computeAC(mods.dex);
   const invSlots = computeInvSlots(d.cls, d.scores.str, mods.con);
+  const equip = d.equipment || {armorId:"none", shield:false, weaponIds:[]};
+  const ac = computeACFromLoadout({equippedArmor:equip.armorId, armorMagicBonus:0, equippedShield:equip.shield, shieldMagicBonus:0}, mods.dex);
   const o = {
     id: uid(), name: d.name, ancestry: d.ancestryName, cls: d.cls, level:"1", alignment: d.alignment,
     ac: String(ac), hp: String(d.hp), hpCurrent: String(d.hp),
@@ -3177,14 +3275,17 @@ function finishPCWizard(){
     skills: [d.origin, d.cls==="Voleur" ? "Formé (avantage) : Grimper ; Se mouvoir en silence et se cacher ; Adopter des déguisements ; Repérer/désamorcer des pièges ; Tâches délicates (crochetage, pickpocket)." : ""].filter(Boolean).join("\n"),
     spells: (d.spellLines||[]).join("\n"),
     invSlots: String(invSlots),
-    inventory: `${d.gold} po pour acheter votre équipement de départ (armes/armure autorisées par la classe — l'appli ne connaît pas encore les prix, à compléter manuellement).`,
+    inventory: `${d.gold} po pour acheter le reste de votre équipement de départ (nourriture, corde, torches... — voir l'onglet Armurerie).`,
     languages: d.languages.join(", "),
     deity: d.deity||"",
     masteredWeapon: "",
     mentor: d.mentor||"",
     info: d.talentRolls.map((r,i)=>`Jet de talent initial ${d.talentRolls.length>1?(i+1)+" ":""}(2d6=${r.total}) : ${r.text||"—"}`).join("\n"),
     images: [],
-    portrait: pickRandomPortrait()
+    portrait: pickRandomPortrait(),
+    equippedArmor: equip.armorId, armorMagicBonus: 0,
+    equippedShield: !!equip.shield, shieldMagicBonus: 0,
+    weapons: (equip.weaponIds||[]).map(id=>({weaponId:id, magicBonus:0}))
   };
   db.pcs.push(o);
   saveDB();
@@ -3715,8 +3816,8 @@ function listTreasures(){
   const gm = effectiveRole()==="gm";
   const wipOnly = gm && treasureWipOnly;
   const items = filterWip(filterFavorites(filterGmCreated(itemsAll), treasureFavOnly), wipOnly);
-  const head = pageHead("Trésor", `${items.length} objet(s)`, "Nouvel objet", xmlToolbarHTML("treasure"));
-  if(!itemsAll.length){ app.innerHTML = head + emptyState("💎","Aucun trésor. Répertoriez trouvailles, reliques et régalia."); return; }
+  const head = pageHead("Armurerie", `${items.length} objet(s)`, "Nouvel objet", xmlToolbarHTML("treasure"));
+  if(!itemsAll.length){ app.innerHTML = head + emptyState("💎","Aucun objet. Répertoriez trouvailles, reliques, régalia et équipements."); return; }
   if(!items.length){ app.innerHTML = head + (gm?`<div style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.4rem">${favFilterBtnHTML("treasure",treasureFavOnly)}${wipFilterBtnHTML(treasureWipOnly)}</div>`:"") + emptyState("🖋",treasureFavOnly?"Aucun favori dans cet onglet.":(wipOnly?"Aucun objet WIP dans cet onglet.":"Aucune création marquée « MJ » dans cet onglet.")); return; }
   const allKeys = TREASURE_CATS.map(([k])=>"treasures:"+k).filter(key=>items.some(t=>(t.category||"trouvaille")===key.split(":")[1]));
   const allOpen = allKeys.length && allKeys.every(k=>expandedGroups.has(k));
