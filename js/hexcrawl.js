@@ -14,13 +14,75 @@ const HEX_TERRAIN = {
   canyon:{color:"#b0693f",icon:"🪨"}
 };
 function terrainInfo(t){ return HEX_TERRAIN[t] || {color:"#6b6455", icon:"?"}; }
-/* Tuiles hexcrawl (2026-08-17) : remplace l'ancien système fond biome (5 images) + overlay
-   (27 images), toutes deux en orientation flat-top et donc tournées de 30° au rendu pour coller à
-   la grille pointy-top de l'app (voir git blame pour l'ancien hexBiomeImageSVG). Le nouveau pack
-   "tuiles hexcrawl/" est nativement pointy-top (ratio largeur/hauteur ≈ 0.87, vérifié sur les PNG)
-   donc plus aucune rotation n'est nécessaire — voir hexTileImageSVG. Une seule tuile par hexagone
-   (plus de fond+overlay superposés) : chaque tuile du pack est déjà une scène complète. */
+/* Tuiles hexcrawl (2026-08-17) : le pack "tuiles hexcrawl/{desert,forest,mountain,tundra}Pack" est
+   nativement pointy-top (ratio largeur/hauteur ≈ 0.87, vérifié sur les PNG), donc pas de rotation
+   au rendu — voir hexTileImageSVG. Une seule tuile par hexagone (h.tile), chaque tuile du pack
+   étant déjà une scène complète.
+   Fonds/Overlays (réintégrés le 2026-08-17, demande de Tristan après suppression puis nouvel
+   upload des anciens fichiers, remis ici dans tuiles hexcrawl/) : SYSTÈME SÉPARÉ, en plus du
+   système tuiles ci-dessus, pas un remplacement — un fond (5 images) et un overlay (27 images)
+   optionnels et INDÉPENDANTS l'un de l'autre (un overlay se peint sur n'importe quel hexagone,
+   avec ou sans fond dessous), empilés l'un sur l'autre. Ces images sont en orientation flat-top
+   (ratio ≈1.15, à l'inverse des tuiles) donc tournées de 30° au rendu pour coller à la grille
+   pointy-top — voir hexFondOverlayImageSVG. h.tile / (h.fond,h.overlay) sont mutuellement
+   exclusifs sur un même hexagone (peindre l'un efface l'autre, voir setHexTile/setHexFond/
+   setHexOverlay) : les mélanger visuellement n'aurait pas de sens net pour le MJ qui peint. */
 const HEX_NEUTRAL_FILL = "#55524a";
+const FOND_LIST = [
+  {id:"deadlands", label:"Terres mortes", file:"tuiles hexcrawl/Fonds/1-deadlands_bg.png"},
+  {id:"drylands", label:"Terres arides", file:"tuiles hexcrawl/Fonds/1-drylands_bg.png"},
+  {id:"greenlands", label:"Terres vertes", file:"tuiles hexcrawl/Fonds/1-greenlands_bg.png"},
+  {id:"icelands", label:"Terres glacées", file:"tuiles hexcrawl/Fonds/1-icelands_bg.png"},
+  {id:"sandlands", label:"Terres sablonneuses", file:"tuiles hexcrawl/Fonds/1-sandlands_bg.png"}
+];
+function fondLabel(id){ const f=FOND_LIST.find(x=>x.id===id); return f?f.label:""; }
+function fondPickerHTML(selected){
+  const tiles = FOND_LIST.map(f=>
+    `<button type="button" class="overlay-pick${selected===f.id?' active':''}" data-fond="${f.id}" title="${esc(f.label)}">
+       <img src="${esc(f.file)}" alt="${esc(f.label)}">
+     </button>`);
+  return `<div class="overlay-picker biome-picker" id="hex-fond-picker">${tiles.join("")}</div>`;
+}
+/* "Volcan" (1-foundation_vulcano.png) absent de la liste : ce fichier manque dans le dossier
+   Overlays réuploadé par Tristan le 2026-08-17 (26 fichiers sur 27, 2 à 27 seulement) — à réajouter
+   ici si/quand il le retrouve et le remet dans tuiles hexcrawl/Overlays/. */
+const OVERLAY_LIST = [
+  {file:"tuiles hexcrawl/Overlays/2-foundation_forest.png", label:"Forêt"},
+  {file:"tuiles hexcrawl/Overlays/3-foundation_tundra.png", label:"Toundra / herbe légère"},
+  {file:"tuiles hexcrawl/Overlays/4-foundation_trees.png", label:"Arbres épars"},
+  {file:"tuiles hexcrawl/Overlays/5-foundation_water.png", label:"Eau"},
+  {file:"tuiles hexcrawl/Overlays/6-foundation_hills.png", label:"Collines"},
+  {file:"tuiles hexcrawl/Overlays/7-foundation_river.png", label:"Rivière"},
+  {file:"tuiles hexcrawl/Overlays/8-foundation_portal.png", label:"Portail"},
+  {file:"tuiles hexcrawl/Overlays/9-foundation_mountains.png", label:"Montagnes"},
+  {file:"tuiles hexcrawl/Overlays/10-foundation_lake.png", label:"Lac"},
+  {file:"tuiles hexcrawl/Overlays/11-foundation_village.png", label:"Village"},
+  {file:"tuiles hexcrawl/Overlays/12-foundation_city.png", label:"Ville"},
+  {file:"tuiles hexcrawl/Overlays/13-foundation_tower.png", label:"Tour"},
+  {file:"tuiles hexcrawl/Overlays/14-foundation_community.png", label:"Communauté"},
+  {file:"tuiles hexcrawl/Overlays/15-foundation_cave.png", label:"Grotte"},
+  {file:"tuiles hexcrawl/Overlays/16-foundation_hole.png", label:"Trou / fondrière"},
+  {file:"tuiles hexcrawl/Overlays/17-foundation_dead-Trees.png", label:"Arbres morts"},
+  {file:"tuiles hexcrawl/Overlays/18-foundation_ruins.png", label:"Ruines"},
+  {file:"tuiles hexcrawl/Overlays/19-foundation_graveyard.png", label:"Cimetière"},
+  {file:"tuiles hexcrawl/Overlays/20-foundation_swamp.png", label:"Marécage"},
+  {file:"tuiles hexcrawl/Overlays/21-foundation_floating-Island.png", label:"Île flottante"},
+  {file:"tuiles hexcrawl/Overlays/22-foundation_keep.png", label:"Donjon / forteresse"},
+  {file:"tuiles hexcrawl/Overlays/23-foundation_wonder.png", label:"Merveille"},
+  {file:"tuiles hexcrawl/Overlays/24-foundation_cristals.png", label:"Cristaux"},
+  {file:"tuiles hexcrawl/Overlays/25-foundation_stones.png", label:"Pierres dressées"},
+  {file:"tuiles hexcrawl/Overlays/26-foundation_farms.png", label:"Fermes"},
+  {file:"tuiles hexcrawl/Overlays/27-foundation_fog.png", label:"Brume"}
+];
+function overlayLabel(file){ const o=OVERLAY_LIST.find(x=>x.file===file); return o?o.label:file; }
+function overlayPickerHTML(selected){
+  const tiles = [`<button type="button" class="overlay-pick${!selected?' active':''}" data-overlay="" title="Aucun overlay">✕</button>`]
+    .concat(OVERLAY_LIST.map(o=>
+      `<button type="button" class="overlay-pick${selected===o.file?' active':''}" data-overlay="${esc(o.file)}" title="${esc(o.label)}">
+         <img src="${esc(o.file)}" alt="${esc(o.label)}">
+       </button>`));
+  return `<div class="overlay-picker" id="hex-overlay-picker">${tiles.join("")}</div>`;
+}
 const TILE_PACKS = [
   {id:"desertPack", label:"Désert", tiles:[
     {file:"desert_01_full.png", label:"Désert (plein)"},
@@ -190,6 +252,10 @@ let hexPlacingPoint = false;
 let hexPaintingTile = false;
 let hexPaintPackId = "forestPack";
 let hexPaintTileValue = tilePath("forestPack","forest_01_full.png");
+let hexPaintingFond = false;
+let hexPaintFondValue = "greenlands";
+let hexPaintingOverlay = false;
+let hexPaintOverlayValue = "";
 /* Zoom/pan carte (2026-08-17), demandé par Tristan pour l'usage mobile : pincer/zoomer et faire
    glisser la carte, plus un vrai plein écran. Remplace le simple overflow:auto (scroll natif) qui
    ne permettait aucun zoom. État en dehors de detailHexmap() car la vue est entièrement
@@ -393,14 +459,30 @@ function hexTileImageSVG(href, c, size){
   const x = (c.x - w/2).toFixed(1), y = (c.y - h/2).toFixed(1);
   return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" class="hex-tile-img"></image>`;
 }
+/* Fond (5 images pleines) + overlay (27 images, contour dessiné, transparent autour) empilés sur
+   la boîte englobante de l'hexagone — système réintégré (2026-08-17), voir le commentaire sur
+   FOND_LIST/OVERLAY_LIST plus haut pour le pourquoi de la rotation (images flat-top, grille
+   pointy-top). Repris tel quel de l'ancien hexBiomeImageSVG (git blame). */
+function hexFondOverlayImageSVG(href, c, size, cls){
+  const w = size*2, h = size*Math.sqrt(3);
+  const x = (c.x - w/2).toFixed(1), y = (c.y - h/2).toFixed(1);
+  const rot = `rotate(30 ${c.x.toFixed(1)} ${c.y.toFixed(1)})`;
+  return `<image href="${esc(href)}" x="${x}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" transform="${rot}" class="${cls}"></image>`;
+}
 function hexTerrainLayerSVG(h, c, size){
   const pts = hexCorners(c.x, c.y, size-1);
-  if(!h.tile){
-    const info = terrainInfo(h.hexType);
-    return `<polygon points="${pts}" fill="${info.color}"></polygon><text x="${c.x.toFixed(1)}" y="${(c.y+5).toFixed(1)}" text-anchor="middle" class="hex-icon">${info.icon}</text>`;
+  if(h.tile){
+    if(h.tile==="water") return `<polygon points="${pts}" fill="${TILE_PACKS.find(p=>p.id==="water").color}"></polygon>`;
+    return `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>${hexTileImageSVG(h.tile, c, size)}`;
   }
-  if(h.tile==="water") return `<polygon points="${pts}" fill="${TILE_PACKS.find(p=>p.id==="water").color}"></polygon>`;
-  return `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>${hexTileImageSVG(h.tile, c, size)}`;
+  if(h.fond || h.overlay){
+    let out = `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>`;
+    if(h.fond){ const f=FOND_LIST.find(x=>x.id===h.fond); if(f) out += hexFondOverlayImageSVG(f.file, c, size, "hex-fond-img"); }
+    if(h.overlay) out += hexFondOverlayImageSVG(h.overlay, c, size, "hex-overlay-img");
+    return out;
+  }
+  const info = terrainInfo(h.hexType);
+  return `<polygon points="${pts}" fill="${info.color}"></polygon><text x="${c.x.toFixed(1)}" y="${(c.y+5).toFixed(1)}" text-anchor="middle" class="hex-icon">${info.icon}</text>`;
 }
 function buildHexSVG(m){
   const size = (m.settings&&m.settings.hexSize)||30;
@@ -423,7 +505,7 @@ function buildHexSVG(m){
   return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
 function detailHexmap(m){
-  if(hexmapCurrentId !== m.id){ hexPlacingPoint = false; hexPaintingTile = false; hexMapZoom = { scale:1, tx:0, ty:0 }; hexMapFullscreen = false; document.body.classList.remove("hex-fullscreen-lock"); }
+  if(hexmapCurrentId !== m.id){ _hexClearPaintModes(); hexMapZoom = { scale:1, tx:0, ty:0 }; hexMapFullscreen = false; document.body.classList.remove("hex-fullscreen-lock"); }
   hexmapCurrentId = m.id;
   const total = (m.hexes||[]).length;
   const revealed = (m.hexes||[]).filter(h=>h.fogState!=="hidden").length;
@@ -432,7 +514,11 @@ function detailHexmap(m){
     ? "Clique l'hexagone où placer le nouveau point d'intérêt (ou re-clique le bouton pour annuler)."
     : hexPaintingTile
       ? `Choisis un biome puis une tuile, ensuite clique un hexagone pour l'appliquer (tuile actuelle : « ${hexPaintTileValue?tileLabel(hexPaintTileValue):"Aucune"} »).`
-      : `Clique un hexagone pour le révéler ou le recacher aux joueurs · ${revealed}/${total} révélé(s).`;
+      : hexPaintingFond
+        ? `Clique un hexagone pour lui donner le fond « ${fondLabel(hexPaintFondValue)} » (ou re-clique le bouton pour annuler).`
+        : hexPaintingOverlay
+          ? `Clique un hexagone pour lui appliquer l'overlay « ${hexPaintOverlayValue?overlayLabel(hexPaintOverlayValue):"Aucun"} » (ou re-clique le bouton pour annuler).`
+          : `Clique un hexagone pour le révéler ou le recacher aux joueurs · ${revealed}/${total} révélé(s).`;
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Hexcrawl</button>
     <h1>${esc(m.title||"Sans titre")}</h1>
@@ -443,15 +529,19 @@ function detailHexmap(m){
       <button class="btn ghost sm" data-hex-hide-all="1">🌫 Tout masquer</button>
       <button class="btn ghost sm${hexPlacingPoint?' active-mode':''}" data-hex-add-point="1">📍 ${hexPlacingPoint?"Clique un hexagone…":"Ajouter un point"}</button>
       <button class="btn ghost sm${hexPaintingTile?' active-mode':''}" data-hex-paint-tile="1">🖌 ${hexPaintingTile?"Clique un hexagone…":"Peindre une tuile"}</button>
+      <button class="btn ghost sm${hexPaintingFond?' active-mode':''}" data-hex-paint-fond="1">🎨 ${hexPaintingFond?"Clique un hexagone…":"Peindre un fond"}</button>
+      <button class="btn ghost sm${hexPaintingOverlay?' active-mode':''}" data-hex-paint-overlay="1">🖼 ${hexPaintingOverlay?"Clique un hexagone…":"Peindre un overlay"}</button>
       <button class="btn ghost sm" data-hex-import="1">⭱ Importer / remplacer le JSON</button>
     </div>
     ${hexPaintingTile ? packPickerHTML(hexPaintPackId) : ""}
     ${hexPaintingTile && paintPack ? tilePickerHTML(paintPack.id, hexPaintTileValue) : ""}
+    ${hexPaintingFond ? fondPickerHTML(hexPaintFondValue) : ""}
+    ${hexPaintingOverlay ? overlayPickerHTML(hexPaintOverlayValue) : ""}
     <div class="crawl-help">${modeHelp}</div>` : ""}
     ${total && (m.points||[]).length ? `<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:.5rem 0 0;cursor:pointer">
       <input type="checkbox" id="hex-points-toggle" ${hexPointsVisible?"checked":""} style="width:auto"> Afficher les points d'intérêt
     </label>` : ""}
-    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingTile?' hex-painting-biome':''}${hexMapFullscreen?' hex-map-fullscreen':''}" id="hex-map-container">
+    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${(hexPaintingTile||hexPaintingFond||hexPaintingOverlay)?' hex-painting-biome':''}${hexMapFullscreen?' hex-map-fullscreen':''}" id="hex-map-container">
       ${total ? `<div class="crawl-map-toolbar">
         <button class="btn ghost sm" data-hex-zoom-out="1">➖</button>
         <button class="btn ghost sm" data-hex-zoom-reset="1" id="hex-zoom-label">${Math.round(hexMapZoom.scale*100)}%</button>
@@ -484,6 +574,24 @@ function detailHexmap(m){
       tilePicker.querySelectorAll(".overlay-pick").forEach(b=>b.classList.toggle("active", b===btn));
       const help = document.querySelector(".crawl-help");
       if(help) help.textContent = `Choisis un biome puis une tuile, ensuite clique un hexagone pour l'appliquer (tuile actuelle : « ${hexPaintTileValue?tileLabel(hexPaintTileValue):"Aucune"} »).`;
+    });
+  });
+  const fondPicker = document.getElementById("hex-fond-picker");
+  if(fondPicker) fondPicker.querySelectorAll(".overlay-pick").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      hexPaintFondValue = btn.dataset.fond;
+      fondPicker.querySelectorAll(".overlay-pick").forEach(b=>b.classList.toggle("active", b===btn));
+      const help = document.querySelector(".crawl-help");
+      if(help) help.textContent = `Clique un hexagone pour lui donner le fond « ${fondLabel(hexPaintFondValue)} » (ou re-clique le bouton pour annuler).`;
+    });
+  });
+  const overlayPicker = document.getElementById("hex-overlay-picker");
+  if(overlayPicker) overlayPicker.querySelectorAll(".overlay-pick").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      hexPaintOverlayValue = btn.dataset.overlay;
+      overlayPicker.querySelectorAll(".overlay-pick").forEach(b=>b.classList.toggle("active", b===btn));
+      const help = document.querySelector(".crawl-help");
+      if(help) help.textContent = `Clique un hexagone pour lui appliquer l'overlay « ${hexPaintOverlayValue?overlayLabel(hexPaintOverlayValue):"Aucun"} » (ou re-clique le bouton pour annuler).`;
     });
   });
   const mapContainer = document.getElementById("hex-map-container");
@@ -577,22 +685,50 @@ function openHexPointModal(pointId, mode){
     detailHexmap(m);
   });
 }
+/* Les 4 modes (placer un point, peindre une tuile, un fond, un overlay) sont mutuellement
+   exclusifs — un seul actif à la fois, comme avant l'ajout de fond/overlay (2026-08-17). */
+function _hexClearPaintModes(){ hexPlacingPoint=false; hexPaintingTile=false; hexPaintingFond=false; hexPaintingOverlay=false; }
 function toggleHexPlacingPoint(){
-  hexPlacingPoint = !hexPlacingPoint;
-  if(hexPlacingPoint){ hexPaintingTile = false; }
+  const next = !hexPlacingPoint; _hexClearPaintModes(); hexPlacingPoint = next;
   const m = getEntity("hexmap", hexmapCurrentId);
   if(m) detailHexmap(m);
 }
 function toggleHexPaintingTile(){
-  hexPaintingTile = !hexPaintingTile;
-  if(hexPaintingTile){ hexPlacingPoint = false; }
+  const next = !hexPaintingTile; _hexClearPaintModes(); hexPaintingTile = next;
   const m = getEntity("hexmap", hexmapCurrentId);
   if(m) detailHexmap(m);
 }
+function toggleHexPaintingFond(){
+  const next = !hexPaintingFond; _hexClearPaintModes(); hexPaintingFond = next;
+  const m = getEntity("hexmap", hexmapCurrentId);
+  if(m) detailHexmap(m);
+}
+function toggleHexPaintingOverlay(){
+  const next = !hexPaintingOverlay; _hexClearPaintModes(); hexPaintingOverlay = next;
+  const m = getEntity("hexmap", hexmapCurrentId);
+  if(m) detailHexmap(m);
+}
+/* h.tile (nouveau système, une seule image) et h.fond/h.overlay (système fond+overlay réintégré)
+   sont mutuellement exclusifs SUR UN MÊME HEXAGONE : peindre l'un efface l'autre, pour ne jamais
+   superposer deux systèmes d'illustration différents sur la même case (rendu ambigu sinon). */
 function setHexTile(q,r,tile){
   const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
   const h = (m.hexes||[]).find(x=>x.q===q && x.r===r); if(!h) return;
-  h.tile = tile;
+  h.tile = tile; h.fond = ""; h.overlay = "";
+  saveDB();
+  detailHexmap(m);
+}
+function setHexFond(q,r,fond){
+  const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
+  const h = (m.hexes||[]).find(x=>x.q===q && x.r===r); if(!h) return;
+  h.fond = fond; h.tile = "";
+  saveDB();
+  detailHexmap(m);
+}
+function setHexOverlay(q,r,overlay){
+  const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
+  const h = (m.hexes||[]).find(x=>x.q===q && x.r===r); if(!h) return;
+  h.overlay = overlay; h.tile = "";
   saveDB();
   detailHexmap(m);
 }
@@ -614,7 +750,7 @@ function importHexmapJSON(file){
       const data = JSON.parse(r.result);
       const hexesObj = data.hexes || {};
       const hexes = Object.values(hexesObj).filter(h=>!h.layer||h.layer==="surface")
-        .map(h=>({ q:h.q, r:h.r, hexType:h.hexType||"", fogState:h.fogState||"hidden", tile:h.tile||"" }));
+        .map(h=>({ q:h.q, r:h.r, hexType:h.hexType||"", fogState:h.fogState||"hidden", tile:h.tile||"", fond:h.biome||"", overlay:h.overlay||"" }));
       const points = ((data.pointCrawl&&data.pointCrawl.nodes)||[]).map(p=>({
         id:p.id||uid(), name:p.name||"", description:p.description||"", type:p.type||"", icon:p.icon||"",
         hex:p.hex||{q:0,r:0}, color:p.color||"", size:p.size||"medium", dmOnly:!!p.dmOnly

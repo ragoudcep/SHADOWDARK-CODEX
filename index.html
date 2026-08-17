@@ -4151,6 +4151,8 @@ app.addEventListener("click", e=>{
     if(effectiveRole()==="gm"){
       if(hexPlacingPoint) createHexPointAt(+el.dataset.hexq, +el.dataset.hexr);
       else if(hexPaintingTile) setHexTile(+el.dataset.hexq, +el.dataset.hexr, hexPaintTileValue);
+      else if(hexPaintingFond) setHexFond(+el.dataset.hexq, +el.dataset.hexr, hexPaintFondValue);
+      else if(hexPaintingOverlay) setHexOverlay(+el.dataset.hexq, +el.dataset.hexr, hexPaintOverlayValue);
       else toggleHexFog(+el.dataset.hexq, +el.dataset.hexr);
     }
     return;
@@ -4160,6 +4162,8 @@ app.addEventListener("click", e=>{
   if(closest("data-hex-hide-all")){ revealAllHexes(false); return; }
   if(closest("data-hex-add-point")){ toggleHexPlacingPoint(); return; }
   if(closest("data-hex-paint-tile")){ toggleHexPaintingTile(); return; }
+  if(closest("data-hex-paint-fond")){ toggleHexPaintingFond(); return; }
+  if(closest("data-hex-paint-overlay")){ toggleHexPaintingOverlay(); return; }
   if(closest("data-hex-import")){ _hexImportTarget = hexmapCurrentId; $("#file-hexjson").click(); return; }
   if(closest("data-hex-import-new")){ _hexImportTarget = null; $("#file-hexjson").click(); return; }
   // Cartes de donjon
