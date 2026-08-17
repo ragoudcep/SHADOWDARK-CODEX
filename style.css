@@ -801,6 +801,10 @@
     #print-area .pp-svg .numc{ fill:#b8892f; }
     #print-area .pp-svg .numt{ fill:#fff; font-family:var(--ui); font-weight:700; font-size:13px; }
     #print-area .pp-svg .ptitle{ fill:#2a241c; font-family:var(--font); font-size:13px; }
+    #print-area .pp-hexsvg{ width:100%; flex:1 1 auto; min-height:0; display:block; margin:0 auto; }
+    #print-area .pp-hexsvg .hex-print-bg{ fill:#efe6cc; }
+    #print-area .pp-hexsvg .hex-print-line{ stroke:#201b12; stroke-width:1.2; }
+    #print-area .pp-hexsvg .hex-print-axis{ fill:#4a3a1a; font-family:var(--ui); font-weight:700; font-size:13px; }
     #print-area h2{ font-size:15pt; color:#4a3a1a; border-bottom:1.5pt solid #cbb27f; padding-bottom:3pt; margin:0 0 11pt; text-transform:uppercase; letter-spacing:.5pt; }
     #print-area .pp-event{ break-inside:avoid; margin:0 0 11pt; padding-bottom:8pt; border-bottom:1px solid #e4dbc6; }
     #print-area .pp-event:last-child{ border-bottom:none; }

@@ -556,6 +556,59 @@ function buildHexSVG(m){
   const gridLines = [...edgeMap.values()].map(([a,b])=>`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="hex-frame-line"></line>`).join("");
   return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg" style="${hexFrameStyle(m)}">${cells}<g id="hex-grid-lines">${gridLines}</g><g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
+/* Export PDF de la carte (2026-08-17, demande de Tristan) : version imprimable, brouillard ignoré
+   (tout le terrain réel est affiché, peu importe fogState — c'est une carte de préparation MJ) et
+   sans le calque des points d'intérêt (déjà connus du MJ). Ajoute une numérotation q/r en bordure
+   (haut+bas pour les colonnes, gauche+droite pour les lignes) pour repérer un hexagone comme des
+   coordonnées abscisse/ordonnée. Réutilise le même pipeline que printCrawl() : on remplit
+   #print-area puis window.print() (voir style.css, règles @media print / #print-area). */
+function buildHexPrintSVG(m){
+  const size = (m.settings&&m.settings.hexSize)||30;
+  const hexes = m.hexes||[];
+  if(!hexes.length) return "";
+  const centers = hexes.map(h=>({h, c:hexCenter(h.q,h.r,size)}));
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  centers.forEach(({c})=>{ minX=Math.min(minX,c.x-size); maxX=Math.max(maxX,c.x+size); minY=Math.min(minY,c.y-size); maxY=Math.max(maxY,c.y+size); });
+  const qs = [...new Set(hexes.map(h=>h.q))].sort((a,b)=>a-b);
+  const rs = [...new Set(hexes.map(h=>h.r))].sort((a,b)=>a-b);
+  const pad = 10, axisPad = Math.max(30, size*1.1);
+  const vbx = minX-pad-axisPad, vby = minY-pad-axisPad;
+  const vbw = (maxX-minX)+pad*2+axisPad*2, vbh = (maxY-minY)+pad*2+axisPad*2;
+  const edgeMap = new Map();
+  const cells = centers.map(({h,c})=>{
+    const corners = hexCornerPoints(c.x,c.y,size);
+    for(let i=0;i<6;i++){
+      const a=corners[i], b=corners[(i+1)%6];
+      const key = a.x<b.x || (a.x===b.x && a.y<b.y) ? `${a.x},${a.y}|${b.x},${b.y}` : `${b.x},${b.y}|${a.x},${a.y}`;
+      if(!edgeMap.has(key)) edgeMap.set(key, [a,b]);
+    }
+    return `<g>${hexTerrainLayerSVG(h,c,size)}</g>`;
+  }).join("");
+  const gridLines = [...edgeMap.values()].map(([a,b])=>`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="hex-print-line"></line>`).join("");
+  const topY = (minY-pad-axisPad*0.4).toFixed(1), botY = (maxY+pad+axisPad*0.55).toFixed(1);
+  const leftX = (minX-pad-axisPad*0.4).toFixed(1), rightX = (maxX+pad+axisPad*0.55).toFixed(1);
+  const colLabels = qs.map(q=>{
+    const x = hexCenter(q,0,size).x.toFixed(1);
+    return `<text x="${x}" y="${topY}" text-anchor="middle" class="hex-print-axis">${q}</text><text x="${x}" y="${botY}" text-anchor="middle" class="hex-print-axis">${q}</text>`;
+  }).join("");
+  const rowLabels = rs.map(r=>{
+    const y = (hexCenter(0,r,size).y+4).toFixed(1);
+    return `<text x="${leftX}" y="${y}" text-anchor="middle" class="hex-print-axis">${r}</text><text x="${rightX}" y="${y}" text-anchor="middle" class="hex-print-axis">${r}</text>`;
+  }).join("");
+  return `<svg viewBox="${vbx.toFixed(1)} ${vby.toFixed(1)} ${vbw.toFixed(1)} ${vbh.toFixed(1)}" class="pp-hexsvg" xmlns="http://www.w3.org/2000/svg">
+    <rect x="${vbx.toFixed(1)}" y="${vby.toFixed(1)}" width="${vbw.toFixed(1)}" height="${vbh.toFixed(1)}" class="hex-print-bg"></rect>
+    ${cells}<g>${gridLines}</g>${colLabels}${rowLabels}
+  </svg>`;
+}
+function printHexmap(id){
+  const m = getEntity("hexmap", id); if(!m) return;
+  if(!(m.hexes||[]).length){ toast("Ajoute des hexagones avant d'imprimer."); return; }
+  $("#print-area").innerHTML = `<section class="pp-map">
+    <h1>${esc(m.title||"Carte")}</h1>
+    ${buildHexPrintSVG(m)}
+  </section>`;
+  document.fonts.load('30pt "JSL Blackletter"').catch(()=>{}).then(()=> window.print());
+}
 function detailHexmap(m){
   if(hexmapCurrentId !== m.id){ _hexClearPaintModes(); hexMapZoom = { scale:1, tx:0, ty:0 }; hexMapFullscreen = false; document.body.classList.remove("hex-fullscreen-lock"); }
   hexmapCurrentId = m.id;
@@ -604,6 +657,7 @@ function detailHexmap(m){
         <button class="btn ghost sm" data-hex-zoom-reset="1" id="hex-zoom-label">${Math.round(hexMapZoom.scale*100)}%</button>
         <button class="btn ghost sm" data-hex-zoom-in="1">➕</button>
         <button class="btn ghost sm" data-hex-fullscreen="1">${hexMapFullscreen?"⛶ Quitter le plein écran":"⛶ Plein écran"}</button>
+        <button class="btn ghost sm" data-hex-print="1">🖨 Exporter PDF</button>
       </div>` : ""}
       ${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${effectiveRole()==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}
     </div>

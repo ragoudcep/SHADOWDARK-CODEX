@@ -4169,6 +4169,7 @@ app.addEventListener("click", e=>{
   if(closest("data-hex-paint-overlay")){ toggleHexPaintingOverlay(); return; }
   if(closest("data-hex-import")){ _hexImportTarget = hexmapCurrentId; $("#file-hexjson").click(); return; }
   if(closest("data-hex-import-new")){ _hexImportTarget = null; $("#file-hexjson").click(); return; }
+  if(closest("data-hex-print")){ printHexmap(hexmapCurrentId); return; }
   // Cartes de donjon
   if(closest("data-add-mapimg")){ $("#file-mapimg").click(); return; }
   if(closest("data-dmap-replace-image")){ $("#file-mapimg-replace").click(); return; }
