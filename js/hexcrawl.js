@@ -228,11 +228,14 @@ function buildHexPoints(m, isGM){
     const c = hexCenter(p.hex.q, p.hex.r, size);
     const r = Math.max(14, size*0.38);
     const hiddenFromPlayers = isGM && p.dmOnly;
-    const iconEl = p.icon
-      ? `<use href="icons.svg#${esc(p.icon)}" x="${(c.x-r).toFixed(1)}" y="${(c.y-r).toFixed(1)}" width="${(r*2).toFixed(1)}" height="${(r*2).toFixed(1)}" class="hexpoint-icon-svg"></use>`
-      : `<text x="${c.x.toFixed(1)}" y="${(c.y+r*0.35).toFixed(1)}" text-anchor="middle" class="hexpoint-icon" style="font-size:${(r*1.7).toFixed(1)}px">!</text>`;
+    /* Icône (POI_ICON_LIST/"!") mise de côté pour l'instant (2026-08-17, demande de Tristan) :
+       une zone d'intérêt se signale désormais par une pulsation lumineuse discrète plutôt qu'un
+       glyphe posé au centre — le point.icon reste stocké (poiIconPickerHTML/modal inchangés) pour
+       une réintroduction future, simplement pas dessiné ici. */
     return `<g class="hexpoint${hiddenFromPlayers?' hexpoint-dmonly':''}" data-point-id="${esc(p.id)}"><title>${esc(p.name||"")}${hiddenFromPlayers?" (MJ uniquement)":""}</title>
-      ${iconEl}
+      <circle cx="${c.x}" cy="${c.y}" r="${r.toFixed(1)}" class="hexpoint-hit"></circle>
+      <circle cx="${c.x}" cy="${c.y}" r="${(r*0.55).toFixed(1)}" class="hexpoint-pulse-ping"></circle>
+      <circle cx="${c.x}" cy="${c.y}" r="${(r*0.4).toFixed(1)}" class="hexpoint-pulse-dot"></circle>
       ${hiddenFromPlayers?`<circle cx="${c.x}" cy="${c.y}" r="${(r*1.15).toFixed(1)}" class="hexpoint-ring"></circle>`:""}
     </g>`;
   }).join("");

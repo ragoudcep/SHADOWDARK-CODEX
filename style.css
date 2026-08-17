@@ -364,9 +364,18 @@
   .hex-fog{ fill:#0c0a08; }
   .hex-fog-gm{ fill:#0c0a08; opacity:.55; pointer-events:none; }
   .hexpoint{ cursor:pointer; }
-  .hexpoint:hover .hexpoint-icon-svg, .hexpoint:hover .hexpoint-icon{ filter:brightness(1.35); }
-  .hexpoint-icon{ fill:#e0453a; font-weight:800; font-family:var(--ui); pointer-events:none; user-select:none; transition:filter .15s; }
-  .hexpoint-icon-svg{ fill:#e0453a; color:#e0453a; pointer-events:none; transition:filter .15s; }
+  .hexpoint-hit{ fill:transparent; pointer-events:all; }
+  /* Zone d'intérêt (2026-08-17) : pulsation lumineuse discrète plutôt qu'une icône posée sur la
+     tuile — le point "dot" reste fixe et bien visible, le halo "ping" grossit et s'efface en
+     boucle autour de lui (même principe visuel qu'un indicateur de notification "live"). */
+  .hexpoint-pulse-dot{ fill:var(--gold2); pointer-events:none; filter:drop-shadow(0 0 3px rgba(224,185,104,.9)); }
+  .hexpoint-pulse-ping{ fill:var(--gold2); opacity:.55; pointer-events:none; transform-box:fill-box; transform-origin:center;
+    animation:hexpoint-ping 2.2s ease-out infinite; }
+  .hexpoint:hover .hexpoint-pulse-dot{ filter:drop-shadow(0 0 5px rgba(224,185,104,1)); }
+  @keyframes hexpoint-ping{
+    0%{ transform:scale(1); opacity:.55; }
+    100%{ transform:scale(2.4); opacity:0; }
+  }
   .hexpoint-ring{ fill:none; stroke:#8a8a8a; stroke-width:1.3; stroke-dasharray:2 1.5; pointer-events:none; }
   .icon-picker{ display:grid; grid-template-columns:repeat(7,1fr); gap:.35rem; margin-top:.3rem; }
   .icon-pick{ aspect-ratio:1; background:#1a1510; border:1px solid #3a3226; border-radius:4px; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:.3rem; font-family:var(--ui); font-weight:800; }
