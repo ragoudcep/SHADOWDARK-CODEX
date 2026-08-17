@@ -351,11 +351,19 @@
      .crawl-map-scroll avec son propre scroll natif sur .crawl-canvas — ici on gère le pan nous-
      mêmes via transform, donc overflow:hidden + touch-action:none (sinon le navigateur essaie de
      scroller/zoomer la PAGE pendant qu'on pince/glisse la carte). */
-  #hex-map-container{ overflow:hidden; touch-action:none; cursor:grab; }
+  #hex-map-container{ position:relative; overflow:hidden; touch-action:none; cursor:grab; }
   #hex-map-container:active{ cursor:grabbing; }
   #hex-map-container #hex-svg{ transform-origin:0 0; will-change:transform; }
-  #hex-map-container.hex-map-fullscreen{ max-height:100vh; height:100vh; border-radius:0; }
-  .crawl-map-toolbar{ display:flex; align-items:center; gap:.4rem; margin:.5rem 0 .5rem; }
+  /* Plein écran "CSS" (2026-08-17, voir hexMapFullscreen dans hexcrawl.js) : position:fixed plutôt
+     que l'API Fullscreen native, qui sortait toute seule dès qu'on interagissait avec la carte.
+     z-index sous celui de #modal (150, cf. plus bas) pour que les popups de point d'intérêt
+     restent visibles PAR-DESSUS la carte en plein écran, sans avoir à les déplacer dans le DOM. */
+  #hex-map-container.hex-map-fullscreen{ position:fixed; inset:0; z-index:140; max-height:100vh; height:100vh; border-radius:0; border:none; }
+  body.hex-fullscreen-lock{ overflow:hidden; }
+  /* La barre zoom/plein écran flotte SUR la carte (et non au-dessus, en flux normal) pour rester
+     accessible aussi bien en plein écran qu'en vue normale, sans dupliquer le markup. */
+  .crawl-map-toolbar{ position:absolute; top:.6rem; left:.6rem; z-index:5; display:flex; align-items:center; gap:.4rem;
+    background:rgba(10,9,11,.72); padding:.3rem; border-radius:8px; border:1px solid var(--border2); }
   #hex-zoom-label{ min-width:3.4em; text-align:center; }
   .hexcell polygon{ stroke:#1a1510; stroke-width:1; }
   .hex-editable{ cursor:pointer; }

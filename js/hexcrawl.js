@@ -197,6 +197,16 @@ let hexPaintTileValue = tilePath("forestPack","forest_01_full.png");
    zoom/pan sauterait à chaque clic. Réinitialisé uniquement quand on change de carte (voir
    detailHexmap, même endroit que le reset de hexPlacingPoint/hexPaintingTile). */
 let hexMapZoom = { scale:1, tx:0, ty:0 };
+/* Plein écran "CSS" (2026-08-17), PAS l'API Fullscreen native — testé et abandonné : l'app
+   reconstruit tout .detail via innerHTML à chaque interaction (révéler un hexagone, peindre...),
+   donc l'élément passé à requestFullscreen() est détaché du DOM à l'étape suivante ; par spec,
+   un élément fullscreen retiré du document fait sortir du plein écran automatiquement — ça
+   sortait donc du plein écran dès le premier clic sur la carte. Deuxième souci de l'API native :
+   #modal/#toast vivent hors de l'élément fullscreen, donc invisibles tant qu'on ne le quitte pas
+   (le popup d'un point d'intérêt n'apparaissait jamais). Un simple booléen + position:fixed
+   couvrant tout le viewport (z-index sous celui de #modal, cf. style.css) évite les deux : l'état
+   survit aux re-renders comme hexMapZoom, et #modal reste au-dessus normalement. */
+let hexMapFullscreen = false;
 function clampHexZoomScale(s){ return Math.min(4, Math.max(0.6, s)); }
 function applyHexMapTransform(){
   const svg = document.getElementById("hex-svg");
@@ -218,16 +228,29 @@ function setHexZoom(scale, originX, originY){
   applyHexMapTransform();
 }
 function resetHexZoom(){ hexMapZoom = { scale:1, tx:0, ty:0 }; applyHexMapTransform(); }
-/* Un tap simple (pointerdown+up quasi immobile) doit continuer à basculer le brouillard/peindre —
-   seul un déplacement net doit être traité comme un pan et NE PAS déclencher le clic sur
-   l'hexagone dessous. Le seuil (6px) tranche entre les deux sans bloquer les taps légèrement
-   tremblants sur mobile. */
+/* Un tap simple (pointerdown+up quasi immobile) doit continuer à basculer le brouillard/peindre/
+   ouvrir un point d'intérêt — seul un déplacement net doit être traité comme un pan et NE PAS
+   déclencher le clic sur l'hexagone dessous. Le seuil (6px) tranche entre les deux sans bloquer
+   les taps légèrement tremblants sur mobile.
+   BUG corrigé (2026-08-17) : la 1re version posait un addEventListener("click", …, true) à usage
+   unique après chaque drag, retiré seulement quand CE click arrivait. Or au tactile, un vrai drag
+   (pointerdown → pointermove → pointerup) ne déclenche souvent AUCUN click de la part du
+   navigateur — le listener restait donc accroché indéfiniment et avalait le clic du TAP SUIVANT
+   (un point d'intérêt qui ne s'ouvrait qu'un coup sur deux, ou le brouillard qui ne basculait pas)
+   au lieu du clic qu'il visait vraiment. Remplacé par un simple drapeau posé/consommé par un
+   unique listener permanent, avec une purge de sécurité (setTimeout) si aucun clic n'arrive du
+   tout. */
 function initHexMapGestures(container){
   if(!container || container.dataset.gesturesBound) return;
   container.dataset.gesturesBound = "1";
   let dragging=false, lastX=0, lastY=0, moved=0;
   let pinch=null;
-  const suppressNextClick = e=>{ e.stopPropagation(); e.preventDefault(); container.removeEventListener("click", suppressNextClick, true); };
+  let suppressNextClick=false;
+  container.addEventListener("click", e=>{
+    if(!suppressNextClick) return;
+    suppressNextClick=false;
+    e.stopPropagation(); e.preventDefault();
+  }, true);
   container.addEventListener("wheel", e=>{
     e.preventDefault();
     const rect = container.getBoundingClientRect();
@@ -246,7 +269,7 @@ function initHexMapGestures(container){
     applyHexMapTransform();
   });
   const endDrag = ()=>{
-    if(dragging && moved>6) container.addEventListener("click", suppressNextClick, true);
+    if(dragging && moved>6){ suppressNextClick=true; setTimeout(()=>{ suppressNextClick=false; }, 400); }
     dragging=false;
   };
   container.addEventListener("pointerup", endDrag);
@@ -268,10 +291,18 @@ function initHexMapGestures(container){
   }, {passive:false});
   container.addEventListener("touchend", e=>{ if(e.touches.length<2) pinch=null; });
 }
-function toggleHexMapFullscreen(container){
-  if(!document.fullscreenElement) container.requestFullscreen().catch(()=>toast("Plein écran indisponible sur ce navigateur."));
-  else document.exitFullscreen();
+function toggleHexMapFullscreen(){
+  hexMapFullscreen = !hexMapFullscreen;
+  document.body.classList.toggle("hex-fullscreen-lock", hexMapFullscreen);
+  const m = getEntity("hexmap", hexmapCurrentId);
+  if(m) detailHexmap(m);
 }
+/* Échappement clavier (2026-08-17) : équivalent de l'Escape natif de l'API Fullscreen, qu'on
+   n'utilise plus (cf. commentaire sur hexMapFullscreen) — posé une seule fois au chargement du
+   script, comme le point d'écoute qu'il remplace. */
+document.addEventListener("keydown", e=>{
+  if(e.key==="Escape" && hexMapFullscreen) toggleHexMapFullscreen();
+});
 
 function listHexmaps(){
   const itemsAll = db.hexmaps;
@@ -373,7 +404,7 @@ function buildHexSVG(m){
   return `<svg viewBox="${vbx} ${vby} ${vbw} ${vbh}" id="hex-svg" xmlns="http://www.w3.org/2000/svg">${cells}<g id="hex-points-layer"${hexPointsVisible?"":' style="display:none"'}>${buildHexPoints(m,isGM)}</g></svg>`;
 }
 function detailHexmap(m){
-  if(hexmapCurrentId !== m.id){ hexPlacingPoint = false; hexPaintingTile = false; hexMapZoom = { scale:1, tx:0, ty:0 }; }
+  if(hexmapCurrentId !== m.id){ hexPlacingPoint = false; hexPaintingTile = false; hexMapZoom = { scale:1, tx:0, ty:0 }; hexMapFullscreen = false; document.body.classList.remove("hex-fullscreen-lock"); }
   hexmapCurrentId = m.id;
   const total = (m.hexes||[]).length;
   const revealed = (m.hexes||[]).filter(h=>h.fogState!=="hidden").length;
@@ -401,13 +432,15 @@ function detailHexmap(m){
     ${total && (m.points||[]).length ? `<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin:.5rem 0 0;cursor:pointer">
       <input type="checkbox" id="hex-points-toggle" ${hexPointsVisible?"checked":""} style="width:auto"> Afficher les points d'intérêt
     </label>` : ""}
-    ${total ? `<div class="crawl-map-toolbar">
-      <button class="btn ghost sm" data-hex-zoom-out="1">➖</button>
-      <button class="btn ghost sm" data-hex-zoom-reset="1" id="hex-zoom-label">${Math.round(hexMapZoom.scale*100)}%</button>
-      <button class="btn ghost sm" data-hex-zoom-in="1">➕</button>
-      <button class="btn ghost sm" data-hex-fullscreen="1">⛶ Plein écran</button>
-    </div>` : ""}
-    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingTile?' hex-painting-biome':''}" id="hex-map-container">${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${effectiveRole()==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}</div>
+    <div class="crawl-map-scroll${hexPlacingPoint?' hex-placing':''}${hexPaintingTile?' hex-painting-biome':''}${hexMapFullscreen?' hex-map-fullscreen':''}" id="hex-map-container">
+      ${total ? `<div class="crawl-map-toolbar">
+        <button class="btn ghost sm" data-hex-zoom-out="1">➖</button>
+        <button class="btn ghost sm" data-hex-zoom-reset="1" id="hex-zoom-label">${Math.round(hexMapZoom.scale*100)}%</button>
+        <button class="btn ghost sm" data-hex-zoom-in="1">➕</button>
+        <button class="btn ghost sm" data-hex-fullscreen="1">${hexMapFullscreen?"⛶ Quitter le plein écran":"⛶ Plein écran"}</button>
+      </div>` : ""}
+      ${total ? buildHexSVG(m) : `<p class="faint" style="font-family:var(--ui);padding:1rem">Aucune donnée de terrain pour l'instant.${effectiveRole()==="gm"?" Importe un fichier JSON pour commencer.":""}</p>`}
+    </div>
   </div>`;
   const hpt = document.getElementById("hex-points-toggle");
   if(hpt) hpt.addEventListener("change", e=>{
@@ -443,23 +476,9 @@ function detailHexmap(m){
     if(zOut) zOut.addEventListener("click", ()=>{ const r=rect(); setHexZoom(hexMapZoom.scale/1.3, r.width/2, r.height/2); });
     if(zIn) zIn.addEventListener("click", ()=>{ const r=rect(); setHexZoom(hexMapZoom.scale*1.3, r.width/2, r.height/2); });
     if(zReset) zReset.addEventListener("click", resetHexZoom);
-    if(fsBtn) fsBtn.addEventListener("click", ()=>toggleHexMapFullscreen(mapContainer));
+    if(fsBtn) fsBtn.addEventListener("click", toggleHexMapFullscreen);
   }
 }
-/* Écouteur unique posé une seule fois au chargement du script (pas dans detailHexmap, qui
-   reconstruit tout le DOM à chaque interaction) — sinon un addEventListener("fullscreenchange", …)
-   à l'intérieur de detailHexmap s'empilerait à chaque render sans jamais être retiré (le
-   conteneur qu'il capture en closure devient orphelin mais le listener reste vivant sur
-   `document`, qui lui ne disparaît jamais). Ré-interroge le DOM courant à chaque déclenchement au
-   lieu de fermer sur un élément précis, donc reste correct même après plusieurs renders. */
-document.addEventListener("fullscreenchange", ()=>{
-  const container = document.getElementById("hex-map-container");
-  const fsBtn = document.querySelector("[data-hex-fullscreen]");
-  if(!container) return;
-  const isFs = document.fullscreenElement===container;
-  container.classList.toggle("hex-map-fullscreen", isFs);
-  if(fsBtn) fsBtn.textContent = isFs ? "⛶ Quitter le plein écran" : "⛶ Plein écran";
-});
 function toggleHexFog(q,r){
   const m = getEntity("hexmap", hexmapCurrentId); if(!m) return;
   const h = (m.hexes||[]).find(x=>x.q===q && x.r===r); if(!h) return;
