@@ -4383,6 +4383,11 @@ $("#modal").addEventListener("click", e=>{
   if((el=e.target.closest("[data-wheel-remove-seg]"))){ const it=el.closest(".wheel-seg-item"); if(it) it.remove(); reindexWheelSegRows(); return; }
   if(e.target.closest("[data-wheel-save-segments]")){ saveWheelSegments(); return; }
   if((el=e.target.closest("[data-wheel-preset]"))){ applyWheelPreset(el.dataset.wheelPreset); return; }
+  if(e.target.closest("[data-wheel-preset-table]")){
+    const sel = document.getElementById("wheel-table-select");
+    if(sel && sel.value) applyWheelPresetFromTable(sel.value);
+    return;
+  }
   if(e.target.closest("[data-wheel-save-preset]")){
     // Champ inline plutôt qu'un promptModal() séparé : l'ancien flux remplaçait tout le contenu de
     // la modale d'édition de la roue le temps de saisir un nom (même conteneur #modal réutilisé),

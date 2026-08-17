@@ -566,6 +566,17 @@ function openWheelEditModal(){
       </div>
     </div>
     <div class="field" style="margin-bottom:.9rem">
+      <label>Depuis une table aléatoire <span class="hint">(remplace la liste ci-dessous par le contenu actuel d'une table de l'onglet Aléatoire — statique ou dynamique)</span></label>
+      <div style="display:flex; gap:.4rem; flex-wrap:wrap">
+        <select id="wheel-table-select" style="flex:1 1 220px; min-width:0">
+          ${db.tables.length
+            ? [...db.tables].sort((a,b)=>(a.title||"").localeCompare(b.title||"")).map(t=>`<option value="${esc(t.id)}">${esc(t.title||"Sans titre")} (${tableSize(t)})</option>`).join("")
+            : `<option value="">Aucune table pour l'instant</option>`}
+        </select>
+        <button type="button" class="btn ghost sm" data-wheel-preset-table="1" style="flex:0 0 auto" ${db.tables.length?"":"disabled"}>🎲 Appliquer cette table</button>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:.9rem">
       <label>Mes préréglages <span class="hint">(tes propres listes sauvegardées — chaque enregistrement AJOUTE un nouveau préréglage à la liste ci-dessous, il n'en remplace jamais un existant ; donne des noms différents pour en garder plusieurs)</span></label>
       <div style="display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.5rem">
         ${(w.presets||[]).length ? (w.presets||[]).map(p=>`<span style="display:inline-flex; align-items:stretch; border:1px solid var(--border); border-radius:8px; overflow:hidden">
@@ -615,6 +626,27 @@ function applyWheelPreset(kind){
   else segs = db.treasures.filter(t=>(t.category||"trouvaille")===kind).map(t=>({ text:t.name||"Objet sans nom", ref:{type:"treasure",id:t.id} }));
   segs = segs.filter(s=>s.text);
   if(!segs.length){ toast("Aucune donnée trouvée pour ce préréglage — remplis d'abord la collection correspondante."); return; }
+  const wrap = $("#wheel-seg-wrap");
+  wrap.innerHTML = segs.map(wheelRowHTML).join("");
+  reindexWheelSegRows();
+}
+/* Préréglage depuis une table aléatoire quelconque de l'onglet Aléatoire (2026-08-17, demande de
+   Tristan) — généralise applyWheelPreset() (limité aux 4 boutons figés sort/trouvaille/relique/
+   regalia) à N'IMPORTE QUELLE table, statique ou dynamique. Une table dynamique se résout via
+   dynamicSourceItems() (déjà utilisé par detailTable()) et garde un ref vers l'entité d'origine
+   (bouton "Voir" à la révélation, comme les préréglages existants) ; une table statique n'a que
+   du texte brut par ligne, donc ref:null. */
+function applyWheelPresetFromTable(tableId){
+  const t = db.tables.find(x=>x.id===tableId);
+  if(!t){ toast("Table introuvable."); return; }
+  let segs;
+  if(t.kind==="dynamic"){
+    segs = dynamicSourceItems(t).map(x=>({ text:x.name||x.title||"Sans nom", ref:{type:t.source,id:x.id} }));
+  } else {
+    segs = (t.rows||[]).map(r=>({ text:r||"", ref:null }));
+  }
+  segs = segs.filter(s=>s.text && s.text.trim());
+  if(!segs.length){ toast("Cette table est vide — remplis-la d'abord."); return; }
   const wrap = $("#wheel-seg-wrap");
   wrap.innerHTML = segs.map(wheelRowHTML).join("");
   reindexWheelSegRows();
