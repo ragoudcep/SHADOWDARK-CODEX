@@ -43,19 +43,29 @@ const DMAP_STROKE_COLORS = ["#e05252","#e0a052","#d4c93f","#7fc24e","#3fc29e","#
 
 let dungeonMapsPollTimer = null;
 function stopDungeonMapsPolling(){ if(dungeonMapsPollTimer){ clearInterval(dungeonMapsPollTimer); dungeonMapsPollTimer=null; } }
-/* Intervalle volontairement différent de celui de l'Initiative (4,5s) — ici, chaque tick
-   retélécharge la ligne ENTIÈRE de la carte active (`select("data")` ramène tout le jsonb, donc
-   l'image base64 du plan à chaque fois, pas seulement `strokes`/`active`), potentiellement
-   plusieurs centaines de Ko, alors que l'Initiative ne transporte que du texte léger. Descendre
-   trop bas ferait exploser la consommation de data mobile sur une session de plusieurs heures.
-   2,5s reste un compromis raisonnable (Tristan trouvait 4,5s trop lent en jeu). Pour aller plus
-   vite sans alourdir la bande passante, il faudrait séparer l'image (statique, à charger une
-   fois) de l'état qui bouge vraiment (strokes/active/softness) — via une sélection PostgREST sur
-   des sous-champs du jsonb plutôt que la ligne complète — non fait ici faute de pouvoir tester
-   contre le vrai projet Supabase (un mauvais nom de colonne romprait silencieusement le
-   rafraîchissement joueur, pire que la lenteur actuelle). */
+/* Cache la dernière version connue côté joueur (id + updated_at de la ligne, PAS le contenu) —
+   sert à détecter si quelque chose a changé sans retélécharger l'image à chaque tick. Remis à
+   zéro à chaque (re)démarrage du poll pour forcer un premier fetch complet. */
+let dmapPlayerCache = { id:null, updatedAt:null };
+/* Intervalle volontairement différent de celui de l'Initiative (4,5s) — ici, une ligne complète
+   contient l'image base64 du plan (potentiellement plusieurs centaines de Ko), alors que
+   l'Initiative ne transporte que du texte léger. Descendre trop bas ferait exploser la
+   consommation de data mobile sur une session de plusieurs heures si on retéléchargeait tout à
+   chaque tick — d'où l'optimisation ci-dessous : chaque tick ne demande QUE `id,updated_at`
+   (colonnes SQL natives, pas le jsonb) plutôt que `select("data")`. La policy RLS ne renvoie de
+   toute façon jamais plus d'une ligne à un joueur (la carte active), donc cette sonde est de
+   l'ordre de la centaine d'octets. On ne va chercher `data` (image comprise) que si l'id de la
+   carte active a changé OU si `updated_at` a bougé depuis le dernier tick vu — ce qui arrive
+   uniquement quand un `saveDB()` a effectivement eu lieu quelque part (upsert de toutes les
+   lignes de la table à chaque sauvegarde, donc pas garanti d'être ciblé sur CETTE carte, mais
+   très largement moins fréquent qu'un tick toutes les 2,5s). Prix de cette optimisation : sur le
+   tick qui suit un vrai changement, l'image peut être retéléchargée même si elle n'a pas
+   elle-même changé (ex. softness modifiée) — acceptable, c'est le cas rare, pas le cas courant.
+   Pas de risque de sélection jsonb mal orthographiée puisqu'on ne touche à aucun sous-champ du
+   jsonb ici, seulement à deux colonnes SQL de base toujours présentes. */
 function startDungeonMapsPolling(){
   if(dungeonMapsPollTimer) return;
+  dmapPlayerCache = { id:null, updatedAt:null };
   dungeonMapsPollTimer = setInterval(async ()=>{
     // effectiveRole()==="gm" en plus du changement d'onglet : filet de sécurité en doublon de la
     // même garde dans render() (voir son commentaire) — un MJ repassé en rôle effectif "gm" sans
@@ -63,9 +73,22 @@ function startDungeonMapsPolling(){
     // db.dungeonmaps et forcer un retour à la liste.
     if(view.tab!=="dungeonmaps" || effectiveRole()==="gm"){ stopDungeonMapsPolling(); return; }
     try{
+      const { data: probe, error: probeError } = await sb.from("dungeonmaps").select("id,updated_at");
+      if(probeError) return; // table pas encore créée côté Supabase, ou souci réseau — on retente au prochain tick
+      const row = (probe||[])[0]; // 0 ou 1 ligne côté joueur (RLS : carte active uniquement)
+      if(!row){
+        if(dmapPlayerCache.id!==null){
+          dmapPlayerCache = { id:null, updatedAt:null };
+          db.dungeonmaps = [];
+          if(view.tab==="dungeonmaps") renderList();
+        }
+        return;
+      }
+      if(row.id===dmapPlayerCache.id && row.updated_at===dmapPlayerCache.updatedAt) return; // rien de neuf, pas de fetch
       const { data, error } = await sb.from("dungeonmaps").select("data");
-      if(error) return; // table pas encore créée côté Supabase, ou souci réseau — on retente au prochain tick
+      if(error) return;
       db.dungeonmaps = (data||[]).map(r=>r.data);
+      dmapPlayerCache = { id: row.id, updatedAt: row.updated_at };
       if(view.tab==="dungeonmaps") renderList();
     }catch(e){ /* silencieux, on retente au prochain tick */ }
   }, 2500);
