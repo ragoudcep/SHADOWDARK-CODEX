@@ -137,18 +137,21 @@ function loadLegacyLocalDB(){
   }catch(e){ return null; }
 }
 
-/* Charge les 8 tables depuis Supabase (une ligne par entité, colonne `data` en jsonb) */
+/* Charge les 8 tables depuis Supabase (une ligne par entité, colonne `data` en jsonb).
+   Les 15 requêtes partent en parallèle (Promise.all) au lieu de s'enchaîner une par une —
+   sur un for/await séquentiel, la latence réseau de chaque requête s'additionnait à
+   chaque F5, ce qui dominait largement le temps de chargement réel de la page. */
 async function fetchRemoteDB(){
   const out = emptyDB();
-  for(const col of DB_COLS){
+  await Promise.all(DB_COLS.map(async col => {
     const { data, error } = await sb.from(col).select("data");
     if(error){
       // Une table manquante (ex : script SQL pas encore exécuté) ne doit pas bloquer tout le reste.
       console.error(`Table "${col}" indisponible :`, error);
-      continue;
+      return;
     }
     out[col] = (data||[]).map(r=>r.data);
-  }
+  }));
   return out;
 }
 
