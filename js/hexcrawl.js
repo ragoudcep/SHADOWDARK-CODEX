@@ -476,7 +476,12 @@ function hexTerrainLayerSVG(h, c, size){
   if(h.fond || h.overlay){
     let out = `<polygon points="${pts}" fill="${HEX_NEUTRAL_FILL}"></polygon>`;
     if(h.fond){ const f=FOND_LIST.find(x=>x.id===h.fond); if(f) out += hexFondOverlayImageSVG(f.file, c, size, "hex-fond-img"); }
-    if(h.overlay) out += hexFondOverlayImageSVG(h.overlay, c, size, "hex-overlay-img");
+    /* h.overlay stocke le CHEMIN complet depuis peu (tuiles hexcrawl/Overlays/…) mais des cartes
+       plus anciennes ont pu garder l'ancien format court (juste le nom de fichier, ex.
+       "3-foundation_tundra.png") d'avant la réorganisation des dossiers (2026-08-17) — normalisé
+       ici au lieu de migrer toutes les cartes existantes en base, plus sûr en cas d'oubli. */
+    const overlayHref = h.overlay && !h.overlay.startsWith("tuiles hexcrawl/") ? "tuiles hexcrawl/Overlays/"+h.overlay : h.overlay;
+    if(overlayHref) out += hexFondOverlayImageSVG(overlayHref, c, size, "hex-overlay-img");
     return out;
   }
   const info = terrainInfo(h.hexType);
