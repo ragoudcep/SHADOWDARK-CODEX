@@ -169,6 +169,9 @@
      (au lieu d'en haut à droite) pour ne pas se superposer à l'étoile de favori. */
   .fav-star.fav-star-wip{top:auto; bottom:.5rem}
   .fav-star.fav-star-wip.fav-star-inline{top:auto; bottom:auto}
+  /* 🚧 est un emoji couleur (pas un glyphe texte comme ★/☆) : `color` n'a aucun effet dessus, donc
+     l'état "inactif" doit être simulé avec un filtre plutôt qu'en comptant sur fav-star-on. */
+  .fav-star.fav-star-wip:not(.fav-star-on){filter:grayscale(1) opacity(.45)}
   .fav-star.fav-star-on{color:var(--gold2); border-color:var(--gold); text-shadow:0 0 8px rgba(224,185,104,.6)}
   .tag{
     font-family:var(--ui); font-size:.68rem; font-weight:700; letter-spacing:.4px;
