@@ -482,7 +482,7 @@ function classDocHTML(clsName){
   let spellInfo = "";
   if(cd.spellClass){
     spellInfo = cd.spellsKnownLvl1>0
-      ? `<p style="font-family:var(--ui);font-size:.85rem;margin:.3rem 0">Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${clsName==="Prêtre"?" (+ Renvoi des morts-vivants, offert)":""} · DD = 10 + rang × 2</p>`
+      ? `<p style="font-family:var(--ui);font-size:.85rem;margin:.3rem 0">Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${clsName==="Prêtre"?" (+ Renvoi des morts-vivants, offert)":""} · DD = 10 + rang</p>`
       : (cd.spellsFromLevel ? `<p style="font-family:var(--ui);font-size:.85rem;margin:.3rem 0">Incantation à partir du niveau ${cd.spellsFromLevel}.</p>` : "");
   }
   return `<div style="margin-bottom:1.4rem">

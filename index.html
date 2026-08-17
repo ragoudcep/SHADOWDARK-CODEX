@@ -2257,7 +2257,7 @@ const CLASSES_DATA = {
   },
   /* 2026-08-12, Cursed Scroll #1 (thème diablerie, VF) — les 3 classes ci-dessous, même
      structure que les 4 de base. Sorts de sorcière lancés au Charisme (l'appli ne modélise
-     pas encore l'attribut d'incantation par classe, juste le DD = 10 + rang×2, identique à
+     pas encore l'attribut d'incantation par classe, juste le DD = 10 + rang, identique à
      Prêtre/Magicien) — spellClass:"witch" réutilise l'entrée déjà présente dans SPELL_CLASSES
      (onglet Sorts) mais jamais utilisée avant ce soir. */
   "Chevalier de Saint Ydris": {
@@ -3686,12 +3686,15 @@ function detailTreasure(t){
    SORTS — répertoire de sorts, classés par Classe (Prêtre / Magicien) puis
    triés par Rang puis Nom. Le "sort perdu" (échec du jet d'incantation de
    5+ ou 1 naturel) est une règle de résolution en jeu, pas une propriété du
-   sort — donc affichée comme rappel calculé (DD = 10 + rang×2), pas suivie
+   sort — donc affichée comme rappel calculé (DD = 10 + rang), pas suivie
    par PJ (les PJ n'ont qu'une liste de sorts en texte libre pour l'instant).
    ========================================================================= */
 const SPELL_CLASSES = [["priest","Prêtre"],["wizard","Magicien"],["seer","Augure"],["witch","Sorcier"]];
 function spellClassLabel(k){ const f=SPELL_CLASSES.find(c=>c[0]===k); return f?f[1]:(k||"Sort"); }
-function spellCastDC(tier){ return 10 + (parseInt(tier)||1)*2; }
+/* DD = 10 + rang du sort (PAS ×2 — erreur corrigée le 2026-08-17, signalée par Tristan ; les
+   textes de capacité de classe ci-dessous et docs/regles/cursed-scroll-1.md ont toujours eu la
+   bonne formule, seule cette fonction et quelques rappels textuels doublaient le rang). */
+function spellCastDC(tier){ return 10 + (parseInt(tier)||1); }
 function sortSpellList(list){ return [...list].sort((a,b)=>(parseInt(a.tier)||0)-(parseInt(b.tier)||0) || (a.name||"").localeCompare(b.name||"")); }
 function spellCard(s){
   return `<div class="card" data-open="spell:${s.id}">
@@ -3737,7 +3740,7 @@ function formSpell(){
     </div>
     <div class="field"><label>Effet <span class="hint">(une ligne par effet ; liens [[…]] possibles)</span></label>
       <textarea id="f-effect" style="min-height:120px" placeholder="Inflige 4d6 dégâts de feu dans une zone de 3m...">${esc(s.effect)}</textarea></div>
-    <p class="hint" style="margin:-.3rem 0 .8rem">DD pour lancer : 10 + rang×2. En cas d'échec de 5 ou plus (ou 1 naturel), le sort est perdu jusqu'au prochain repos — règle de jeu, pas suivie automatiquement par l'appli.</p>
+    <p class="hint" style="margin:-.3rem 0 .8rem">DD pour lancer : 10 + rang. En cas d'échec de 5 ou plus (ou 1 naturel), le sort est perdu jusqu'au prochain repos — règle de jeu, pas suivie automatiquement par l'appli.</p>
     ${LINK_HELP}
     <div class="form-actions"><button class="btn" data-save="spell">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
   </div>`;
@@ -3769,7 +3772,7 @@ function detailSpell(s){
     ${(s.effect&&s.effect.trim())
       ? `<div class="section"><h2>Effet</h2>${renderBullets(s.effect)}</div>`
       : `<p class="faint" style="font-family:var(--ui)">Aucun effet renseigné.</p>`}
-    <p class="faint" style="font-family:var(--ui);font-size:.82rem">DD pour lancer : ${spellCastDC(s.tier)} (10 + rang×2). Échec de 5 ou plus (ou 1 naturel) : le sort est perdu jusqu'au prochain repos — à suivre manuellement, non tracké par l'appli pour l'instant.</p>
+    <p class="faint" style="font-family:var(--ui);font-size:.82rem">DD pour lancer : ${spellCastDC(s.tier)} (10 + rang). Échec de 5 ou plus (ou 1 naturel) : le sort est perdu jusqu'au prochain repos — à suivre manuellement, non tracké par l'appli pour l'instant.</p>
     ${backlinksBlock("spell",s.id)}
   </div>`;
 }

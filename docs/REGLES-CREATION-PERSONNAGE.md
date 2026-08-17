@@ -112,7 +112,7 @@ génération aléatoire, fiche imprimable) — même mécanique que les 4 classe
 Armes : toutes les armes de corps à corps, arbalète. Armures : toutes + boucliers.
 Langues : diabolique.
 Capacités : *Possession démoniaque* (3/jour, +1 dégâts pendant 3 rounds + moitié niveau) ;
-*Incantation* de sorts de sorcière (via Charisme, DD = 10 + rang×2 — même formule que
+*Incantation* de sorts de sorcière (via Charisme, DD = 10 + rang — même formule que
 l'appli) qui s'ajoutent à mesure des niveaux ; un échec au test d'incantation bloque le
 sort jusqu'au repos complet, un 1 naturel déclenche une Catastrophe diabolique (voir plus
 bas).
@@ -142,7 +142,7 @@ choisi, l'une sous l'autre.
 Armes : dague, bâton. Armure : cuir. Langues : diabolique, originel, sylvestre.
 Capacités : *Familier* (petit animal parlant, source des sorts — la portée se calcule
 depuis lui ; s'il meurt, on peut le ranimer en sacrifiant définitivement 1d4 PV) ;
-*Incantation* (3 sorts de rang 1 connus, via Charisme, DD = 10 + rang×2, même mécanique
+*Incantation* (3 sorts de rang 1 connus, via Charisme, DD = 10 + rang, même mécanique
 d'échec/Catastrophe diabolique que le Chevalier de Saint Ydris).
 
 Talents 2d6 : 2 → téléportation 1/jour jusqu'au familier (à la place du déplacement) ·
