@@ -3779,7 +3779,6 @@ function detailPC(p){
         }).join("")}</div>
       </div>`;
   const leftCol = `<div class="pc-sheet-col">
-    ${d.portrait?`<img class="detail-portrait portrait-gray" src="portraits/${esc(d.portrait)}" alt="" style="margin:0 auto .3rem;display:block">`:""}
     ${abilitiesBoxHTML}
     <div class="sheet-row2">
       ${box("PV", `${esc(d.hpCurrent||"—")} / ${esc(d.hp||"—")}`, "hp")}
@@ -3816,9 +3815,26 @@ function detailPC(p){
       ${d.inventory?`<ol class="sheet-gear-list">${String(d.inventory).split(/\r?\n/).filter(l=>l.trim()).map(l=>`<li>${renderText(l)}</li>`).join("")}</ol>`:'<p class="faint" style="font-family:var(--ui);font-size:.85rem">(vide)</p>'}
     </div>
   </div>`;
+  // Portrait (2026-08-18, retour de Tristan) : déplacé en tête de la colonne du milieu, à côté
+  // de Nom/Ascendance rétrécis, plutôt qu'en pleine largeur en haut de la colonne de gauche ou
+  // dans une section "Portraits" séparée tout en bas de la fiche — objectif "rectangle sans
+  // vide". Si aucun portrait officiel (d.portrait, choisi via portraitFieldHTML) n'est défini,
+  // on retombe sur la première image de la galerie libre (d.images) : plusieurs PJ plus anciens
+  // n'ont qu'une illustration déposée là, faute d'avoir utilisé le sélecteur de portrait dédié —
+  // pas de raison de la laisser perdue en bas de page si elle peut servir de portrait. Dans ce
+  // cas, cette même image est retirée de la galerie affichée en bas pour ne pas apparaître deux
+  // fois (voir galleryImages plus bas).
+  const usesFirstImageAsPortrait = !d.portrait && d.images && d.images.length>0;
+  const portraitSrc = d.portrait ? `portraits/${esc(d.portrait)}` : (usesFirstImageAsPortrait ? d.images[0].data : "");
+  const galleryImages = usesFirstImageAsPortrait ? d.images.slice(1) : (d.images||[]);
   const midCol = `<div class="pc-sheet-col">
-    ${box("Nom", esc(d.name||"Sans nom"), "name")}
-    ${box("Ascendance", esc(d.ancestry||"—"), "ancestry")}
+    <div style="display:flex;gap:.6rem;align-items:flex-start">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:.6rem">
+        ${box("Nom", esc(d.name||"Sans nom"), "name")}
+        ${box("Ascendance", esc(d.ancestry||"—"), "ancestry")}
+      </div>
+      ${portraitSrc?`<img class="detail-portrait portrait-gray" src="${portraitSrc}" alt="" style="width:84px;aspect-ratio:63/88;float:none;margin:0;flex:0 0 auto">`:""}
+    </div>
     ${ascTrait?`<p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:-.4rem 0 0">${esc(ascTrait)}</p>`:""}
     ${box("Classe", esc(d.cls||"—"), "cls")}
     ${box("Titre", esc(titre||"—"))}
@@ -3853,8 +3869,8 @@ function detailPC(p){
       ${dirty?`<button class="btn" data-sheet-save="${p.id}">✓ Enregistrer les modifications</button><button class="btn ghost" data-sheet-discard="${p.id}">↺ Annuler les modifications</button>`:`<span class="faint" style="font-family:var(--ui);font-size:.8rem">Clique une case pour la modifier (🎲 relance, texte = saisie) — rien n'est enregistré tant que tu ne cliques pas sur "Enregistrer".</span>`}
     </div>
     <div class="pc-sheet">${leftCol}${midCol}${rightCol}</div>
-    ${(d.images&&d.images.length)?`<div class="section"><h2>Portraits</h2>
-      <div class="gallery">${d.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
+    ${galleryImages.length?`<div class="section"><h2>Portraits</h2>
+      <div class="gallery">${galleryImages.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
     ${backlinksBlock("pc",p.id)}
   </div>`;
 }
