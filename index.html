@@ -865,9 +865,12 @@ const AMBITIONS_PNJ_ROWS = [ // maison, non issue du livre — génériques, cou
   "Dette à rembourser, d'une manière ou d'une autre."
 ];
 const MOYENS_PNJ_ROWS = [ // maison, non issue du livre — comment le PNJ compte parvenir à son ambition
+  // Autant d'entrées que AMBITIONS_PNJ_ROWS (22) pour que la table fusionnée "Ambitions & moyens
+  // de PNJ" n'ait aucune colonne à rallonge ni de moyen répété faute de lignes.
   "Négociation", "Violence", "Marchandage", "Diplomatie", "Patience", "Ruse", "Manipulation",
   "Corruption", "Intimidation", "Charme", "Espionnage", "Force brute", "Chantage", "Trahison",
-  "Flatterie", "Prière et sacrifice", "Travail acharné", "Fuite en avant"
+  "Flatterie", "Prière et sacrifice", "Travail acharné", "Fuite en avant",
+  "Vol", "Séduction", "Sabotage", "Alliance opportuniste"
 ];
 const ARMES_BASE_ROWS = [ // approximatif, maison — le Quickstart p.12-31 ne détaille pas l'équipement (cf. p.32)
   "Dague (1d4)", "Gourdin (1d4)", "Épée courte (1d6)", "Épée longue (1d8)", "Hache à main (1d6)",
@@ -5162,8 +5165,11 @@ function mergeLegacyAmbitionsMoyensPnjTables(){
   const oldMoy = db.tables.find(t=>norm(t.title)==="moyens de pnj");
   if(!oldAmb && !oldMoy) return 0;
   const ambRows = (oldAmb && oldAmb.rows && oldAmb.rows.length) ? oldAmb.rows : AMBITIONS_PNJ_ROWS;
-  const moyRows = (oldMoy && oldMoy.rows && oldMoy.rows.length) ? oldMoy.rows : MOYENS_PNJ_ROWS;
+  const moyRows = (oldMoy && oldMoy.rows && oldMoy.rows.length) ? oldMoy.rows.slice() : MOYENS_PNJ_ROWS.slice();
   const n = Math.max(ambRows.length, moyRows.length);
+  // L'ancienne table des Moyens était plus courte que celle des Ambitions : on complète avec les
+  // moyens par défaut encore absents plutôt que de répéter les premiers en boucle.
+  MOYENS_PNJ_ROWS.forEach(m=>{ if(moyRows.length<n && !moyRows.includes(m)) moyRows.push(m); });
   const rows = [];
   for(let i=0;i<n;i++) rows.push(`${ambRows[i%ambRows.length]} / ${moyRows[i%moyRows.length]}`);
   db.tables.push({ id:uid(), title:"Ambitions & moyens de PNJ", category:"PNJ",
