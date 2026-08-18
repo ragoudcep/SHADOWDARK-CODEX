@@ -173,6 +173,11 @@
      l'état "inactif" doit être simulé avec un filtre plutôt qu'en comptant sur fav-star-on. */
   .fav-star.fav-star-wip:not(.fav-star-on){filter:grayscale(1) opacity(.45)}
   .fav-star.fav-star-on{color:var(--gold2); border-color:var(--gold); text-shadow:0 0 8px rgba(224,185,104,.6)}
+  /* Œil "visible aux joueurs" (2026-08-18) : posé juste à gauche du picto WIP, même style bascule
+     grisé/doré — évite d'avoir à rouvrir la fiche pour changer la visibilité d'un objet. */
+  .fav-star.fav-star-visible{top:auto; bottom:.5rem; right:2.6rem}
+  .fav-star.fav-star-visible.fav-star-inline{top:auto; bottom:auto; right:auto}
+  .fav-star.fav-star-visible:not(.fav-star-on){filter:grayscale(1) opacity(.45)}
   .tag{
     font-family:var(--ui); font-size:.68rem; font-weight:700; letter-spacing:.4px;
     padding:.15rem .5rem; border-radius:20px; text-transform:uppercase;

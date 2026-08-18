@@ -256,6 +256,12 @@ function wipIconHTML(id,wip,inline){
 function wipFilterBtnHTML(only){
   return `<button class="btn ghost sm${only?" active-mode":""}" data-toggle-wip-filter="1" title="Les objets WIP sont masqués de la liste normale — ce bouton bascule vers eux uniquement">${only?"🚧 WIP uniquement":"🚧 Voir les WIP"}</button>`;
 }
+/* Bascule rapide "visible aux joueurs" sur un objet du Trésor, sans passer par le formulaire —
+   même bouton que WIP/favori mais posé juste à sa gauche (voir .fav-star-visible dans style.css). */
+function playerVisibleIconHTML(id,visible,inline){
+  if(effectiveRole()!=="gm") return "";
+  return `<button class="fav-star fav-star-visible${visible?" fav-star-on":""}${inline?" fav-star-inline":""}" data-toggle-player-visible="${id}" title="${visible?"Masquer aux joueurs":"Rendre visible aux joueurs"}">👁</button>`;
+}
 function favStarHTML(type,id,fav,inline){
   if(effectiveRole()!=="gm") return "";
   return `<button class="fav-star${fav?" fav-star-on":""}${inline?" fav-star-inline":""}" data-toggle-fav="${type}:${id}" title="${fav?"Retirer des favoris":"Ajouter aux favoris"}">${fav?"★":"☆"}</button>`;
@@ -3839,6 +3845,7 @@ function treasureCard(t){
   const ownerName = treasureOwnerLabel(t);
   return `<div class="card" data-open="treasure:${t.id}">
     ${favStarHTML("treasure",t.id,t.favorite)}
+    ${playerVisibleIconHTML(t.id,t.playerVisible)}
     ${wipIconHTML(t.id,t.wip)}
     ${(t.images&&t.images.length)?`<img class="thumb" src="${t.images[0].data}" alt="">`:""}
     <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${t.wip?`<span class="tag wip">🚧 WIP</span>`:""}${gm&&t.playerVisible?`<span class="tag gold">👁 Joueurs</span>`:""}</div>
@@ -3940,6 +3947,7 @@ function detailTreasure(t){
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
       <h1>${esc(t.name||"Sans nom")}</h1>
       ${favStarHTML("treasure",t.id,t.favorite,true)}
+      ${playerVisibleIconHTML(t.id,t.playerVisible,true)}
       ${wipIconHTML(t.id,t.wip,true)}
     </div>
     ${ownerName?`<p class="faint" style="font-family:var(--ui)">🎒 Possédé par ${esc(ownerName)}</p>`:""}
@@ -4335,6 +4343,12 @@ app.addEventListener("click", e=>{
   if((el=closest("data-toggle-wip"))){
     const o=getEntity("treasure",el.dataset.toggleWip); if(!o) return;
     o.wip = !o.wip;
+    saveDB(); renderList();
+    return;
+  }
+  if((el=closest("data-toggle-player-visible"))){
+    const o=getEntity("treasure",el.dataset.togglePlayerVisible); if(!o) return;
+    o.playerVisible = !o.playerVisible;
     saveDB(); renderList();
     return;
   }
