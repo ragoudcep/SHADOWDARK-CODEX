@@ -966,8 +966,12 @@ function detailActions(type,id,opts){
   const o = getEntity(type,id);
   const gmMade = !!(o && o.gmCreated);
   const authorBtn = `<button class="btn ghost sm" data-toggle-gm-created="${type}:${id}" title="Bascule manuelle — jamais déduite automatiquement. Sert à distinguer ce que tu as écrit à la main de ce qui vient d'un import, d'une génération aléatoire ou d'une IA.">${gmMade?"🖋 Créé par le MJ":"🎲 Import / génération"}</button>`;
+  // hideEdit (2026-08-18) : la fiche PJ graphique se modifie entièrement en cliquant sur ses
+  // cases (voir detailPC/box()) — le bouton "✎ Modifier" (formulaire classique) n'y sert plus à
+  // rien, demande explicite de Tristan de le retirer pour ce type d'entité uniquement.
+  const editBtn = opts.hideEdit ? "" : `<button class="btn ghost sm" data-edit="${type}:${id}">✎ Modifier</button>`;
   return `<div class="actions-row">${toggleBtn}${authorBtn}<div class="actions">
-    <button class="btn ghost sm" data-edit="${type}:${id}">✎ Modifier</button>
+    ${editBtn}
     <button class="btn ghost sm" data-dup="${type}:${id}">⧉ Dupliquer</button>
     <button class="btn danger sm" data-del="${type}:${id}">🗑 Supprimer</button>
   </div></div>`;
@@ -3468,13 +3472,11 @@ function pcClassSectionHTML(p){
   let spellBlock = "";
   if(cd.spellClass){
     if(cd.spellsKnownLvl1>0){
-      const mod = cd.spellAbility ? parseAbilityMod(p[cd.spellAbility]) : 0;
-      const rollLine = cd.spellAbility ? `<p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0"><b>Test d'incantation</b> : 1d20${mod>=0?"+":""}${mod} <span class="faint">(${ABILITY_LABELS[cd.spellAbility]})</span></p>` : "";
+      // Table des rangs 1-5/DD et ligne "Test d'incantation" retirées (2026-08-18, demande de
+      // Tristan : "ça ne sert à rien") — la valeur de lancement est affichée directement à côté
+      // de chaque sort connu, voir pcSpellLinesHTML().
       spellBlock = `<div style="${CLASS_SUBLABEL_STYLE}">Incantation</div>
-        <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0">Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${p.cls==="Prêtre" ? " (+ Renvoi des morts-vivants, offert)" : ""}</p>
-        ${rollLine}
-        <table class="tbl"><thead><tr><th style="width:4.5rem">Rang</th><th>DD d'incantation</th></tr></thead>
-          <tbody>${[1,2,3,4,5].map(r=>`<tr><td class="idx" style="text-align:center">${r}</td><td>${spellCastDC(r)}</td></tr>`).join("")}</tbody></table>`;
+        <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0">Sorts connus (rang 1) : ${cd.spellsKnownLvl1}${p.cls==="Prêtre" ? " (+ Renvoi des morts-vivants, offert)" : ""}</p>`;
     } else if(cd.spellsFromLevel){
       spellBlock = `<div style="${CLASS_SUBLABEL_STYLE}">Incantation</div>
         <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0">Aucun sort connu au 1er niveau — vous gagnez l'incantation à partir du niveau ${cd.spellsFromLevel}.</p>`;
@@ -3490,23 +3492,25 @@ function pcClassSectionHTML(p){
     const men = MENTORS[p.mentor];
     mentorBlock = `<div style="${CLASS_SUBLABEL_STYLE}">Mentor — ${esc(p.mentor)}</div>
       <p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0 .5rem">${esc(men.desc)}</p>
-      <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Bienfait</th></tr></thead>
-        <tbody>${men.benefits.map(b=>`<tr><td class="idx" style="text-align:center">${esc(b.roll)}</td><td>${renderText(b.text)}</td></tr>`).join("")}</tbody></table>`;
+      <div class="sheet-scroll-tbl"><table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Bienfait</th></tr></thead>
+        <tbody>${men.benefits.map(b=>`<tr><td class="idx" style="text-align:center">${esc(b.roll)}</td><td>${renderText(b.text)}</td></tr>`).join("")}</tbody></table></div>`;
   } else if(cd.usesMentor){
     mentorBlock = `<div style="${CLASS_SUBLABEL_STYLE}">Mentor</div><p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0">Aucun mentor choisi — sélectionnez-en un dans la fiche pour voir sa table de Bienfaits.</p>`;
   }
-  return `<div class="section"><h2>🛡 Classe — ${esc(p.cls)}</h2>
-    <p style="font-family:var(--ui);font-size:.9rem;margin:.2rem 0"><b>Dé de vie</b> d${cd.hitDie} &nbsp;·&nbsp; <b>Armes</b> ${esc(cd.weapons)} &nbsp;·&nbsp; <b>Armures</b> ${esc(cd.armor)}</p>
+  // Bloc compact (2026-08-18) : plus de `.section > h2` (marge/ligne de séparation pensées pour
+  // une page pleine largeur) — ce contenu vit dans une case déjà cadrée par le bandeau noir
+  // "Talents / Sorts" du panneau, donc juste une petite ligne de résumé + les mêmes sous-titres
+  // que le reste de la fiche (CLASS_SUBLABEL_STYLE).
+  return `<p style="font-family:var(--ui);font-size:.85rem;margin:0 0 .3rem"><b>${esc(p.cls)}</b> · d${cd.hitDie} PV &nbsp;·&nbsp; ${esc(cd.weapons)} &nbsp;·&nbsp; ${esc(cd.armor)}</p>
     <div style="${CLASS_SUBLABEL_STYLE}">Capacités</div>
     ${featureList}
     ${weaponBlock}
     ${spellBlock}
     <div style="${CLASS_SUBLABEL_STYLE}">Talents (2d6)</div>
-    <div style="margin:.2rem 0 .5rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6</button> <span id="talent-roll-out" class="roll-result"></span></div>
-    <table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Talent / évolution</th></tr></thead>
-      <tbody id="talents-body">${cd.talents.map(t=>`<tr data-roll-range="${esc(t.roll)}"><td class="idx" style="text-align:center">${esc(t.roll)}</td><td>${renderText(t.text)}</td></tr>`).join("")}</tbody></table>
-    ${mentorBlock}
-  </div>`;
+    <div style="margin:.2rem 0 .35rem"><button class="btn sm" data-roll-talents="${p.id}">🎲 Lancer 2d6</button> <span id="talent-roll-out" class="roll-result"></span></div>
+    <div class="sheet-scroll-tbl"><table class="tbl"><thead><tr><th style="width:4.5rem">2d6</th><th>Talent / évolution</th></tr></thead>
+      <tbody id="talents-body">${cd.talents.map(t=>`<tr data-roll-range="${esc(t.roll)}"><td class="idx" style="text-align:center">${esc(t.roll)}</td><td>${renderText(t.text)}</td></tr>`).join("")}</tbody></table></div>
+    ${mentorBlock}`;
 }
 /* =========================================================================
    FICHE PJ GRAPHIQUE (2026-08-13, demande de Tristan) — remplace l'ancienne fiche en prose
@@ -3613,9 +3617,16 @@ function detailPC(p){
       : (cd ? `Armes autorisées : ${esc(cd.weapons)}` : "—"),
     ...weaponLoadout.map(w=>`${esc(w.name)} : attaque ${sgn(w.atk)}, dégâts ${esc(w.dmg)}`)
   ].join("<br>");
-  const spellCastLine = (cd && cd.spellClass && cd.spellAbility)
-    ? `Test d'incantation : 1d20${sgn(totalAbilityMod(d,cd.spellAbility))}`
+  const spellCastMod = (cd && cd.spellClass && cd.spellAbility) ? totalAbilityMod(d,cd.spellAbility) : null;
+  const spellCastLine = spellCastMod!==null
+    ? `Test d'incantation : 1d20${sgn(spellCastMod)} <span class="faint">(${ABILITY_LABELS[cd.spellAbility]})</span>`
     : "";
+  // CA automatique (2026-08-18, demande de Tristan : "ça ne devrait pas avoir besoin d'appuyer
+  // sur relancer") — recalculée à CHAQUE rendu depuis l'armure/bouclier équipés + mod. DEX total,
+  // jamais stockée comme une valeur qu'on tire/édite manuellement sur cette fiche ; synchronisée
+  // dans pcSheetDraft.ac uniquement au moment d'Enregistrer (savePCSheet), pour que les listes/PDF
+  // qui lisent p.ac directement restent corrects sans recalcul.
+  const acValue = computeACFromLoadout(d, totalAbilityMod(d,"dex"));
   const abilitiesBoxHTML = (pcSheetManualField==="abilities")
     ? `<div class="sheet-box">
         <span class="lbl">Caractéristiques</span>
@@ -3630,14 +3641,12 @@ function detailPC(p){
         <span class="lbl">Caractéristiques</span>
         <div class="sheet-abilities">${ab.map(([lbl,k])=>{
           const score = abilityScoreOf(d[k]);
-          const base = parseAbilityMod(d[k]);
           const bonus = Number(d.abilityBonuses && d.abilityBonuses[k]) || 0;
-          const total = base + bonus;
+          const total = parseAbilityMod(d[k]) + bonus;
           return `<div class="ab-line">
             <b class="clickable-val" data-sheet-value="abilities" title="Cliquer pour saisir le score manuellement">${lbl} ${score||"—"}</b>
-            <span class="ab-mod" title="Modificateur de base">${sgn(base)}</span>
             <input type="text" class="ab-bonus" data-pc-ability-bonus="${k}" value="${bonus?esc(String(bonus)):""}" placeholder="+0" title="Bonus d'objets/effets sur cette caractéristique">
-            <span class="ab-total" title="Total (mod. de base + bonus)">= ${sgn(total)}</span>
+            <span class="ab-total" title="Modificateur total (base + bonus d'objets)">${sgn(total)}</span>
           </div>`;
         }).join("")}</div>
       </div>`;
@@ -3646,40 +3655,14 @@ function detailPC(p){
     ${abilitiesBoxHTML}
     <div class="sheet-row2">
       ${box("PV", `${esc(d.hpCurrent||"—")} / ${esc(d.hp||"—")}`, "hp")}
-      ${box("CA", esc(d.ac||"—"), "ac")}
+      <div class="sheet-box"><span class="lbl">CA</span><span class="val" title="Calculée depuis l'équipement porté ci-dessous">${acValue}</span></div>
     </div>
     <div class="sheet-box">
       <span class="lbl">Attaques</span>
       <div class="val" style="font-size:.9rem">${weaponBlock}${spellCastLine?`<br>${spellCastLine}`:""}</div>
     </div>
-  </div>`;
-  const midCol = `<div class="pc-sheet-col">
-    ${box("Nom", esc(d.name||"Sans nom"), "name")}
-    ${box("Ascendance", esc(d.ancestry||"—"), "ancestry")}
-    ${ascTrait?`<p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:-.4rem 0 0">${esc(ascTrait)}</p>`:""}
-    ${box("Classe", esc(d.cls||"—"), "cls")}
-    ${box("Titre", esc(titre||"—"))}
-    ${box("Alignement", esc(cap(d.alignment)||"—"), "alignment")}
-    ${box("Origine", esc(origin||"—"), "origin")}
-    ${box("Langues", esc(d.languages||"—"), "languages")}
-    ${d.cls==="Prêtre"?box("Divinité", esc(d.deity||"—"), "deity"):""}
-    ${cd&&cd.usesMentor?box("Mentor", esc(d.mentor||"—"), "mentor"):""}
-    ${d.info?`<div class="sheet-box">
-      <span class="lbl">Informations</span>
-      <div class="prose" style="font-family:var(--ui);font-size:.85rem">${renderText(d.info)}</div>
-    </div>`:""}
-  </div>`;
-  const talentsCol = `<div class="pc-sheet-col">
-    <div class="sheet-box sheet-panel">
-      <div class="sheet-banner">Talents / Sorts</div>
-      ${pcClassSectionHTML(d)}
-      ${restSkills.length?`<div style="${CLASS_SUBLABEL_STYLE}">Compétences</div>${renderBullets(restSkills.join("\n"))}`:""}
-    </div>
-  </div>`;
-  const equipCol = `<div class="pc-sheet-col">
     <div class="sheet-box sheet-panel">
       <div class="sheet-banner">Équipement porté</div>
-      <p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:0 0 .5rem">Détermine la CA et le bonus d'attaque/dégâts ci-dessus — clique 🎲 sur la case CA pour la recalculer après un changement.</p>
       <div class="row" style="gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
         <div class="field" style="flex:1 1 160px;margin:0"><label style="font-size:.75rem">Armure</label>
           <select data-pc-armor="1">${ARMOR_DATA.map(a=>`<option value="${a.id}" ${(d.equippedArmor||"none")===a.id?"selected":""}>${esc(a.name)}</option>`).join("")}</select></div>
@@ -3700,12 +3683,35 @@ function detailPC(p){
           <button type="button" class="btn danger sm" data-pc-weapon-remove="${i}">✕</button>
         </div>`).join("")}
       </div>
-      <button type="button" class="btn ghost sm" data-pc-weapon-add="1" style="margin-bottom:.7rem">+ Ajouter une arme</button>
+      <button type="button" class="btn ghost sm" data-pc-weapon-add="1" style="margin-bottom:.5rem">+ Ajouter une arme</button>
       <p class="faint" style="font-family:var(--ui);font-size:.8rem;margin:0 0 .5rem">${d.invSlots?`${esc(d.invSlots)} emplacements`:""} <button type="button" class="icon-btn sm" data-sheet-reroll="gold" title="Ajouter un tirage d'or de départ" style="width:1.4rem;height:1.4rem;padding:0;border-radius:50%;vertical-align:middle">🎲</button></p>
       ${d.inventory?`<ol class="sheet-gear-list">${String(d.inventory).split(/\r?\n/).filter(l=>l.trim()).map(l=>`<li>${renderText(l)}</li>`).join("")}</ol>`:'<p class="faint" style="font-family:var(--ui);font-size:.85rem">(vide)</p>'}
     </div>
   </div>`;
-  const rightCol = talentsCol + equipCol;
+  const midCol = `<div class="pc-sheet-col">
+    ${box("Nom", esc(d.name||"Sans nom"), "name")}
+    ${box("Ascendance", esc(d.ancestry||"—"), "ancestry")}
+    ${ascTrait?`<p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:-.4rem 0 0">${esc(ascTrait)}</p>`:""}
+    ${box("Classe", esc(d.cls||"—"), "cls")}
+    ${box("Titre", esc(titre||"—"))}
+    ${box("Alignement", esc(cap(d.alignment)||"—"), "alignment")}
+    ${box("Origine", esc(origin||"—"), "origin")}
+    ${box("Langues", esc(d.languages||"—"), "languages")}
+    ${d.cls==="Prêtre"?box("Divinité", esc(d.deity||"—"), "deity"):""}
+    ${cd&&cd.usesMentor?box("Mentor", esc(d.mentor||"—"), "mentor"):""}
+    ${restSkills.length?`<div class="sheet-box"><span class="lbl">Compétences</span>${renderBullets(restSkills.join("\n"))}</div>`:""}
+    ${d.info?`<div class="sheet-box">
+      <span class="lbl">Informations</span>
+      <div class="prose" style="font-family:var(--ui);font-size:.85rem">${renderText(d.info)}</div>
+    </div>`:""}
+  </div>`;
+  const rightCol = `<div class="pc-sheet-col">
+    <div class="sheet-box sheet-panel">
+      <div class="sheet-banner">Talents / Sorts</div>
+      ${pcClassSectionHTML(d)}
+      ${pcSpellLinesHTML(d, spellCastMod)}
+    </div>
+  </div>`;
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PJ</button>
     <span class="tag pc">PJ</span>
@@ -3713,17 +3719,27 @@ function detailPC(p){
       <h1>${esc(d.name||"Sans nom")}</h1>
       ${favStarHTML("pc",p.id,p.favorite,true)}
     </div>
-    ${detailActions("pc",p.id)}
+    ${detailActions("pc",p.id,{hideEdit:true})}
     <div style="margin:.2rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
       <button class="btn ghost sm" data-print-pc="${p.id}">🖨 Imprimer cette fiche (PDF)</button>
-      ${dirty?`<button class="btn" data-sheet-save="${p.id}">✓ Enregistrer les modifications</button><button class="btn ghost" data-sheet-discard="${p.id}">↺ Annuler les modifications</button>`:`<span class="faint" style="font-family:var(--ui);font-size:.8rem">Clique une case 🎲 pour la relancer — rien n'est enregistré tant que tu ne cliques pas sur "Enregistrer".</span>`}
+      ${dirty?`<button class="btn" data-sheet-save="${p.id}">✓ Enregistrer les modifications</button><button class="btn ghost" data-sheet-discard="${p.id}">↺ Annuler les modifications</button>`:`<span class="faint" style="font-family:var(--ui);font-size:.8rem">Clique une case pour la modifier (🎲 relance, texte = saisie) — rien n'est enregistré tant que tu ne cliques pas sur "Enregistrer".</span>`}
     </div>
     <div class="pc-sheet">${leftCol}${midCol}${rightCol}</div>
-    ${d.spells?`<div class="section"><h2>✨ Sortilèges connus</h2>${renderBullets(d.spells)}</div>`:""}
     ${(d.images&&d.images.length)?`<div class="section"><h2>Portraits</h2>
       <div class="gallery">${d.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
     ${backlinksBlock("pc",p.id)}
   </div>`;
+}
+/* Sortilèges connus (2026-08-18) : d.spells reste un champ texte libre (un sort par ligne, saisi
+   via le formulaire classique) — le même modificateur d'incantation (spellCastMod, déjà calculé
+   pour spellCastLine ci-dessus) s'applique à tous, donc affiché à droite de CHAQUE ligne plutôt
+   que dans un tableau séparé de DD par rang (retiré, jugé inutile par Tristan). */
+function pcSpellLinesHTML(d, spellCastMod){
+  const lines = String(d.spells||"").split(/\r?\n/).filter(l=>l.trim());
+  if(!lines.length) return "";
+  const castTxt = spellCastMod!==null ? `1d20${spellCastMod>=0?"+":""}${spellCastMod}` : "";
+  return `<div style="${CLASS_SUBLABEL_STYLE}">Sortilèges connus</div>
+    <div>${lines.map(l=>`<div class="sheet-spell-line"><span>${renderText(l)}</span>${castTxt?`<span class="cast">${castTxt}</span>`:""}</div>`).join("")}</div>`;
 }
 /* Relance un champ de la fiche graphique — modifie uniquement pcSheetDraft (jamais db.pcs
    directement), puis réaffiche. Réutilise le même moteur de tirage que l'assistant pas-à-pas
@@ -3764,18 +3780,17 @@ function handlePCSheetReroll(kind){
     case "deity": d.deity = rollDeity(d.alignment); break;
     case "mentor": d.mentor = rollMentor(); break;
     case "gold": d.inventory = (d.inventory?d.inventory+"\n":"") + `${rollGold()} po pour acheter votre équipement de départ.`; break;
-    // CA = calculée depuis l'armure/bouclier équipés (ARMOR_DATA/SHIELD_DATA, 2026-08-18) + mod.
-    // DEX total (base + bonus d'objets) — pas aléatoire, ce bouton la recalcule depuis l'équipement
-    // et les caractéristiques actuelles plutôt que de la tirer ; laissé en action explicite (pas
-    // recalculé automatiquement à chaque rendu) pour ne jamais écraser silencieusement une valeur
-    // que le MJ aurait ajustée à la main pour un cas particulier — recalculer reste un choix
-    // explicite de l'utilisateur, pas un fait accompli.
-    case "ac": d.ac = String(computeACFromLoadout(d, totalAbilityMod(d,"dex"))); break;
+    // CA retirée d'ici (2026-08-18) : plus de bouton de relance, elle est recalculée à chaque
+    // rendu de detailPC() directement depuis l'équipement/les caractéristiques — voir acValue.
   }
   render();
 }
 function savePCSheet(id){
   const o = getEntity("pc",id); if(!o || !pcSheetDraft) return;
+  // Fige la CA calculée dans l'entité sauvegardée (2026-08-18) — elle n'est plus éditée/tirée
+  // manuellement sur la fiche, mais les listes/PDF (printPCSheet, cartes PJ...) lisent encore
+  // p.ac directement, donc il faut la synchroniser ici plutôt que de la recalculer partout.
+  pcSheetDraft.ac = String(computeACFromLoadout(pcSheetDraft, totalAbilityMod(pcSheetDraft,"dex")));
   Object.assign(o, pcSheetDraft);
   pcSheetDraft = null;
   saveDB(); toast("Personnage enregistré."); render();
