@@ -374,7 +374,7 @@
   body.hex-fullscreen-lock{ overflow:hidden; }
   /* La barre zoom/plein écran flotte SUR la carte (et non au-dessus, en flux normal) pour rester
      accessible aussi bien en plein écran qu'en vue normale, sans dupliquer le markup. */
-  .crawl-map-toolbar{ position:absolute; top:.6rem; left:.6rem; z-index:5; display:flex; align-items:center; gap:.4rem;
+  .crawl-map-toolbar{ position:absolute; top:.6rem; left:.6rem; right:.6rem; z-index:5; display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;
     background:rgba(10,9,11,.72); padding:.3rem; border-radius:8px; border:1px solid var(--border2); }
   #hex-zoom-label{ min-width:3.4em; text-align:center; }
   /* Bordure des hexagones réglable par carte (2026-08-17) : couleur/épaisseur pilotées par deux
