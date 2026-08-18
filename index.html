@@ -1376,39 +1376,55 @@ function formTable(){
     </div>
     <div class="field"><label>Contexte / description</label><textarea id="f-context" placeholder="À lancer chaque nuit de voyage...">${esc(t.context)}</textarea></div>
     <div class="field"><label style="display:flex;align-items:center;gap:.4rem;cursor:pointer"><input type="checkbox" id="f-wheel-include" ${t.wheelInclude?"checked":""}> 🎡 Proposer cette table dans le menu déroulant de la roue <span class="hint">(décoché par défaut — évite d'y noyer les tables qui ne servent pas de bonus)</span></label></div>
-    <div class="field${isDynamic?" hidden":""}" id="cols-section">
-      <label>Colonnes <span class="hint">(facultatif — une table à plusieurs colonnes se tire ligne entière OU colonne par colonne)</span></label>
-      <input type="text" id="f-columns" value="${esc((t.columns||[]).join(", "))}" placeholder="ex : Ambition, Moyens (laisser vide pour une table simple à une colonne)">
-      <p class="hint" style="margin:.35rem 0 0">Séparez les intitulés par une virgule, puis cliquez sur « Appliquer les colonnes » pour redécouper les rangées ci-dessous.</p>
-      <div style="margin-top:.5rem"><button class="btn ghost sm" data-apply-columns="1">↹ Appliquer les colonnes</button>
-        <select id="f-joinmode" style="margin-left:.4rem;width:auto;display:inline-block">
-          ${[["","Colonnes indépendantes (affichées séparément)"],["concat","Assembler bout à bout (Van- + -us → Vanus)"],["space","Assembler avec une espace"],["comma","Assembler avec des virgules"]]
-            .map(([k,lbl])=>`<option value="${k}" ${(t.joinMode||"")===k?"selected":""}>${esc(lbl)}</option>`).join("")}
-        </select></div>
-    </div>
     <div class="field${isDynamic?" hidden":""}" id="rows-section">
       <label>Rangées <span class="hint">(nombre configurable — texte libre + liens [[…]])</span></label>
       <div class="row" style="margin-bottom:.6rem; align-items:flex-end">
         <div class="field" style="flex:0 0 140px"><label>Nombre</label><input type="number" id="row-count" min="1" max="100" value="${rows.length}"></div>
         <button class="btn ghost sm" data-apply-count="1">Appliquer</button>
         <button class="btn ghost sm" data-add-row="1">+ Ajouter une rangée</button>
+        <button class="btn ghost sm" data-add-column="1">⊞ Ajouter une colonne</button>
+        <select id="f-joinmode" class="${tableColCount(t)>1?"":"hidden"}" style="width:auto;display:inline-block;flex:0 1 auto">
+          ${[["","Colonnes tirées séparément"],["concat","Assembler bout à bout (Van- + -us → Vanus)"],["space","Assembler avec une espace"],["comma","Assembler avec des virgules"]]
+            .map(([k,lbl])=>`<option value="${k}" ${(t.joinMode||"")===k?"selected":""}>${esc(lbl)}</option>`).join("")}
+        </select>
       </div>
+      <div id="cols-head">${colsHeadHTML(t.columns||[])}</div>
       <div id="rows-wrap">${rows.map((r,i)=>rowInput(tableRowCells(t,r),i,t.columns||[])).join("")}</div>
     </div>
     ${LINK_HELP}
     <div class="form-actions"><button class="btn" data-save="table">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
   </div>`;
 }
+/* Entête de la grille de saisie : un intitulé ÉDITABLE par colonne, aligné sur les champs des
+   rangées en dessous (mêmes largeurs flex, mêmes cales de 2.5rem à gauche et de la largeur du
+   bouton ✕ à droite). C'est ici, et nulle part ailleurs, que se définissent les colonnes d'une
+   table — le nom saisi devient l'entête affiché sur la fiche et le libellé du tirage par colonne.
+   Une table sans colonne (cas courant) affiche simplement « Résultat », non modifiable. */
+function colsHeadHTML(columns){
+  const cols = columns||[];
+  const cell = cols.length>1
+    ? cols.map((c,i)=>`<div class="field" style="flex:1 1 160px">
+        <div style="display:flex;gap:.25rem">
+          <input type="text" class="col-name-input" value="${esc(c)}" placeholder="Colonne ${i+1}">
+          <button class="btn danger sm" data-remove-column="${i}" title="Supprimer cette colonne">✕</button>
+        </div></div>`).join("")
+    : `<div class="field" style="flex:1 1 200px"><label class="hint" style="margin:0">Résultat</label></div>`;
+  return `<div class="rrow" style="margin-bottom:.35rem;align-items:flex-end">
+    <div class="field" style="flex:0 0 2.5rem"></div>
+    ${cell}
+    <div style="flex:0 0 2.2rem"></div>
+  </div>`;
+}
 /* Une rangée = autant de champs que de colonnes (un seul si la table n'en définit pas). Chaque
    cellule est saisie séparément : plus de « / » à taper à la main, et une cellule peut contenir un
-   « / » sans casser le découpage (voir tableRowCells). */
+   « / » sans casser le découpage (voir tableRowCells). Les intitulés ne sont pas répétés ici, ils
+   sont dans l'entête (colsHeadHTML) qui coiffe la grille. */
 function rowInput(cells,i,columns){
   const cols = (columns&&columns.length) ? columns : [""];
   const vals = Array.isArray(cells) ? cells : [cells];
   const fields = cols.map((label,c)=>`
       <div class="field" style="flex:1 1 ${cols.length>1?"160":"200"}px">
-        ${cols.length>1?`<label class="hint" style="margin:0 0 .15rem">${esc(label)}</label>`:""}
-        <input type="text" class="row-input" data-col="${c}" value="${esc(vals[c]||"")}" placeholder="${cols.length>1?esc(label||"Cellule…"):"Résultat…"}">
+        <input type="text" class="row-input" data-col="${c}" value="${esc(vals[c]||"")}" placeholder="${cols.length>1?esc(label||("Colonne "+(c+1))):"Résultat…"}">
       </div>`).join("");
   return `<div class="repeat-item" data-rowitem>
     <div class="rrow">
@@ -4595,7 +4611,8 @@ app.addEventListener("click", e=>{
   if((el=t.closest("[data-remove-entry]"))){ el.closest("[data-entryitem]").remove(); return; }
   // Répéteurs — tables
   if(closest("data-add-row")){ const w=$("#rows-wrap"); w.insertAdjacentHTML("beforeend", rowInput([], w.children.length, formTableColumns())); reindexRows(); return; }
-  if(closest("data-apply-columns")){ applyTableColumns(); return; }
+  if(closest("data-add-column")){ addTableColumn(); return; }
+  if((el=closest("data-remove-column"))){ removeTableColumn(+el.dataset.removeColumn); return; }
   if((el=t.closest("[data-remove-row]"))){ const it=el.closest(".repeat-item"); if(it) it.remove(); reindexRows(); return; }
   if(closest("data-apply-count")){ applyRowCount(); return; }
   // Import / modèle XML (onglet créatures)
@@ -4638,10 +4655,13 @@ app.addEventListener("click", e=>{
   if((el=closest("data-gmnote-del"))){ removeGmNote(el.dataset.gmnoteDel); return; }
 });
 
-/* Intitulés de colonnes saisis dans le formulaire (vide = table simple à une colonne). */
+/* Intitulés de colonnes lus dans l'entête de la grille (vide = table simple à une colonne). Un
+   intitulé laissé vide est remplacé par « Colonne N » plutôt qu'ignoré : le supprimer décalerait
+   les cellules des rangées, alors que l'utilisateur voulait juste ne pas le nommer. */
 function formTableColumns(){
-  const el = $("#f-columns");
-  return el ? el.value.split(",").map(s=>s.trim()).filter(Boolean) : [];
+  const inputs = [...document.querySelectorAll("#cols-head .col-name-input")];
+  if(inputs.length<2) return [];
+  return inputs.map((el,i)=> el.value.trim() || `Colonne ${i+1}`);
 }
 /* Contenu courant des rangées du formulaire, une entrée par rangée, chacune = tableau de cellules
    (une par champ de la rangée) — lu depuis le DOM, donc reflète les colonnes actuellement rendues. */
@@ -4657,15 +4677,37 @@ function applyRowCount(){
   for(let i=0;i<n;i++) rows.push(current[i] || []);
   $("#rows-wrap").innerHTML = rows.map((r,i)=>rowInput(r,i,cols)).join("");
 }
-/* Re-rend les rangées avec les colonnes fraîchement saisies, en conservant le contenu : on repasse
-   par la forme texte de chaque rangée puis on la redécoupe selon le nouveau nombre de colonnes.
-   Passer de 1 à 2 colonnes découpe donc une rangée « A / B » déjà saisie, et repasser à 1 colonne
-   recolle les cellules — aucune saisie n'est perdue au passage. */
-function applyTableColumns(){
-  const cols = formTableColumns();
-  const rows = formTableRowCells().map(cells=>tableRowCells({columns:cols}, tableRowText(cells)));
+/* Redessine entête + rangées pour un nouveau jeu de colonnes, en conservant la saisie en cours.
+   Les cellules sont seulement redimensionnées (complétées à vide / tronquées), JAMAIS redécoupées :
+   repasser par la forme texte « A / B » pour la refendre casserait toute cellule contenant elle-même
+   un « / » (« le/la rattrape. »), c'est-à-dire précisément le défaut que le passage aux cellules
+   distinctes corrige. Ajouter une colonne ajoute donc une case vide, comme dans un tableur. */
+function renderTableEditorGrid(cols, cellRows){
+  const n = Math.max(1, cols.length);
+  const rows = cellRows.map(cells=>{
+    const out = cells.slice(0,n);
+    while(out.length<n) out.push("");
+    return out;
+  });
+  $("#cols-head").innerHTML = colsHeadHTML(cols);
   $("#rows-wrap").innerHTML = rows.map((r,i)=>rowInput(r,i,cols)).join("");
-  toast(cols.length>1 ? `${cols.length} colonnes appliquées.` : "Table ramenée à une seule colonne.");
+  const jm = $("#f-joinmode"); if(jm) jm.classList.toggle("hidden", cols.length<2);
+}
+/* Ajout d'une colonne. Depuis une table simple, on en crée DEUX (l'existante, jusque-là implicite,
+   plus la nouvelle) — sinon la table resterait à une colonne et le clic semblerait sans effet. */
+function addTableColumn(){
+  const cols = formTableColumns();
+  const next = cols.length ? [...cols, `Colonne ${cols.length+1}`] : ["Colonne 1","Colonne 2"];
+  renderTableEditorGrid(next, formTableRowCells());
+}
+/* Suppression d'une colonne : son contenu part avec elle dans chaque rangée. Retomber à une seule
+   colonne ramène la table au format simple (l'entête redevient « Résultat »). */
+function removeTableColumn(idx){
+  const cols = formTableColumns();
+  if(!cols.length) return;
+  const rows = formTableRowCells().map(cells=>cells.filter((_,c)=>c!==idx));
+  const next = cols.filter((_,c)=>c!==idx);
+  renderTableEditorGrid(next.length>1?next:[], rows);
 }
 let lastTableRoll = null; // { tableTitle, text } — dernier tirage, pour l'ajout aux notes de session
 function rollTable(id){
