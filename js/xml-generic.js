@@ -95,7 +95,9 @@ function exportEntityXMLGeneric(typeKey){
   if(!items.length){ toast("Rien à exporter pour l'instant."); return; }
   const body = items.map(o=>{
     const inner = cfg.fields.map(f=>`    <${f}>${esc(o[f]||"")}</${f}>`).join("\n");
-    const rows = cfg.rowsField ? `\n    <rows>\n${(o[cfg.rowsField]||[]).map(row=>`      <row>${esc(row)}</row>`).join("\n")}\n    </rows>` : "";
+    // Une ligne multi-colonnes est stockée en tableau de cellules : on l'exporte sous sa forme
+    // texte « A / B », le format d'échange XML restant volontairement à plat (voir tableRowText).
+    const rows = cfg.rowsField ? `\n    <rows>\n${(o[cfg.rowsField]||[]).map(row=>`      <row>${esc(tableRowText(row))}</row>`).join("\n")}\n    </rows>` : "";
     return `  <${cfg.tag}>\n${inner}${rows}\n  </${cfg.tag}>`;
   }).join("\n\n");
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<${cfg.col}>\n${body}\n</${cfg.col}>`;

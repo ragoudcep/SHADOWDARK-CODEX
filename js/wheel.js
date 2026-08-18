@@ -643,7 +643,7 @@ function applyWheelPresetFromTable(tableId){
   if(t.kind==="dynamic"){
     segs = dynamicSourceItems(t).map(x=>({ text:x.name||x.title||"Sans nom", ref:{type:t.source,id:x.id} }));
   } else {
-    segs = (t.rows||[]).map(r=>({ text:r||"", ref:null }));
+    segs = (t.rows||[]).map(r=>({ text:tableRowText(r)||"", ref:null }));
   }
   segs = segs.filter(s=>s.text && s.text.trim());
   if(!segs.length){ toast("Cette table est vide — remplis-la d'abord."); return; }

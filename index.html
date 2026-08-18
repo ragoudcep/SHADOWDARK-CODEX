@@ -381,7 +381,7 @@ function eventSectionsHTML(e, opts){
 function entityText(type, o){
   if(type==="creature") return [o.name,o.category,o.desc,o.abilities,(o.attacks||[]).map(a=>a.name+" "+a.damage).join(" ")].join(" \n ");
   if(type==="event")    return [o.title,o.theme,o.description,o.traps,o.secrets].join(" \n ");
-  if(type==="table")    return [o.title,o.category,o.context,(o.rows||[]).join(" \n ")].join(" \n ");
+  if(type==="table")    return [o.title,o.category,o.context,(o.rows||[]).map(tableRowText).join(" \n ")].join(" \n ");
   if(type==="session")  return [o.title,(o.entries||[]).map(e=>e.label+" "+e.notes).join(" \n ")].join(" \n ");
   if(type==="npc")      return [o.name,o.description,o.physique,o.age,o.possessions,o.objectif,o.moyens,o.comportement].join(" \n ");
   if(type==="pointcrawl") return [o.title,o.description,(o.nodes||[]).map(nd=>{const ev=getEntity("event",nd.eventId);return ev?ev.title:"";}).join(" ")].join(" \n ");
@@ -865,12 +865,14 @@ const AMBITIONS_PNJ_ROWS = [ // maison, non issue du livre — génériques, cou
   "Dette à rembourser, d'une manière ou d'une autre."
 ];
 const MOYENS_PNJ_ROWS = [ // maison, non issue du livre — comment le PNJ compte parvenir à son ambition
-  // Autant d'entrées que AMBITIONS_PNJ_ROWS (22) pour que la table fusionnée "Ambitions & moyens
-  // de PNJ" n'ait aucune colonne à rallonge ni de moyen répété faute de lignes.
+  // Réservoir de moyens : sert à remplir la colonne « Moyens » de la table fusionnée "Ambitions &
+  // moyens de PNJ", quelle que soit la longueur de la colonne « Ambition » (26 ici, une base de
+  // campagne pouvant avoir ses propres ajouts) — voir fillMoyensColumn().
   "Négociation", "Violence", "Marchandage", "Diplomatie", "Patience", "Ruse", "Manipulation",
   "Corruption", "Intimidation", "Charme", "Espionnage", "Force brute", "Chantage", "Trahison",
   "Flatterie", "Prière et sacrifice", "Travail acharné", "Fuite en avant",
-  "Vol", "Séduction", "Sabotage", "Alliance opportuniste"
+  "Vol", "Séduction", "Sabotage", "Alliance opportuniste",
+  "Extorsion", "Sacrifice personnel", "Recours à la magie", "Persuasion morale"
 ];
 const ARMES_BASE_ROWS = [ // approximatif, maison — le Quickstart p.12-31 ne détaille pas l'équipement (cf. p.32)
   "Dague (1d4)", "Gourdin (1d4)", "Épée courte (1d6)", "Épée longue (1d8)", "Hache à main (1d6)",
@@ -1057,18 +1059,57 @@ function crawlBacklinkBlock(eventId){
      Traînées violettes »).
    - (par défaut) "list" : résultats indépendants affichés séparément, un par colonne (ex.
      Pièges : Piège / Déclencheur / Dégâts ne se concatènent pas, ce sont 3 effets distincts). */
+/* Découpe une ligne multi-colonnes. Le séparateur canonique est « / » ENTOURÉ D'ESPACES : un « / »
+   collé au texte appartient à la phrase, pas à la structure (signalé par Tristan le 2026-08-18 —
+   « Fuir un passé qui le/la rattrape. / Diplomatie » perdait sa colonne Moyens, le « le/la » étant
+   pris pour une séparation). On ne retombe sur un découpage au « / » nu que si la version espacée
+   ne produit pas assez de segments, pour ne pas casser d'anciennes lignes saisies sans espaces. */
 function splitTableRow(row, n){
-  const parts = String(row||"").split("/").map(s=>s.trim());
+  const s = String(row||"");
+  let parts = s.split(/\s+\/\s+/).map(x=>x.trim());
+  if(parts.length < n) parts = s.split("/").map(x=>x.trim());
   while(parts.length<n) parts.push("");
   return parts.slice(0,n);
+}
+/* ---- Lignes multi-colonnes : cellules réelles plutôt qu'une chaîne à découper ----------------
+   Format de stockage d'une ligne : un TABLEAU de cellules (["Ambition","Moyen"]) quand la table a
+   des colonnes, une simple chaîne sinon. L'ancien format (tout dans une chaîne, colonnes séparées
+   par « / ») reste lu sans migration obligatoire via splitTableRow — mais il est fragile dès qu'une
+   cellule contient elle-même un « / » (« le/la »), d'où ce passage à des cellules distinctes,
+   demandé par Tristan le 2026-08-18. normalizeTableRows() convertit une table en place au premier
+   chargement, et l'éditeur écrit désormais toujours des tableaux.
+   - tableColCount(t)      : nombre de colonnes (1 si la table n'est pas multi-colonnes).
+   - tableRowCells(t,row)  : cellules d'une ligne, quel que soit son format de stockage.
+   - tableRowText(row)     : forme texte d'une ligne (pour l'export XML, la roue, l'impression,
+                             la recherche — tout ce qui manipule une ligne comme un seul libellé). */
+function tableColCount(t){ return (t && t.columns && t.columns.length) ? t.columns.length : 1; }
+function tableRowCells(t, row){
+  const n = tableColCount(t);
+  if(Array.isArray(row)){
+    const cells = row.map(c=>String(c==null?"":c).trim());
+    while(cells.length<n) cells.push("");
+    return cells.slice(0,n);
+  }
+  return n>1 ? splitTableRow(row,n) : [String(row==null?"":row)];
+}
+function tableRowText(row){
+  return Array.isArray(row) ? row.filter(c=>String(c||"").trim()).join(" / ") : String(row==null?"":row);
+}
+/* Convertit les lignes d'une table multi-colonnes de l'ancien format chaîne vers des cellules.
+   Renvoie true si la table a effectivement été modifiée (pour savoir s'il faut sauvegarder). */
+function normalizeTableRows(t){
+  if(!t || tableColCount(t)<2 || !Array.isArray(t.rows) || !t.rows.length) return false;
+  if(t.rows.every(r=>Array.isArray(r))) return false;
+  t.rows = t.rows.map(r=>tableRowCells(t,r));
+  return true;
 }
 function tableColumnsHeadHTML(t){
   if(!t.columns || !t.columns.length) return `<th>Résultat</th>`;
   return t.columns.map(c=>`<th>${esc(c)}</th>`).join("");
 }
 function tableColumnsRowHTML(t, row){
-  if(!t.columns || !t.columns.length) return `<td>${renderText(row)||'<span class="faint">—</span>'}</td>`;
-  return splitTableRow(row, t.columns.length).map(seg=>`<td>${renderText(seg)||'<span class="faint">—</span>'}</td>`).join("");
+  if(!t.columns || !t.columns.length) return `<td>${renderText(tableRowText(row))||'<span class="faint">—</span>'}</td>`;
+  return tableRowCells(t, row).map(seg=>`<td>${renderText(seg)||'<span class="faint">—</span>'}</td>`).join("");
 }
 function detailTable(t){
   const isDynamic = t.kind==="dynamic";
@@ -1090,7 +1131,7 @@ function detailTable(t){
       ${isMultiCol?`<div id="roll-cols-out" class="hidden" style="margin:0 0 1rem;padding:.8rem 1rem;border:1px solid var(--gold,#b08d57);border-radius:.5rem;background:rgba(216,162,74,.08);font-family:var(--ui);font-size:1.15rem;font-weight:700;color:var(--gold2)"></div>`:""}
       <table class="tbl"><thead><tr><th style="width:2.5rem">#</th>${tableColumnsHeadHTML(isMultiCol?t:{})}</tr></thead>
         <tbody id="table-body">
-        ${rows.map((r,i)=>`<tr data-rowidx="${i}"><td class="idx">${i+1}</td>${isMultiCol?tableColumnsRowHTML(t,r):`<td>${(isDynamic?renderText(`[[${r}]]`):renderText(r))||'<span class="faint">—</span>'}</td>`}</tr>`).join("")}
+        ${rows.map((r,i)=>`<tr data-rowidx="${i}"><td class="idx">${i+1}</td>${isMultiCol?tableColumnsRowHTML(t,r):`<td>${(isDynamic?renderText(`[[${r}]]`):renderText(tableRowText(r)))||'<span class="faint">—</span>'}</td>`}</tr>`).join("")}
         </tbody></table>
     </div>`;
   app.innerHTML = `<div class="detail">
@@ -1113,7 +1154,7 @@ function rollTableColumns(id){
   const segs = t.columns.map((label,i)=>{
     const idx = Math.floor(Math.random()*t.rows.length);
     pickedRowIdx.push(idx);
-    return { label, value: splitTableRow(t.rows[idx], n)[i] };
+    return { label, value: tableRowCells(t, t.rows[idx])[i] };
   });
   document.querySelectorAll("#table-body tr").forEach(tr=>tr.classList.toggle("rolled", pickedRowIdx.includes(+tr.dataset.rowidx)));
   let plain, linked;
@@ -1335,6 +1376,16 @@ function formTable(){
     </div>
     <div class="field"><label>Contexte / description</label><textarea id="f-context" placeholder="À lancer chaque nuit de voyage...">${esc(t.context)}</textarea></div>
     <div class="field"><label style="display:flex;align-items:center;gap:.4rem;cursor:pointer"><input type="checkbox" id="f-wheel-include" ${t.wheelInclude?"checked":""}> 🎡 Proposer cette table dans le menu déroulant de la roue <span class="hint">(décoché par défaut — évite d'y noyer les tables qui ne servent pas de bonus)</span></label></div>
+    <div class="field${isDynamic?" hidden":""}" id="cols-section">
+      <label>Colonnes <span class="hint">(facultatif — une table à plusieurs colonnes se tire ligne entière OU colonne par colonne)</span></label>
+      <input type="text" id="f-columns" value="${esc((t.columns||[]).join(", "))}" placeholder="ex : Ambition, Moyens (laisser vide pour une table simple à une colonne)">
+      <p class="hint" style="margin:.35rem 0 0">Séparez les intitulés par une virgule, puis cliquez sur « Appliquer les colonnes » pour redécouper les rangées ci-dessous.</p>
+      <div style="margin-top:.5rem"><button class="btn ghost sm" data-apply-columns="1">↹ Appliquer les colonnes</button>
+        <select id="f-joinmode" style="margin-left:.4rem;width:auto;display:inline-block">
+          ${[["","Colonnes indépendantes (affichées séparément)"],["concat","Assembler bout à bout (Van- + -us → Vanus)"],["space","Assembler avec une espace"],["comma","Assembler avec des virgules"]]
+            .map(([k,lbl])=>`<option value="${k}" ${(t.joinMode||"")===k?"selected":""}>${esc(lbl)}</option>`).join("")}
+        </select></div>
+    </div>
     <div class="field${isDynamic?" hidden":""}" id="rows-section">
       <label>Rangées <span class="hint">(nombre configurable — texte libre + liens [[…]])</span></label>
       <div class="row" style="margin-bottom:.6rem; align-items:flex-end">
@@ -1342,17 +1393,27 @@ function formTable(){
         <button class="btn ghost sm" data-apply-count="1">Appliquer</button>
         <button class="btn ghost sm" data-add-row="1">+ Ajouter une rangée</button>
       </div>
-      <div id="rows-wrap">${rows.map((r,i)=>rowInput(r,i)).join("")}</div>
+      <div id="rows-wrap">${rows.map((r,i)=>rowInput(tableRowCells(t,r),i,t.columns||[])).join("")}</div>
     </div>
     ${LINK_HELP}
     <div class="form-actions"><button class="btn" data-save="table">✓ Enregistrer</button><button class="btn ghost" data-back="1">Annuler</button></div>
   </div>`;
 }
-function rowInput(val,i){
+/* Une rangée = autant de champs que de colonnes (un seul si la table n'en définit pas). Chaque
+   cellule est saisie séparément : plus de « / » à taper à la main, et une cellule peut contenir un
+   « / » sans casser le découpage (voir tableRowCells). */
+function rowInput(cells,i,columns){
+  const cols = (columns&&columns.length) ? columns : [""];
+  const vals = Array.isArray(cells) ? cells : [cells];
+  const fields = cols.map((label,c)=>`
+      <div class="field" style="flex:1 1 ${cols.length>1?"160":"200"}px">
+        ${cols.length>1?`<label class="hint" style="margin:0 0 .15rem">${esc(label)}</label>`:""}
+        <input type="text" class="row-input" data-col="${c}" value="${esc(vals[c]||"")}" placeholder="${cols.length>1?esc(label||"Cellule…"):"Résultat…"}">
+      </div>`).join("");
   return `<div class="repeat-item" data-rowitem>
     <div class="rrow">
       <div class="field" style="flex:0 0 2.5rem"><label>#${i+1}</label></div>
-      <div class="field" style="flex:1 1 200px"><input type="text" class="row-input" value="${esc(val)}" placeholder="Résultat…"></div>
+      ${fields}
       <button class="btn danger sm" data-remove-row>✕</button>
     </div></div>`;
 }
@@ -1374,7 +1435,18 @@ function saveTable(){
     o.sourceFilter = o.source==="treasure" ? $("#f-source-filter").value : "";
     o.rows = [];
   } else {
-    o.rows = [...document.querySelectorAll(".row-input")].map(i=>i.value);
+    // Rangées stockées en cellules dès qu'il y a plusieurs colonnes, en chaîne simple sinon —
+    // voir tableRowCells/tableRowText pour le pourquoi de ces deux formats.
+    const cols = formTableColumns();
+    const cellRows = formTableRowCells();
+    if(cols.length>1){
+      o.columns = cols;
+      o.joinMode = $("#f-joinmode") ? $("#f-joinmode").value : "";
+      o.rows = cellRows.map(cells=>tableRowCells(o, cells));
+    } else {
+      delete o.columns; delete o.joinMode;
+      o.rows = cellRows.map(cells=>tableRowText(cells));
+    }
     delete o.source; delete o.sourceFilter;
   }
   if(!o.title){ toast("Le titre est requis."); return; }
@@ -1745,7 +1817,7 @@ function printTreasureBlock(t){
 function printTableBlock(t){
   // Pour une table dynamique, imprime un instantané de son contenu actuel (elle n'a pas de rows stockées).
   const rowsArr = t.kind==="dynamic" ? dynamicSourceItems(t).map(x=>x.name||x.title||"Sans nom") : (t.rows||[]);
-  const rows = rowsArr.map((r,i)=>`<li>${i+1}. ${renderTextPrint(r)}</li>`).join("");
+  const rows = rowsArr.map((r,i)=>`<li>${i+1}. ${renderTextPrint(tableRowText(r))}</li>`).join("");
   return `<div class="pp-event">
     <h3><span>${esc(t.title||"Sans titre")}</span></h3>
     ${t.context?`<div class="pp-sec"><h4>Contexte</h4><ul><li>${renderTextPrint(t.context)}</li></ul></div>`:""}
@@ -2616,7 +2688,7 @@ function pickN(arr,n){ const a=arr.slice(); const out=[]; while(out.length<n && 
 function rollOnAppTable(title){
   const t = db.tables.find(x=>(x.title||"").trim()===title);
   if(!t || !(t.rows&&t.rows.length)) return "";
-  return pick(t.rows);
+  return tableRowText(pick(t.rows));
 }
 /* Variante colonne d'une table multi-colonnes (t.columns) : un jet indépendant sur l'ensemble des
    lignes, comme "Tirer chaque colonne séparément" dans la fiche d'une table (rollTableColumns) —
@@ -2625,15 +2697,14 @@ function rollOnAppTable(title){
 function rollOnAppTableColumn(title, colIndex){
   const t = db.tables.find(x=>(x.title||"").trim()===title);
   if(!t || !(t.rows&&t.rows.length)) return "";
-  const row = pick(t.rows);
-  return (t.columns && t.columns.length) ? splitTableRow(row, t.columns.length)[colIndex] : row;
+  return tableRowCells(t, pick(t.rows))[colIndex] || "";
 }
 /* Lignes d'une table statique de l'onglet Tables aléatoires, par titre — ou null si la table
    n'existe pas/est vide. Contrairement à rollOnAppTable() (un seul tirage), sert à piocher
    plusieurs valeurs (pickN) dans le même pool sans le retirer plusieurs fois de db.tables. */
 function appTableRows(title){
   const t = db.tables.find(x=>(x.title||"").trim()===title);
-  return (t && t.rows && t.rows.length) ? t.rows : null;
+  return (t && t.rows && t.rows.length) ? t.rows.map(tableRowText) : null;
 }
 /* Extrait le nom en tête d'une ligne de table formatée "Nom — description" ou
    "Nom (Aligné) — description" (format des tables Ascendances/Divinités, cf.
@@ -4523,7 +4594,8 @@ app.addEventListener("click", e=>{
   if(closest("data-add-entry")){ $("#entries-wrap").insertAdjacentHTML("beforeend", entryInput({label:"Jour "+($("#entries-wrap").children.length+1)})); return; }
   if((el=t.closest("[data-remove-entry]"))){ el.closest("[data-entryitem]").remove(); return; }
   // Répéteurs — tables
-  if(closest("data-add-row")){ const w=$("#rows-wrap"); w.insertAdjacentHTML("beforeend", rowInput("", w.children.length)); reindexRows(); return; }
+  if(closest("data-add-row")){ const w=$("#rows-wrap"); w.insertAdjacentHTML("beforeend", rowInput([], w.children.length, formTableColumns())); reindexRows(); return; }
+  if(closest("data-apply-columns")){ applyTableColumns(); return; }
   if((el=t.closest("[data-remove-row]"))){ const it=el.closest(".repeat-item"); if(it) it.remove(); reindexRows(); return; }
   if(closest("data-apply-count")){ applyRowCount(); return; }
   // Import / modèle XML (onglet créatures)
@@ -4566,13 +4638,34 @@ app.addEventListener("click", e=>{
   if((el=closest("data-gmnote-del"))){ removeGmNote(el.dataset.gmnoteDel); return; }
 });
 
+/* Intitulés de colonnes saisis dans le formulaire (vide = table simple à une colonne). */
+function formTableColumns(){
+  const el = $("#f-columns");
+  return el ? el.value.split(",").map(s=>s.trim()).filter(Boolean) : [];
+}
+/* Contenu courant des rangées du formulaire, une entrée par rangée, chacune = tableau de cellules
+   (une par champ de la rangée) — lu depuis le DOM, donc reflète les colonnes actuellement rendues. */
+function formTableRowCells(){
+  return [...document.querySelectorAll("#rows-wrap .repeat-item")]
+    .map(item=>[...item.querySelectorAll(".row-input")].map(i=>i.value.trim()));
+}
 function applyRowCount(){
   const n = Math.max(1, Math.min(100, parseInt($("#row-count").value)||1));
-  const w = $("#rows-wrap");
-  const current = [...w.querySelectorAll(".row-input")].map(i=>i.value);
+  const cols = formTableColumns();
+  const current = formTableRowCells();
   const rows = [];
-  for(let i=0;i<n;i++) rows.push(current[i]!=null?current[i]:"");
-  w.innerHTML = rows.map((r,i)=>rowInput(r,i)).join("");
+  for(let i=0;i<n;i++) rows.push(current[i] || []);
+  $("#rows-wrap").innerHTML = rows.map((r,i)=>rowInput(r,i,cols)).join("");
+}
+/* Re-rend les rangées avec les colonnes fraîchement saisies, en conservant le contenu : on repasse
+   par la forme texte de chaque rangée puis on la redécoupe selon le nouveau nombre de colonnes.
+   Passer de 1 à 2 colonnes découpe donc une rangée « A / B » déjà saisie, et repasser à 1 colonne
+   recolle les cellules — aucune saisie n'est perdue au passage. */
+function applyTableColumns(){
+  const cols = formTableColumns();
+  const rows = formTableRowCells().map(cells=>tableRowCells({columns:cols}, tableRowText(cells)));
+  $("#rows-wrap").innerHTML = rows.map((r,i)=>rowInput(r,i,cols)).join("");
+  toast(cols.length>1 ? `${cols.length} colonnes appliquées.` : "Table ramenée à une seule colonne.");
 }
 let lastTableRoll = null; // { tableTitle, text } — dernier tirage, pour l'ajout aux notes de session
 function rollTable(id){
@@ -4583,7 +4676,7 @@ function rollTable(id){
   if(!count) return;
   const idx = Math.floor(Math.random()*count);
   document.querySelectorAll("#table-body tr").forEach(tr=>tr.classList.toggle("rolled", +tr.dataset.rowidx===idx));
-  const plain = isDynamic ? (items[idx].name||items[idx].title||"Sans nom") : (firstLine(t.rows[idx])||"(vide)");
+  const plain = isDynamic ? (items[idx].name||items[idx].title||"Sans nom") : (firstLine(tableRowText(t.rows[idx]))||"(vide)");
   const linked = isDynamic ? `[[${plain}]]` : plain; // lien cliquable une fois collé dans les notes de session
   const out = $("#roll-out"); out.textContent = `→ ${idx+1} : ${plain}`;
   const tr = document.querySelector(`#table-body tr[data-rowidx="${idx}"]`);
@@ -5158,20 +5251,46 @@ const SHADOWDARK_DEFAULT_DYNAMIC_TABLES = [
    ajoutées à la main par le MJ, pas seulement le contenu par défaut) pour construire la fusionnée,
    puis on supprime les deux anciennes — seedOne() n'a alors plus rien à faire dessus. Sans effet
    dès le chargement suivant, puisque les anciens titres n'existent plus. */
+/* Complète une liste de moyens jusqu'à `n` entrées, sans jamais répéter : d'abord les moyens du
+   réservoir MOYENS_PNJ_ROWS encore absents, et en tout dernier recours (colonne Ambition plus
+   longue que le réservoir) une reprise cyclique — un doublon vaut mieux qu'une case vide. */
+function fillMoyensColumn(moyens, n){
+  const out = moyens.filter(Boolean);
+  MOYENS_PNJ_ROWS.forEach(m=>{ if(out.length<n && !out.includes(m)) out.push(m); });
+  while(out.length<n) out.push(out[out.length % Math.max(1,moyens.length||out.length)] || "");
+  return out.slice(0,n);
+}
+/* Réparation (2026-08-18) d'une table fusionnée déjà présente en base : la première version de la
+   migration bouclait sur un réservoir de moyens plus court que la colonne Ambition (18 moyens pour
+   26 ambitions dans la base de Tristan), d'où des moyens répétés à partir de la 19e ligne. On
+   recalcule la colonne Moyens à partir des valeurs DISTINCTES déjà présentes (donc les choix du MJ
+   sont conservés, dans leur ordre) complétées par le réservoir. La colonne Ambition n'est jamais
+   touchée. Ne fait rien si la colonne Moyens n'a aucun doublon. */
+function repairAmbitionsMoyensPnjTable(){
+  const t = db.tables.find(x=>(x.title||"").trim().toLowerCase()==="ambitions & moyens de pnj");
+  if(!t || !t.columns || t.columns.length!==2 || !(t.rows&&t.rows.length)) return 0;
+  const split = t.rows.map(r=>tableRowCells(t,r));
+  const moyens = split.map(p=>p[1]);
+  const distinct = [...new Set(moyens.filter(Boolean))];
+  if(distinct.length >= moyens.length) return 0; // aucun doublon : rien à réparer
+  const filled = fillMoyensColumn(distinct, t.rows.length);
+  t.rows = split.map((p,i)=>[p[0], filled[i]]);
+  return 1;
+}
 function mergeLegacyAmbitionsMoyensPnjTables(){
   const norm = s => (s||"").trim().toLowerCase();
-  if(db.tables.some(t=>norm(t.title)==="ambitions & moyens de pnj")) return 0;
+  if(db.tables.some(t=>norm(t.title)==="ambitions & moyens de pnj")) return repairAmbitionsMoyensPnjTable();
   const oldAmb = db.tables.find(t=>norm(t.title)==="ambitions de pnj");
   const oldMoy = db.tables.find(t=>norm(t.title)==="moyens de pnj");
   if(!oldAmb && !oldMoy) return 0;
-  const ambRows = (oldAmb && oldAmb.rows && oldAmb.rows.length) ? oldAmb.rows : AMBITIONS_PNJ_ROWS;
-  const moyRows = (oldMoy && oldMoy.rows && oldMoy.rows.length) ? oldMoy.rows.slice() : MOYENS_PNJ_ROWS.slice();
+  const ambRows = (oldAmb && oldAmb.rows && oldAmb.rows.length) ? oldAmb.rows.map(tableRowText) : AMBITIONS_PNJ_ROWS.slice();
+  const moyRows = (oldMoy && oldMoy.rows && oldMoy.rows.length) ? oldMoy.rows.map(tableRowText) : MOYENS_PNJ_ROWS.slice();
   const n = Math.max(ambRows.length, moyRows.length);
   // L'ancienne table des Moyens était plus courte que celle des Ambitions : on complète avec les
   // moyens par défaut encore absents plutôt que de répéter les premiers en boucle.
   MOYENS_PNJ_ROWS.forEach(m=>{ if(moyRows.length<n && !moyRows.includes(m)) moyRows.push(m); });
   const rows = [];
-  for(let i=0;i<n;i++) rows.push(`${ambRows[i%ambRows.length]} / ${moyRows[i%moyRows.length]}`);
+  for(let i=0;i<n;i++) rows.push([ambRows[i%ambRows.length], moyRows[i%moyRows.length]]);
   db.tables.push({ id:uid(), title:"Ambitions & moyens de PNJ", category:"PNJ",
     context:`d${n} — deux résultats combinés par ligne, dans l'ordre : Ambition / Moyens. Tirez chaque colonne séparément pour un résultat plus varié, ou la ligne entière pour un couple assorti.`,
     columns:["Ambition","Moyens"], rows });
@@ -5206,6 +5325,9 @@ function seedShadowdarkDefaultTables(){
   };
   SHADOWDARK_DEFAULT_TABLES.forEach(tpl=>seedOne(tpl,false));
   SHADOWDARK_DEFAULT_DYNAMIC_TABLES.forEach(tpl=>seedOne(tpl,true));
+  // En dernier (donc y compris sur les tables tout juste seedées) : passage au stockage en cellules
+  // des tables multi-colonnes, voir normalizeTableRows. Idempotent — ne renvoie true qu'une fois.
+  db.tables.forEach(t=>{ if(normalizeTableRows(t)) patched++; });
   return { added, categorized, patched, merged };
 }
 
@@ -5327,7 +5449,7 @@ async function startApp(){
       if(added>0 || categorized>0 || patched>0 || merged>0){
         await saveDB();
         const parts = [];
-        if(merged>0) parts.push(`Ambitions/Moyens de PNJ fusionnées en une table à 2 colonnes`);
+        if(merged>0) parts.push(`Table « Ambitions & moyens de PNJ » mise à jour (fusion / colonne Moyens complétée)`);
         if(added>0) parts.push(`${added} table(s) aléatoire(s) du livre de base ajoutée(s)`);
         if(categorized>0) parts.push(`${categorized} catégorisée(s)`);
         if(patched>0) parts.push(`${patched} mise(s) à jour (mode multi-colonnes)`);
