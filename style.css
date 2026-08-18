@@ -252,10 +252,13 @@
   .ab{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:.4rem .2rem}
   .ab .n{font-family:var(--ui); font-size:.62rem; letter-spacing:1px; color:var(--faint); text-transform:uppercase}
 
-  /* ---------- Fiche PJ graphique (2026-08-13) — cases cliquables, inspirée de la mise en page
-     d'une feuille de perso Shadowdark (colonnes encadrées, bandeaux de section noirs). ---------- */
-  .pc-sheet{display:grid; grid-template-columns:.9fr .9fr 1.3fr 1fr; gap:.9rem; align-items:start; margin-top:.8rem}
-  .pc-sheet-col{display:flex; flex-direction:column; gap:.7rem; min-width:0}
+  /* ---------- Fiche PJ graphique (2026-08-13, refondue 2026-08-18) — cases cliquables, inspirée
+     de la mise en page d'une feuille de perso Shadowdark (colonnes encadrées, bandeaux de section
+     noirs). 3 colonnes fixes (Perso / Identité / Talents-Sorts) pensées pour tenir dans un
+     rectangle compact sans zone vide, quel que soit le personnage — demande explicite de Tristan
+     de ne plus avoir de mise en page qui varie en hauteur d'un perso à l'autre. ---------- */
+  .pc-sheet{display:grid; grid-template-columns:.85fr 1fr 1.35fr; gap:.9rem; align-items:start; margin-top:.8rem}
+  .pc-sheet-col{display:flex; flex-direction:column; gap:.6rem; min-width:0}
   .sheet-box{border:1px solid var(--border2); border-radius:8px; background:var(--panel); padding:.55rem .7rem; position:relative}
   .sheet-box .lbl{font-family:var(--ui); font-size:.66rem; text-transform:uppercase; letter-spacing:1.2px; color:var(--gold); display:block; margin-bottom:.15rem}
   .sheet-box .val{font-family:var(--font); font-size:1.05rem; word-break:break-word}
@@ -265,23 +268,33 @@
     border-radius:50%; font-size:.8rem; line-height:1}
   .clickable-val{cursor:pointer; border-radius:4px; transition:background .15s; display:inline-block}
   .clickable-val:hover{background:rgba(216,162,74,.12); text-decoration:underline dotted}
-  .sheet-abilities.clickable-val{display:grid}
-  .sheet-abilities.clickable-val:hover{background:rgba(216,162,74,.12)}
   .sheet-row2{display:grid; grid-template-columns:1fr 1fr; gap:.5rem}
-  .sheet-abilities{display:grid; grid-template-columns:1fr 1fr; gap:.5rem}
-  /* Score / mod. de base / total avec bonus d'objets, 3 valeurs distinctes par caractéristique
-     (2026-08-18, demande de Tristan — plus besoin de calculer le bonus soi-même). */
-  .ab-line{display:flex; align-items:center; gap:.3rem; font-family:var(--font); font-size:.92rem; flex-wrap:wrap}
-  .ab-line .ab-mod{color:var(--muted); font-size:.85rem}
-  .ab-line .ab-total{color:var(--gold2); font-weight:700; font-size:.85rem}
-  .ab-line .ab-bonus{width:2.6rem; padding:.1rem .25rem; font-size:.78rem; text-align:center}
+  /* Bulle de caractéristique simplifiée (2026-08-18, retour de Tristan : l'ancien format
+     affichait le score, le mod. de base ET le total = trois nombres redondants et confus) —
+     ne reste que le score cliquable et le modificateur TOTAL (base + bonus d'objets cumulés),
+     avec un petit champ pour saisir un bonus d'objet le cas échéant. */
+  .sheet-abilities{display:grid; grid-template-columns:1fr 1fr; gap:.4rem .6rem}
+  .ab-line{display:flex; align-items:center; justify-content:space-between; gap:.3rem; font-family:var(--font); font-size:.92rem}
+  .ab-line .ab-bonus{width:2.4rem; padding:.1rem .25rem; font-size:.72rem; text-align:center}
+  .ab-line .ab-total{color:var(--gold2); font-weight:700; font-size:1rem; min-width:1.8rem; text-align:right}
   .sheet-banner{background:#000; color:var(--gold2); font-family:var(--ui); font-size:.7rem; text-transform:uppercase;
     letter-spacing:1.5px; font-weight:700; padding:.4rem .65rem; border-radius:7px 7px 0 0; margin:-.55rem -.7rem .5rem}
   .sheet-box.sheet-panel{padding-top:0}
   .sheet-gear-list{font-family:var(--ui); font-size:.85rem; margin:0; padding-left:1.1rem}
   .sheet-gear-list li{margin:.15rem 0}
-  @media (max-width:1100px){ .pc-sheet{grid-template-columns:1fr 1fr} }
-  @media (max-width:600px){ .pc-sheet{grid-template-columns:1fr} }
+  /* Table des talents encadrée dans une hauteur fixe + défilement — évite qu'un tableau de 12+
+     lignes n'étire toute la colonne (retour de Tristan : "ça descend super bas, ça prend toute
+     la verticalité"), garde le bloc compact quel que soit le nombre de lignes de la classe. */
+  .sheet-scroll-tbl{max-height:190px; overflow-y:auto; border:1px solid var(--border); border-radius:6px; margin:.2rem 0 .5rem}
+  .sheet-scroll-tbl table.tbl{margin:0}
+  /* Une ligne de sort connu + sa valeur de lancement à droite (2026-08-18, demande de Tristan)
+     — même modificateur pour tous les sorts d'un perso (calculé depuis la caractéristique
+     d'incantation de la classe), affiché à côté de chaque nom pour éviter d'avoir à le
+     recalculer soi-même en jeu. */
+  .sheet-spell-line{display:flex; justify-content:space-between; align-items:baseline; gap:.5rem; font-family:var(--ui); font-size:.85rem; padding:.12rem 0}
+  .sheet-spell-line .cast{color:var(--gold2); font-weight:700; white-space:nowrap}
+  @media (max-width:1000px){ .pc-sheet{grid-template-columns:1fr 1fr} }
+  @media (max-width:640px){ .pc-sheet{grid-template-columns:1fr} }
   .ab .v{font-size:1.2rem; font-weight:700; color:var(--text)}
   .attack-row{padding:.4rem 0; border-top:1px dashed var(--border); font-family:var(--ui); font-size:.88rem}
   .attack-row:first-child{border-top:none}
