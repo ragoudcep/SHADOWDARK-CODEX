@@ -3664,6 +3664,10 @@ function detailPC(p){
     ${box("Langues", esc(d.languages||"—"), "languages")}
     ${d.cls==="Prêtre"?box("Divinité", esc(d.deity||"—"), "deity"):""}
     ${cd&&cd.usesMentor?box("Mentor", esc(d.mentor||"—"), "mentor"):""}
+    ${d.info?`<div class="sheet-box">
+      <span class="lbl">Informations</span>
+      <div class="prose" style="font-family:var(--ui);font-size:.85rem">${renderText(d.info)}</div>
+    </div>`:""}
   </div>`;
   const rightCol = `<div class="pc-sheet-col">
     <div class="sheet-box sheet-panel">
@@ -3713,7 +3717,6 @@ function detailPC(p){
     </div>
     <div class="pc-sheet">${leftCol}${midCol}${rightCol}</div>
     ${d.spells?`<div class="section"><h2>✨ Sortilèges connus</h2>${renderBullets(d.spells)}</div>`:""}
-    ${d.info?`<div class="section"><h2>📝 Informations</h2><div class="prose" style="font-family:var(--ui)">${renderText(d.info)}</div></div>`:""}
     ${(d.images&&d.images.length)?`<div class="section"><h2>Portraits</h2>
       <div class="gallery">${d.images.map(img=>`<img class="gimg" src="${img.data}" alt="${esc(img.name||'')}" data-lightbox="${img.data}">`).join("")}</div></div>`:""}
     ${backlinksBlock("pc",p.id)}
