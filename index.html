@@ -323,7 +323,16 @@ const TAB_OF = { creature:"creatures", event:"events", table:"tables", session:"
 // Hoisté hors de applyRoleUI() pour être réutilisable ailleurs (ex. wheelRefViewable() : le bouton
 // "Voir" d'un bonus gagné à la roue ne doit être proposé à un joueur que pour un type d'entité
 // déjà public via cette même liste — une seule règle de visibilité, pas une inventée en double).
-const PLAYER_VISIBLE_TABS = ["sessions","hexmaps","dungeonmaps","spells","pcs","initiative","wheel"];
+const PLAYER_VISIBLE_TABS = ["sessions","hexmaps","dungeonmaps","spells","pcs","initiative","wheel","treasures"];
+/* L'onglet Trésor est visible aux joueurs (ci-dessus), mais seuls les objets marqués
+   t.playerVisible par le MJ leur sont réellement montrés (liste ET fiche) — la Malédiction
+   (et plus généralement tout champ MJ) reste cachée même sur un objet montré. Centralise ici
+   la règle par-entité pour que goto() et wheelRefViewable() (js/wheel.js) ne divergent pas. */
+function playerCanViewEntity(type, o){
+  if(!o) return false;
+  if(type==="treasure") return !!o.playerVisible;
+  return true;
+}
 
 /* Rend un texte libre : échappe le HTML puis transforme [[Nom]] en lien cliquable */
 function renderText(text){
@@ -3819,22 +3828,33 @@ function rangeContains(range, n){
 /* =========================================================================
    TRÉSOR — objets, classés en 3 catégories (Trouvaille < Relique < Régalia)
    ========================================================================= */
+function treasureOwnerLabel(t){
+  if(!t.ownerType || !t.ownerId) return "";
+  const o = getEntity(t.ownerType, t.ownerId);
+  if(!o) return "";
+  return o.name||"";
+}
 function treasureCard(t){
+  const gm = effectiveRole()==="gm";
+  const ownerName = treasureOwnerLabel(t);
   return `<div class="card" data-open="treasure:${t.id}">
     ${favStarHTML("treasure",t.id,t.favorite)}
     ${wipIconHTML(t.id,t.wip)}
     ${(t.images&&t.images.length)?`<img class="thumb" src="${t.images[0].data}" alt="">`:""}
-    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${t.wip?`<span class="tag wip">🚧 WIP</span>`:""}</div>
+    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${t.wip?`<span class="tag wip">🚧 WIP</span>`:""}${gm&&t.playerVisible?`<span class="tag gold">👁 Joueurs</span>`:""}</div>
     <h3 style="margin-top:.5rem">${esc(t.name||"Sans nom")}</h3>
     <p>${esc(firstLine(t.description)||"Pas de description")}</p>
+    ${ownerName?`<p class="faint" style="font-family:var(--ui);font-size:.82rem">🎒 ${esc(ownerName)}</p>`:""}
   </div>`;
 }
 function listTreasures(){
   const itemsAll = db.treasures;
   const gm = effectiveRole()==="gm";
   const wipOnly = gm && treasureWipOnly;
-  const items = filterWip(filterFavorites(filterGmCreated(itemsAll), treasureFavOnly), wipOnly);
+  let items = filterWip(filterFavorites(filterGmCreated(itemsAll), treasureFavOnly), wipOnly);
+  if(!gm) items = items.filter(t=>t.playerVisible);
   const head = pageHead("Armurerie", `${items.length} objet(s)`, "Nouvel objet", xmlToolbarHTML("treasure"));
+  if(!gm && !itemsAll.some(t=>t.playerVisible)){ app.innerHTML = head + emptyState("🧭","Ton MJ n'a encore rien partagé ici."); return; }
   if(!itemsAll.length){ app.innerHTML = head + emptyState("💎","Aucun objet. Répertoriez trouvailles, reliques, régalia et équipements."); return; }
   if(!items.length){ app.innerHTML = head + (gm?`<div style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.4rem">${favFilterBtnHTML("treasure",treasureFavOnly)}${wipFilterBtnHTML(treasureWipOnly)}</div>`:"") + emptyState("🖋",treasureFavOnly?"Aucun favori dans cet onglet.":(wipOnly?"Aucun objet WIP dans cet onglet.":"Aucune création marquée « MJ » dans cet onglet.")); return; }
   const allKeys = TREASURE_CATS.map(([k])=>"treasures:"+k).filter(key=>items.some(t=>(t.category||"trouvaille")===key.split(":")[1]));
@@ -3852,9 +3872,13 @@ function listTreasures(){
   app.innerHTML = head + toggleBar + sections;
 }
 function formTreasure(){
-  const t = view.mode==="edit" ? getEntity("treasure",view.id) : {name:"",category:"trouvaille",description:"",bonus:"",boon:"",curse:"",personality:""};
+  const t = view.mode==="edit" ? getEntity("treasure",view.id) : {name:"",category:"trouvaille",description:"",bonus:"",boon:"",curse:"",personality:"",playerVisible:false,ownerType:"",ownerId:""};
   formImages = (t.images||[]).slice();
   const catOpt = TREASURE_CATS.map(([k,lbl])=>`<option value="${k}" ${t.category===k?"selected":""}>${lbl}</option>`).join("");
+  const ownerVal = (t.ownerType&&t.ownerId) ? `${t.ownerType}:${t.ownerId}` : "";
+  const ownerOpt = `<option value="">— Aucun —</option>`
+    + (db.pcs.length ? `<optgroup label="Personnages joueurs">${db.pcs.map(p=>`<option value="pc:${p.id}" ${ownerVal==="pc:"+p.id?"selected":""}>${esc(p.name||"PJ sans nom")}</option>`).join("")}</optgroup>` : "")
+    + (db.npcs.length ? `<optgroup label="PNJ">${db.npcs.map(n=>`<option value="npc:${n.id}" ${ownerVal==="npc:"+n.id?"selected":""}>${esc(n.name||"PNJ sans nom")}</option>`).join("")}</optgroup>` : "");
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
     <h1>${view.mode==="edit"?"Modifier l'":"Nouvel "}objet</h1>
@@ -3862,7 +3886,10 @@ function formTreasure(){
       <div class="field" style="flex:2 1 200px"><label>Nom</label><input type="text" id="f-name" value="${esc(t.name)}" placeholder="Sceptre de l'Aube"></div>
       <div class="field" style="flex:1 1 150px"><label>Catégorie</label><select id="f-category">${catOpt}</select></div>
     </div>
+    <div class="field"><label>Possédé par <span class="hint">(facultatif — PJ ou PNJ en possession de l'objet)</span></label>
+      <select id="f-owner">${ownerOpt}</select></div>
     <div class="field"><label style="display:flex;align-items:center;gap:.4rem;cursor:pointer"><input type="checkbox" id="f-wip" ${t.wip?"checked":""}> 🚧 Work in progress <span class="hint">(masqué de la liste par défaut tant que c'est coché)</span></label></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:.4rem;cursor:pointer"><input type="checkbox" id="f-player-visible" ${t.playerVisible?"checked":""}> 👁 Visible aux joueurs <span class="hint">(sinon réservé au MJ — la Malédiction reste toujours cachée aux joueurs, même sur un objet visible)</span></label></div>
     <div class="field"><label>Description <span class="hint">(aspect, historique ; une ligne par effet ; liens [[…]] possibles)</span></label>
       <textarea id="f-description" placeholder="Une bouteille de verre contenant un liquide gazeux...">${esc(t.description)}</textarea></div>
     <div class="field"><label>Bonus <span class="hint">(facultatif — ex : « Épée longue +1 »)</span></label>
@@ -3888,6 +3915,10 @@ function saveTreasure(){
   o.name = $("#f-name").value.trim();
   o.category = $("#f-category").value;
   o.wip = $("#f-wip").checked;
+  o.playerVisible = $("#f-player-visible").checked;
+  const ownerVal = $("#f-owner").value;
+  const [ownerType, ownerId] = ownerVal ? ownerVal.split(":") : ["",""];
+  o.ownerType = ownerType; o.ownerId = ownerId;
   o.description = $("#f-description").value;
   o.bonus = $("#f-bonus").value;
   o.boon = $("#f-boon").value;
@@ -3901,14 +3932,17 @@ function saveTreasure(){
 }
 function detailTreasure(t){
   const isGM = effectiveRole()==="gm";
+  if(!isGM && !t.playerVisible){ app.innerHTML = emptyState("🚫","Cet objet n'est pas visible aux joueurs."); return; }
+  const ownerName = treasureOwnerLabel(t);
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Trésor</button>
-    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${t.wip?`<span class="tag wip">🚧 WIP</span>`:""}</div>
+    <div class="meta"><span class="tag ${t.category||'trouvaille'}">${esc(treasureCatLabel(t.category))}</span>${t.wip?`<span class="tag wip">🚧 WIP</span>`:""}${isGM&&t.playerVisible?`<span class="tag gold">👁 Visible aux joueurs</span>`:""}</div>
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
       <h1>${esc(t.name||"Sans nom")}</h1>
       ${favStarHTML("treasure",t.id,t.favorite,true)}
       ${wipIconHTML(t.id,t.wip,true)}
     </div>
+    ${ownerName?`<p class="faint" style="font-family:var(--ui)">🎒 Possédé par ${esc(ownerName)}</p>`:""}
     ${detailActions("treasure",t.id)}
     ${(t.description&&t.description.trim())
       ? `<div class="section"><h2>Description</h2>${renderBullets(t.description)}</div>`
@@ -4228,7 +4262,7 @@ ${atk}
    signal (toast) pour que le clic ne semble pas simplement ignoré. */
 function goto(type,id){
   const tab = TAB_OF[type];
-  if(effectiveRole()!=="gm" && !PLAYER_VISIBLE_TABS.includes(tab)){
+  if(effectiveRole()!=="gm" && (!PLAYER_VISIBLE_TABS.includes(tab) || !playerCanViewEntity(type, getEntity(type,id)))){
     toast("Ce contenu n'est pas accessible.");
     return;
   }

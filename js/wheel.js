@@ -26,16 +26,18 @@ function wheelSegments(){
   return (w && w.segments || []).map(wheelNormSeg).filter(s=>s.text);
 }
 /* Le bouton "Voir" (fiche de l'entité gagnée) ne doit jamais faire planter l'appli si l'entité a
-   été supprimée depuis, et ne doit jamais donner à un joueur accès à un type d'entité qu'il ne
-   verrait pas autrement dans l'appli (ex. Trésor, qui porte des champs MJ comme boon/curse) —
-   on réutilise donc PLAYER_VISIBLE_TABS, la même règle qui cache déjà les onglets, plutôt que
-   d'inventer un second système de permissions. */
+   été supprimée depuis, et ne doit jamais donner à un joueur accès à une entité qu'il ne verrait
+   pas autrement dans l'appli — on réutilise donc PLAYER_VISIBLE_TABS (règle par onglet) ET
+   playerCanViewEntity() (règle par entité, ex. Trésor : seuls les objets marqués playerVisible
+   sont montrés, et même alors la Malédiction reste cachée) plutôt que d'inventer un second
+   système de permissions. */
 function wheelRefViewable(ref){
   if(!ref || !ref.type || !ref.id) return false;
-  if(!getEntity(ref.type, ref.id)) return false;
+  const o = getEntity(ref.type, ref.id);
+  if(!o) return false;
   if(effectiveRole()==="gm") return true;
   const tab = TAB_OF[ref.type];
-  return !!tab && PLAYER_VISIBLE_TABS.includes(tab);
+  return !!tab && PLAYER_VISIBLE_TABS.includes(tab) && playerCanViewEntity(ref.type, o);
 }
 /* Choix MJ entre deux habillages de révélation, éditable via openWheelEditModal() :
    "gift" = paquet cadeau, "Joyeux anniversaire", fanfare musicale ;
