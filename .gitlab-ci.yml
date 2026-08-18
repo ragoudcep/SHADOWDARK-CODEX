@@ -1,8 +1,8 @@
 pages:
   stage: deploy
   script:
-    - mkdir -p public
-    - cp -r $(ls -A | grep -vE '^(public|\.git|\.gitlab-ci\.yml)$') public/
+    - mkdir public
+    - cp -r * public 2>/dev/null || true
   artifacts:
     paths:
       - public
