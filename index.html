@@ -813,11 +813,13 @@ function listSessions(){
     (items.length ? `<div class="grid">${items.map(s=>{
       const visibleEntries = (s.entries||[]).filter(e=>e.visible);
       const previewEntry = isGM ? (s.entries||[])[0] : visibleEntries[0];
+      const participantNames = (s.participants||[]).map(id=>db.pcs.find(p=>p.id===id)?.name).filter(Boolean);
       return `
       <div class="card" data-open="session:${s.id}">
         <div class="meta">${s.date?`<span class="tag">${esc(s.date)}</span>`:""}${isGM && !visibleEntries.length?`<span class="tag" style="color:var(--muted)">MJ uniquement</span>`:""}</div>
         <h3 style="margin-top:.6rem">${esc(s.title||"Session sans titre")}</h3>
         <p>${esc(firstLine(previewEntry?.notes)||"Pas encore de notes")}</p>
+        ${participantNames.length?`<p class="faint" style="font-size:.8rem;margin-top:.3rem">👥 ${esc(participantNames.join(", "))}</p>`:""}
       </div>`;
     }).join("")}</div>`
     : emptyState(isGM?"📜":"🧭", isGM ? "Aucune session. Commencez votre journal de campagne." : "Ton MJ n'a encore rien partagé ici."));
@@ -1200,11 +1202,13 @@ function detailNPC(n){
 function detailSession(s){
   const isGM = effectiveRole()==="gm";
   const entries = isGM ? (s.entries||[]) : (s.entries||[]).filter(e=>e.visible);
+  const participantPCs = (s.participants||[]).map(id=>db.pcs.find(p=>p.id===id)).filter(Boolean);
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← Carnet de route</button>
     <span class="tag session">Session</span>
     <h1>${esc(s.title||"Session sans titre")}</h1>
     ${s.date?`<div class="faint" style="font-family:var(--ui);font-size:.85rem">${esc(s.date)}</div>`:""}
+    ${participantPCs.length?`<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.4rem">${participantPCs.map(p=>`<span class="tag pc" style="cursor:pointer" data-open="pc:${p.id}">${esc(p.name||"Sans nom")}</span>`).join("")}</div>`:""}
     ${detailActions("session",s.id)}
     ${entries.length?entries.map(en=>`
       <div class="session-entry">
@@ -1569,14 +1573,21 @@ function saveCreature(){
 
 function formSession(){
   const s = view.mode==="edit" ? getEntity("session",view.id)
-    : {title:"",date:new Date().toISOString().slice(0,10),entries:[{id:uid(),label:"Jour 1",notes:""}]};
+    : {title:"",date:new Date().toISOString().slice(0,10),entries:[{id:uid(),label:"Jour 1",notes:""}],participants:[]};
   const entries = s.entries && s.entries.length ? s.entries : [{id:uid(),label:"Jour 1",notes:""}];
+  const participants = s.participants || [];
+  const pcOpts = [...db.pcs].sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(p=>
+    `<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;cursor:pointer"><input type="checkbox" class="f-participant" value="${esc(p.id)}" ${participants.includes(p.id)?"checked":""} style="width:auto">${esc(p.name||"Sans nom")}</label>`
+  ).join("");
   app.innerHTML = `<div class="form">
     <button class="back" data-back="1">← Annuler</button>
     <h1>${view.mode==="edit"?"Modifier":"Nouvelle"} session</h1>
     <div class="row">
       <div class="field" style="flex:2 1 200px"><label>Titre de la session</label><input type="text" id="f-title" value="${esc(s.title)}" placeholder="Session 3 — La descente"></div>
       <div class="field" style="flex:1 1 140px"><label>Date</label><input type="date" id="f-date" value="${esc(s.date)}"></div>
+    </div>
+    <div class="field"><label>Joueurs présents</label>
+      ${db.pcs.length ? `<div id="participants-wrap" style="display:flex;flex-wrap:wrap;gap:.6rem 1.2rem">${pcOpts}</div>` : `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:0">Aucun personnage-joueur enregistré pour l'instant.</p>`}
     </div>
     <div class="field"><label>Entrées <span class="hint">(un jour / point temporel par entrée)</span></label>
       <div id="entries-wrap">${entries.map(e=>entryInput(e)).join("")}</div>
@@ -1603,6 +1614,7 @@ function saveSession(){
   const _old = view.mode==="edit" ? o.title : null;
   o.title = $("#f-title").value.trim();
   o.date = $("#f-date").value;
+  o.participants = [...document.querySelectorAll(".f-participant:checked")].map(el=>el.value);
   o.entries = [...document.querySelectorAll("#entries-wrap [data-entryitem]")].map(el=>({
     id: uid(),
     label: el.querySelector(".entry-label").value.trim(),
