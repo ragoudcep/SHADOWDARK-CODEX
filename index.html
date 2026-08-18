@@ -876,12 +876,13 @@ const ARMES_BASE_ROWS = [ // approximatif, maison — le Quickstart p.12-31 ne d
 ];
 function seedNpcGenTables(){
   seedCharGenTables(); // garantit la table "Noms de personnages"
+  // Ambitions/Moyens de PNJ : table fusionnée "Ambitions & moyens de PNJ" (2 colonnes), voir
+  // SHADOWDARK_DEFAULT_TABLES + seedShadowdarkDefaultTables() — déjà garantie au chargement pour
+  // tout MJ, pas besoin d'un ensure() ici.
   const ensure = (title, context, rows)=>{
     if(db.tables.some(t=>(t.title||"").trim()===title)) return;
     db.tables.push({id:uid(), title, context, rows});
   };
-  ensure("Ambitions de PNJ", "Ce que veut un PNJ, à la volée (maison, non issue du livre).", AMBITIONS_PNJ_ROWS);
-  ensure("Moyens de PNJ", "Comment le PNJ compte parvenir à son ambition (maison, non issue du livre).", MOYENS_PNJ_ROWS);
   ensure("Armes de base", "Armes courantes et dégâts approximatifs (maison — le Quickstart ne détaille pas l'équipement).", ARMES_BASE_ROWS);
 }
 const NPC_SPELL_CLASSES = ["priest","wizard","witch"];
@@ -893,8 +894,8 @@ function generateRandomNPC(){
   const hp = Math.max(1, rollDice(1,6)+mods.con);
   const ac = 10 + mods.dex;
   const nom = rollOnAppTable("Noms de personnages") || pick(NOMS_ROWS);
-  const ambition = rollOnAppTable("Ambitions de PNJ") || pick(AMBITIONS_PNJ_ROWS);
-  const moyen = rollOnAppTable("Moyens de PNJ") || pick(MOYENS_PNJ_ROWS);
+  const ambition = rollOnAppTableColumn("Ambitions & moyens de PNJ", 0) || pick(AMBITIONS_PNJ_ROWS);
+  const moyen = rollOnAppTableColumn("Ambitions & moyens de PNJ", 1) || pick(MOYENS_PNJ_ROWS);
   const weapon = rollOnAppTable("Armes de base") || pick(ARMES_BASE_ROWS);
 
   let spells = "";
@@ -2613,6 +2614,16 @@ function rollOnAppTable(title){
   const t = db.tables.find(x=>(x.title||"").trim()===title);
   if(!t || !(t.rows&&t.rows.length)) return "";
   return pick(t.rows);
+}
+/* Variante colonne d'une table multi-colonnes (t.columns) : un jet indépendant sur l'ensemble des
+   lignes, comme "Tirer chaque colonne séparément" dans la fiche d'une table (rollTableColumns) —
+   utilisée pour piocher UN SEUL champ (ex. juste l'Ambition, pas le couple Ambition+Moyens) dans un
+   générateur (generateRandomNPC). Retombe sur la ligne entière si la table n'a pas de colonnes. */
+function rollOnAppTableColumn(title, colIndex){
+  const t = db.tables.find(x=>(x.title||"").trim()===title);
+  if(!t || !(t.rows&&t.rows.length)) return "";
+  const row = pick(t.rows);
+  return (t.columns && t.columns.length) ? splitTableRow(row, t.columns.length)[colIndex] : row;
 }
 /* Lignes d'une table statique de l'onglet Tables aléatoires, par titre — ou null si la table
    n'existe pas/est vide. Contrairement à rollOnAppTable() (un seul tirage), sert à piocher
@@ -4828,6 +4839,38 @@ const SHADOWDARK_DEFAULT_TABLES = [
       "Très petit / Roule des mécaniques / Écumeur à la retraite",
       "Gros nez / Fume la pipe / A un basilic domestique"
     ] },
+  /* Fusion (2026-08-18, demande de Tristan) des anciennes tables "Ambitions de PNJ" et "Moyens de
+     PNJ" — deux tables à un seul jet, tirées séparément dans generateRandomNPC() — en une seule
+     table à 2 colonnes, format habituel de ce genre de duo (cf. Qualités des PNJ ci-dessus) :
+     roulez chaque colonne séparément pour un résultat plus varié, ou la ligne entière pour un
+     couple assorti. Maison, non issue du livre. */
+  { title:"Ambitions & moyens de PNJ", category:"PNJ",
+    context:"d22 — deux résultats combinés par ligne, dans l'ordre : Ambition / Moyens. Tirez chaque colonne séparément pour un résultat plus varié, ou la ligne entière pour un couple assorti.",
+    columns:["Ambition","Moyens"],
+    rows:[
+      "Attiré(e) par l'or. / Corruption",
+      "Envie d'aventure. / Ruse",
+      "Soif de vengeance. / Violence",
+      "Quête de pouvoir. / Manipulation",
+      "Besoin de reconnaissance. / Flatterie",
+      "Envie de fuir son passé. / Fuite en avant",
+      "Désir de sécurité, à tout prix. / Négociation",
+      "Loyauté envers un maître ou une divinité. / Prière et sacrifice",
+      "Amour ou obsession pour quelqu'un. / Charme",
+      "Curiosité pour l'interdit ou l'inconnu. / Espionnage",
+      "Ambition de grimper dans la hiérarchie. / Trahison",
+      "Volonté de protéger les siens. / Force brute",
+      "Envie de racheter une faute. / Travail acharné",
+      "Peur de la mort ou de la vieillesse. / Marchandage",
+      "Jalousie envers un rival. / Chantage",
+      "Foi aveugle en une cause. / Intimidation",
+      "Appât du gain rapide. / Vol",
+      "Recherche de la vérité sur ses origines. / Diplomatie",
+      "Simple instinct de survie. / Patience",
+      "Ennui — cherche l'excitation à tout prix. / Séduction",
+      "Fierté personnelle ou familiale à défendre. / Sabotage",
+      "Dette à rembourser, d'une manière ou d'une autre. / Alliance opportuniste"
+    ] },
   { title:"Génération de noms de PNJ (syllabes)", category:"PNJ",
     context:"d20 — quatre éléments combinés par ligne, dans l'ordre : Préfixe / Syllabe 1 / Syllabe 2 / Suffixe. Combinez les 4 éléments d'une même ligne pour un nom rapide, ou faites 4 jets de d20 séparés (un par colonne) pour un résultat plus aléatoire, selon l'usage du livre.",
     columns:["Préfixe","Syllabe 1","Syllabe 2","Suffixe"], joinMode:"concat",
@@ -5104,7 +5147,34 @@ const SHADOWDARK_DEFAULT_DYNAMIC_TABLES = [
 /* Ajoute les tables par défaut manquantes (dédoublonnage par titre, insensible à la casse) — n'écrase jamais
    le contenu d'une table existante. Complète seulement la `category` d'une table déjà présente si elle n'en
    a pas encore (ex : tables ajoutées avant l'introduction du champ catégorie), sans toucher au reste. */
+/* Migration (2026-08-18) : les anciennes tables "Ambitions de PNJ" / "Moyens de PNJ" (créées à la
+   volée par seedNpcGenTables() avant la fusion en une table à 2 colonnes, voir "Ambitions & moyens
+   de PNJ" dans SHADOWDARK_DEFAULT_TABLES) traînent encore dans la base d'une campagne déjà en
+   cours. Tourne avant seedOne() : si la table fusionnée n'existe pas encore et qu'au moins une des
+   deux anciennes tables est là, on récupère leur contenu EN BASE (donc d'éventuelles lignes
+   ajoutées à la main par le MJ, pas seulement le contenu par défaut) pour construire la fusionnée,
+   puis on supprime les deux anciennes — seedOne() n'a alors plus rien à faire dessus. Sans effet
+   dès le chargement suivant, puisque les anciens titres n'existent plus. */
+function mergeLegacyAmbitionsMoyensPnjTables(){
+  const norm = s => (s||"").trim().toLowerCase();
+  if(db.tables.some(t=>norm(t.title)==="ambitions & moyens de pnj")) return 0;
+  const oldAmb = db.tables.find(t=>norm(t.title)==="ambitions de pnj");
+  const oldMoy = db.tables.find(t=>norm(t.title)==="moyens de pnj");
+  if(!oldAmb && !oldMoy) return 0;
+  const ambRows = (oldAmb && oldAmb.rows && oldAmb.rows.length) ? oldAmb.rows : AMBITIONS_PNJ_ROWS;
+  const moyRows = (oldMoy && oldMoy.rows && oldMoy.rows.length) ? oldMoy.rows : MOYENS_PNJ_ROWS;
+  const n = Math.max(ambRows.length, moyRows.length);
+  const rows = [];
+  for(let i=0;i<n;i++) rows.push(`${ambRows[i%ambRows.length]} / ${moyRows[i%moyRows.length]}`);
+  db.tables.push({ id:uid(), title:"Ambitions & moyens de PNJ", category:"PNJ",
+    context:`d${n} — deux résultats combinés par ligne, dans l'ordre : Ambition / Moyens. Tirez chaque colonne séparément pour un résultat plus varié, ou la ligne entière pour un couple assorti.`,
+    columns:["Ambition","Moyens"], rows });
+  if(oldAmb) db.tables.splice(db.tables.indexOf(oldAmb),1);
+  if(oldMoy) db.tables.splice(db.tables.indexOf(oldMoy),1);
+  return 1;
+}
 function seedShadowdarkDefaultTables(){
+  const merged = mergeLegacyAmbitionsMoyensPnjTables();
   const byTitle = new Map(db.tables.map(t=>[(t.title||"").trim().toLowerCase(), t]));
   let added = 0, categorized = 0, patched = 0;
   const seedOne = (tpl, isDynamic) => {
@@ -5130,7 +5200,7 @@ function seedShadowdarkDefaultTables(){
   };
   SHADOWDARK_DEFAULT_TABLES.forEach(tpl=>seedOne(tpl,false));
   SHADOWDARK_DEFAULT_DYNAMIC_TABLES.forEach(tpl=>seedOne(tpl,true));
-  return { added, categorized, patched };
+  return { added, categorized, patched, merged };
 }
 
 /* ------------------------------- Démarrage ------------------------------- */
@@ -5247,10 +5317,11 @@ async function startApp(){
       }
     }
     if(effectiveRole()==="gm"){
-      const { added, categorized, patched } = seedShadowdarkDefaultTables();
-      if(added>0 || categorized>0 || patched>0){
+      const { added, categorized, patched, merged } = seedShadowdarkDefaultTables();
+      if(added>0 || categorized>0 || patched>0 || merged>0){
         await saveDB();
         const parts = [];
+        if(merged>0) parts.push(`Ambitions/Moyens de PNJ fusionnées en une table à 2 colonnes`);
         if(added>0) parts.push(`${added} table(s) aléatoire(s) du livre de base ajoutée(s)`);
         if(categorized>0) parts.push(`${categorized} catégorisée(s)`);
         if(patched>0) parts.push(`${patched} mise(s) à jour (mode multi-colonnes)`);
