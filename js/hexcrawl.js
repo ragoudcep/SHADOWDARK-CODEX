@@ -762,7 +762,7 @@ function openHexPointModal(pointId, mode){
       <button class="icon-btn" data-modal-close="1">✕</button></div>
     <div class="field"><label>Nom</label><input type="text" id="hp-name" value="${esc(p.name||"")}" placeholder="La tour effondrée"></div>
     <div class="field"><label>Type <span class="hint">(facultatif)</span></label><input type="text" id="hp-type" value="${esc(p.type||"")}" placeholder="Ville, ruine, danger…"></div>
-    <div class="field"><label>Icône <span class="hint">(facultatif)</span></label>${poiIconPickerHTML(p.icon||"")}</div>
+    <!-- Sélecteur d'icône (poiIconPickerHTML) retiré du formulaire (2026-08-18, demande de Tristan) : plus affiché sur la carte (cf. commentaire ligne ~441), gardé en réserve dans le code -->
     <div class="field"><label>Description</label><textarea id="hp-description" rows="5" placeholder="Ce que le MJ (et éventuellement les joueurs) doivent savoir…">${esc(p.description||"")}</textarea></div>
     <label style="display:flex;align-items:center;gap:.5rem;font-family:var(--ui);font-size:.85rem;color:var(--muted);margin-top:.3rem;cursor:pointer">
       <input type="checkbox" id="hp-visible" ${p.dmOnly?"":"checked"} style="width:auto"> Visible aux joueurs
@@ -774,19 +774,10 @@ function openHexPointModal(pointId, mode){
         <button class="btn" id="hp-save">✓ Enregistrer</button>
       </div>
     </div>`);
-  let selectedIcon = p.icon || "";
-  const iconPicker = document.getElementById("hp-icon-picker");
-  if(iconPicker) iconPicker.querySelectorAll(".icon-pick").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      selectedIcon = btn.dataset.icon;
-      iconPicker.querySelectorAll(".icon-pick").forEach(b=>b.classList.toggle("active", b===btn));
-    });
-  });
   const btnSave = document.getElementById("hp-save");
   if(btnSave) btnSave.addEventListener("click", ()=>{
     p.name = document.getElementById("hp-name").value.trim() || "Point d'intérêt";
     p.type = document.getElementById("hp-type").value.trim();
-    p.icon = selectedIcon;
     p.description = document.getElementById("hp-description").value;
     p.dmOnly = !document.getElementById("hp-visible").checked;
     saveDB();
