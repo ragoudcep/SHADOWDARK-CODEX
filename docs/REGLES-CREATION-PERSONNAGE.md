@@ -14,8 +14,8 @@ ci-dessous se calculent **toujours en direct** depuis `p.cls`/`p.ancestry` sur l
 détail (armes, armures, capacités, sorts connus, DD d'incantation, table de talents 2d6),
 y compris pour un PJ créé à la main. Changer la classe d'un PJ met tout à jour
 instantanément — rien n'est plus figé en texte à la création. Les dénominations raciales
-(Nain, Elfe, Gobelin…) ont été retirées à la demande de Tristan : l'identité d'un
-personnage passe désormais uniquement par son portrait/illustration, pas par une race.
+(Nain, Elfe, Gobelin…) ont été retirées : l'identité d'un personnage passe uniquement par
+son portrait/illustration, pas par une race.
 
 ## Personnage de 1er niveau — ce qu'il faut déterminer
 
@@ -176,14 +176,11 @@ le texte lu. 6 mentors, chacun avec sa **propre** table de Bienfaits 2d6 (2 / 3-
 Implémenté en constante `MENTORS` (nom, description, table de 5 lignes 2d6) dans
 `index.html`, plus le champ `p.mentor` sur le PJ.
 
-**Écart volontaire par rapport à l'idée initiale de Tristan** (« les tables de mentor
-seront peut-être dans les tables aléatoires ») : ne PAS les seeder dans l'onglet Tables
-aléatoires — ce modèle générique affiche un badge `d{nombre de lignes}` (donc « d5 » ici),
-ce qui serait faux (les tranches sont 2d6 irrégulières : 2/3-7/8-9/10-11/12, pas un d5
-uniforme) et pourrait induire en erreur en jeu. Les 6 tables restent donc uniquement dans
-`MENTORS`, affichées sur la fiche du PJ concerné selon son `p.mentor` — **à confirmer avec
-Tristan le matin : ça lui va, ou il veut quand même un accès depuis Tables aléatoires
-(auquel cas il faudra un affichage dédié, pas le composant Table générique) ?**
+**Ces tables ne sont volontairement pas seedées dans l'onglet Tables aléatoires** : le
+composant générique affiche un badge `d{nombre de lignes}` (soit « d5 » ici), ce qui serait
+faux — les tranches sont 2d6 irrégulières (2 / 3-7 / 8-9 / 10-11 / 12), pas un d5 uniforme.
+Elles restent dans `MENTORS`, affichées sur la fiche du PJ selon son `p.mentor`. Y donner
+accès depuis Tables aléatoires demanderait un affichage dédié, pas le composant générique.
 
 ### Catastrophes diaboliques (Cursed Scroll #1, p.22-23)
 
@@ -219,9 +216,8 @@ Claude in Chrome, pas dans ce dépôt — même workflow que les reliques).
 
 ## Classes additionnelles — Cursed Scroll #2 à #6 (2026-08-12, implémentées)
 
-Même nuit, même méthode (`pdftotext`, lecture intégrale avant implémentation) — Tristan a
-demandé de vérifier les 5 autres numéros du zine pour d'éventuelles classes et de tout
-intégrer d'un coup. Détail complet (armes/armures/capacités/talents 2d6) dans
+Les 5 autres numéros du zine ont été dépouillés de la même façon (`pdftotext`, lecture
+intégrale avant implémentation). Détail complet (armes/armures/capacités/talents 2d6) dans
 `CLASSES_DATA`/`TITRES` (`index.html`) ; résumé ci-dessous. Les 3 derniers numéros (#4-6)
 sont en anglais dans l'édition fournie — **noms de classe traduits par mes soins, pas de VF
 officielle disponible pour ces suppléments tiers.**

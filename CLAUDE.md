@@ -35,17 +35,43 @@ Aucun build, aucun test automatisé, aucun linter configuré — c'est un site s
 
 ## Dépôt et workflow git
 
-Le dépôt de référence est sur **GitLab** (`https://gitlab.com/ragoudcep/SHADOWDARK-CODEX.git`),
-migré depuis GitHub. Il est **public en lecture** (clone anonyme possible, aucun token requis
-pour lire/cloner) mais une session Claude Code n'a en général **pas d'accès en écriture**
-(pas de credentials GitLab configurés par défaut). Si le push échoue ou qu'aucun accès n'est
-configuré :
-1. Committer localement comme d'habitude.
-2. Donner à Tristan soit un patch (`git format-patch`), soit directement le fichier modifié,
-   pour qu'il l'applique et pousse depuis sa machine (`git am le-patch.patch && git push`, ou
-   remplacement manuel du fichier + `git add`/`commit`/`push`).
-3. Ne pas supposer qu'un token va être fourni — proposer d'abord le clone en lecture seule et
-   le flux « patch/fichier à appliquer », qui ne nécessite aucun secret partagé.
+Le dépôt de référence est sur **GitLab** :
+`https://gitlab.com/ragoudcep/SHADOWDARK-CODEX.git`
+
+**À lire avant de parler de git à Tristan — ne pas lui reposer ces questions :**
+
+- **On utilise GitLab, pas GitHub.** Le `origin` d'une session Claude Code pointe souvent vers
+  l'ancien miroir GitHub (`github.com/ragoudcep/SHADOWDARK-CODEX`) : c'est un **artefact de
+  l'environnement**, pas la destination. Ne jamais proposer de pousser sur GitHub, ne jamais
+  demander « sur quel dépôt ? », ne jamais demander l'URL GitLab — elle est ci-dessus.
+- **Le dépôt est public en lecture** : `git clone https://gitlab.com/ragoudcep/SHADOWDARK-CODEX.git`
+  fonctionne sans token. **Toujours commencer par comparer la copie de travail à GitLab**
+  (`git remote add gitlab <url> && git fetch gitlab main`) : la copie clonée depuis GitHub peut
+  être **en retard** sur GitLab, où le vrai travail est poussé. Travailler sans ce contrôle
+  produit des patches qui ne s'appliquent pas.
+- **Une session Claude Code n'a pas les droits de push sur GitLab.** C'est Tristan qui pousse
+  depuis sa machine. Ne pas demander de token, ne pas proposer d'en configurer un.
+
+### Livraison du travail à Tristan
+
+1. Committer localement, puis produire un **diff simple** : `git diff HEAD~1 HEAD > nom.patch`.
+2. **Nom de fichier sans aucun tiret** (`tables_entetes_colonnes.patch`, pas
+   `0001-Tables-entetes.patch`) : les tirets sautent au téléchargement côté Windows et le
+   fichier devient introuvable.
+3. Envoyer le fichier avec l'outil d'envoi de fichier, pas collé dans le chat (l'encodage et
+   les fins de ligne se corrompent au copier-coller).
+4. **Toujours terminer par le bloc PowerShell prêt à coller** (Tristan est sous Windows) :
+
+```powershell
+git apply --whitespace=nowarn "nom_du_patch.patch"
+git add <fichiers modifiés>
+git commit -m "message"
+git push origin main
+```
+
+**`git am` ne marche pas ici** (les fins de ligne CRLF de Windows le font échouer avec
+« patch does not apply ») : utiliser `git apply --whitespace=nowarn`, puis `git add`/`commit`
+à la main. Ne pas proposer `git am`.
 
 **Un autre agent (« Dual ») édite potentiellement ce dépôt en parallèle** (mentionné dans
 `docs/MODULARISATION.md`). Toujours `git pull`/`git fetch` avant de commencer une session de
@@ -159,13 +185,11 @@ pattern (variable d'état + fonction `filter*()` appliquée uniquement dans les 
 
 ## Documentation interne (`docs/`)
 
-- `AUDIT.md` — méthode de vérification régulière du code + journal des passages + les points
-  d'attention structurels accumulés au fil du temps (dont le ledger de collections détaillé
-  ci-dessus).
-- `MODULARISATION.md` — analyse et plan de découpage de `index.html`, avec cartographie précise
-  (fichier → fonctions → lignes). À consulter avant tout chantier touchant à l'organisation des
-  fichiers.
-- `TODO.md` — backlog de chantiers non commencés, par onglet.
+- `AUDIT.md` — protocole de vérification, invariants et pièges connus, ledger des tables/policies
+  Supabase. L'historique des sessions passées est dans `git log`, pas ici.
+- `MODULARISATION.md` — état du découpage de `index.html` (ce qui est extrait, ce qui reste
+  inline) et règles à respecter pour continuer. À lire avant un chantier d'organisation.
+- `TODO.md` — chantiers ouverts.
 - `REGLES-CREATION-PERSONNAGE.md` — référence des règles Shadowdark utilisées par les
   générateurs aléatoires de PJ/PNJ (à consulter avant de toucher `generateRandomNPC`, la
   génération de PJ, ou les tables `ASCENDANCES`/`CLASSES_DATA`).

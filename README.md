@@ -2,11 +2,11 @@
 
 Application web (une seule page HTML) permettant de gérer une campagne de jeu de rôle **Shadowdark** : sessions, événements, tables aléatoires, point crawls, créatures, PJ, PNJ, trésors, sorts et hexcrawl.
 
-Live : https://ragoudcep.github.io/SHADOWDARK-CODEX/ 
+Live : https://shadowdark-codex-4df242.gitlab.io/ (déployé via GitLab Pages à chaque push sur `main`)
 
 ## Aperçu
 
-Le Codex est un carnet de campagne numérique partagé entre le MJ et les joueuses, avec des comptes séparés (MJ / joueuse) et une synchronisation en temps réel via Supabase. Le MJ a accès à tous les modules ; les joueuses voient uniquement le Carnet de route, le Hexcrawl et les Sorts.
+Le Codex est un carnet de campagne numérique partagé entre le MJ et les joueuses, avec des comptes séparés (MJ / joueuse) et une synchronisation en temps réel via Supabase. Le MJ a accès à tous les modules ; les joueuses voient le Carnet de route, le Hexcrawl, les Cartes de donjon, les Sorts, les PJ, l'Initiative, la Roue et l'Armurerie (dont seuls les objets explicitement partagés, malédictions masquées).
 
 ## Fonctionnalités
 
@@ -44,14 +44,16 @@ L'application ne nécessite aucune installation ni build côté lecture : ouvrez
 index.html            # application complète (structure, style et logique)
 README.md             # ce fichier
 portraits/             # bibliothèque de portraits compressés (webp) + manifest.json — référencée par l'appli
-1-foundation_*.png…    # tuiles de base du Hexcrawl (à la racine, chemins en dur dans le code — ne pas déplacer)
-deadlands/, drylands/,
-greenlands/, icelands/,
-sandlands/, Neutre/     # variantes de biomes du Hexcrawl (idem, chemins en dur)
+tuiles hexcrawl/       # images du Hexcrawl — chemins en dur dans js/hexcrawl.js, ne pas renommer
+  Fonds/                 — 5 fonds pleins de biome
+  Overlays/              — 27 overlays de terrain
+  desertPack/, forestPack/,
+  mountainPack/, tundraPack/ — packs de tuiles par biome
 
 docs/                   # documentation interne
-  AUDIT.md                — méthode d'audit du code + journal des passages
-  TODO.md                 — backlog de chantiers futurs, par onglet
+  AUDIT.md                — protocole de vérification, invariants, ledger Supabase
+  MODULARISATION.md       — état du découpage de index.html
+  TODO.md                 — chantiers ouverts
   REGLES-CREATION-PERSONNAGE.md — référence des règles utilisées par les générateurs PJ/PNJ
 
 outils/                 # scripts utilitaires
