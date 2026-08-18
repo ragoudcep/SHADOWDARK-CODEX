@@ -249,7 +249,7 @@
 
   /* ---------- Fiche PJ graphique (2026-08-13) — cases cliquables, inspirée de la mise en page
      d'une feuille de perso Shadowdark (colonnes encadrées, bandeaux de section noirs). ---------- */
-  .pc-sheet{display:grid; grid-template-columns:1fr 1fr 1.35fr; gap:.9rem; align-items:start; margin-top:.8rem}
+  .pc-sheet{display:grid; grid-template-columns:.9fr .9fr 1.3fr 1fr; gap:.9rem; align-items:start; margin-top:.8rem}
   .pc-sheet-col{display:flex; flex-direction:column; gap:.7rem; min-width:0}
   .sheet-box{border:1px solid var(--border2); border-radius:8px; background:var(--panel); padding:.55rem .7rem; position:relative}
   .sheet-box .lbl{font-family:var(--ui); font-size:.66rem; text-transform:uppercase; letter-spacing:1.2px; color:var(--gold); display:block; margin-bottom:.15rem}
@@ -275,8 +275,8 @@
   .sheet-box.sheet-panel{padding-top:0}
   .sheet-gear-list{font-family:var(--ui); font-size:.85rem; margin:0; padding-left:1.1rem}
   .sheet-gear-list li{margin:.15rem 0}
-  @media (max-width:900px){ .pc-sheet{grid-template-columns:1fr 1fr} .pc-sheet-col:nth-child(3){grid-column:1/-1} }
-  @media (max-width:600px){ .pc-sheet{grid-template-columns:1fr} .pc-sheet-col:nth-child(3){grid-column:auto} }
+  @media (max-width:1100px){ .pc-sheet{grid-template-columns:1fr 1fr} }
+  @media (max-width:600px){ .pc-sheet{grid-template-columns:1fr} }
   .ab .v{font-size:1.2rem; font-weight:700; color:var(--text)}
   .attack-row{padding:.4rem 0; border-top:1px dashed var(--border); font-family:var(--ui); font-size:.88rem}
   .attack-row:first-child{border-top:none}

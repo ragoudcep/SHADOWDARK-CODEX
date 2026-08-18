@@ -3669,12 +3669,14 @@ function detailPC(p){
       <div class="prose" style="font-family:var(--ui);font-size:.85rem">${renderText(d.info)}</div>
     </div>`:""}
   </div>`;
-  const rightCol = `<div class="pc-sheet-col">
+  const talentsCol = `<div class="pc-sheet-col">
     <div class="sheet-box sheet-panel">
       <div class="sheet-banner">Talents / Sorts</div>
       ${pcClassSectionHTML(d)}
       ${restSkills.length?`<div style="${CLASS_SUBLABEL_STYLE}">Compétences</div>${renderBullets(restSkills.join("\n"))}`:""}
     </div>
+  </div>`;
+  const equipCol = `<div class="pc-sheet-col">
     <div class="sheet-box sheet-panel">
       <div class="sheet-banner">Équipement porté</div>
       <p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:0 0 .5rem">Détermine la CA et le bonus d'attaque/dégâts ci-dessus — clique 🎲 sur la case CA pour la recalculer après un changement.</p>
@@ -3703,6 +3705,7 @@ function detailPC(p){
       ${d.inventory?`<ol class="sheet-gear-list">${String(d.inventory).split(/\r?\n/).filter(l=>l.trim()).map(l=>`<li>${renderText(l)}</li>`).join("")}</ol>`:'<p class="faint" style="font-family:var(--ui);font-size:.85rem">(vide)</p>'}
     </div>
   </div>`;
+  const rightCol = talentsCol + equipCol;
   app.innerHTML = `<div class="detail">
     <button class="back" data-back="1">← PJ</button>
     <span class="tag pc">PJ</span>
