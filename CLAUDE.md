@@ -11,8 +11,8 @@ Voir `README.md` pour la liste complète des fonctionnalités (sessions, tables 
 événements, point crawl, créatures, sorts, PJ, PNJ, portraits, hexcrawl, cartes de donjon,
 trésor, carnet de route, liens croisés `[[Nom]]`, recherche globale, import/export XML/JSON).
 
-Live : https://ragoudcep.github.io/SHADOWDARK-CODEX/ (ancien déploiement GitHub Pages —
-le dépôt de référence est maintenant sur GitLab, voir « Dépôt et workflow git » plus bas).
+Live : https://shadowdark-codex-4df242.gitlab.io/ (déployé via GitLab Pages à chaque push
+sur `main` — voir « Dépôt et workflow git » plus bas).
 
 ## Commandes
 
@@ -35,25 +35,42 @@ Aucun build, aucun test automatisé, aucun linter configuré — c'est un site s
 
 ## Dépôt et workflow git
 
-Le dépôt de référence est sur **GitLab** :
+Le dépôt de référence est **uniquement GitLab** :
 `https://gitlab.com/ragoudcep/SHADOWDARK-CODEX.git`
 
-**À lire avant de parler de git à Tristan — ne pas lui reposer ces questions :**
+GitHub n'existe plus dans ce workflow (ancien miroir abandonné) — l'ignorer complètement :
+ne jamais le mentionner, ne jamais proposer de pousser dessus, ne jamais comparer dessus.
+Si un `origin` pointe vers GitHub dans le dossier de travail, c'est qu'on est dans le **mauvais
+dossier** (un vieux clone), pas un cas à gérer — il faut retrouver/utiliser le dossier dont
+`origin` pointe vers gitlab.com.
 
-- **On utilise GitLab, pas GitHub.** Le `origin` d'une session Claude Code pointe souvent vers
-  l'ancien miroir GitHub (`github.com/ragoudcep/SHADOWDARK-CODEX`) : c'est un **artefact de
-  l'environnement**, pas la destination. Ne jamais proposer de pousser sur GitHub, ne jamais
-  demander « sur quel dépôt ? », ne jamais demander l'URL GitLab — elle est ci-dessus.
-- **Le dépôt est public en lecture** : `git clone https://gitlab.com/ragoudcep/SHADOWDARK-CODEX.git`
-  fonctionne sans token. **Toujours commencer par comparer la copie de travail à GitLab**
-  (`git remote add gitlab <url> && git fetch gitlab main`) : la copie clonée depuis GitHub peut
-  être **en retard** sur GitLab, où le vrai travail est poussé. Travailler sans ce contrôle
-  produit des patches qui ne s'appliquent pas.
-- **Une session Claude Code n'a pas les droits de push sur GitLab.** C'est Tristan qui pousse
-  depuis sa machine. Ne pas demander de token, ne pas proposer d'en configurer un.
+**Committer est toujours possible** (`git commit` est purement local, n'a jamais besoin
+d'authentification), quelle que soit la machine sur laquelle tourne la session.
 
-### Livraison du travail à Tristan
+### Pousser (`git push`) — deux cas très différents, à distinguer clairement
 
+**1. Session lancée sur le PC de Tristan (« cette tour »)** — le cas normal.
+Git Credential Manager y garde un token OAuth GitLab en cache (Gestionnaire d'identifiants
+Windows, `credential.helper=manager` — visible via `cmdkey /list`, cible
+`git:https://gitlab.com`, utilisateur `oauth2`, avec un refresh token qui se renouvelle
+seul). Une session Claude Code qui tourne sur cette machine partage cette session Windows :
+elle *peut* donc techniquement committer **et pousser**, avec les identifiants de Tristan,
+sans qu'on lui donne rien explicitement — ce n'est pas un accès propre à Claude, c'est un
+emprunt silencieux de l'identité de Tristan.
+Décision explicite de Tristan (2026-08-18) : **ne jamais pousser automatiquement**, même
+quand c'est techniquement possible. Committer en local, puis donner à Tristan la commande à
+coller lui-même :
+```powershell
+git push origin main
+```
+Le contrôle sur ce qui part réellement sur GitLab doit rester un geste conscient de sa part,
+pas une exécution automatique côté agent.
+
+**2. Session lancée ailleurs (Tristan absent de ce PC)** — pas d'accès au token ci-dessus.
+Committer reste possible, mais pousser ne l'est pas sans que Tristan fournisse explicitement
+un accès pour cette session (de préférence un token à courte durée de vie) — ne jamais
+supposer qu'un tel accès existe par défaut, ne jamais en redemander un « au cas où ». Pour
+livrer le travail sans accès push :
 1. Committer localement, puis produire un **diff simple** : `git diff HEAD~1 HEAD > nom.patch`.
 2. **Nom de fichier sans aucun tiret** (`tables_entetes_colonnes.patch`, pas
    `0001-Tables-entetes.patch`) : les tirets sautent au téléchargement côté Windows et le
