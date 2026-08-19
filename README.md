@@ -1,3 +1,6 @@
+> ⚠️ **Ce dépôt GitHub est un ancien miroir abandonné.** Le dépôt de référence est sur GitLab :
+> https://gitlab.com/ragoudcep/SHADOWDARK-CODEX.git
+
 # Codex — Gestionnaire de campagne Shadowdark
 
 Application web (une seule page HTML) permettant de gérer une campagne de jeu de rôle **Shadowdark** : sessions, événements, tables aléatoires, point crawls, créatures, PJ, PNJ, trésors, sorts et hexcrawl.
