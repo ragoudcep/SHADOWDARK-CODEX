@@ -2505,3 +2505,47 @@ bien le brouillon sans toucher `db.pcs` ; même test sur les Caractéristiques (
 inputs, reconversion correcte en `"18 (+4)"`) ; case CA a bien un bouton 🎲 mais pas de case
 valeur cliquable ; recalcul CA donne `10 + mod. DEX` correct ; portrait vérifié en première
 position du premier enfant de la colonne de gauche (avant la case Caractéristiques).
+
+## PJ — doublon « Nouveau PJ » / « Créer un personnage » (2026-08-19, audit demandé par Tristan)
+
+**Constat.** Sur l'onglet PJ (`listPCs()`, ~l.2916), deux boutons MJ mènent tous les deux à la
+création d'un PJ vierge, avec un chevauchement fonctionnel quasi total :
+
+1. **« ✦ Nouveau PJ »** — bouton générique du header de liste (`pageHead()`, ~l.551, rendu
+   partagé par tous les onglets via `data-new="1"`). Bascule `view.mode="new"` puis ouvre
+   `formPC()` (~l.3302) : formulaire classique entièrement vide, avec un bouton 🎲 de relance
+   à côté de chaque champ (`rerollBtn()`) et un bouton global 🎲 sur les 6 caractéristiques.
+   Rien n'est enregistré tant que « Enregistrer » n'est pas cliqué.
+2. **« 🧭 Créer un personnage »** — bouton spécifique à l'onglet PJ (`data-pc-wizard-start="1"`,
+   ~l.2918), lance `startPCWizard()` → `view.mode="wizard"`. Assistant pas-à-pas (Ascendance →
+   Classe → Caractéristiques → Historique/Talent → Équipement) où chaque étape propose
+   Garder / Relancer / Saisir moi-même, avec un récapitulatif qui reste affiché en permanence.
+   Rien n'est enregistré tant que « Enregistrer ce personnage » (dernière étape) n'est pas
+   cliqué.
+
+Les deux chemins retombent donc sur le même besoin (« créer un PJ de zéro, au choix par
+tirage ou saisie manuelle, sauvegarde différée ») avec la même mécanique de fond (moteur de
+tirage partagé `rollAscendance()`/`rollClass()`/etc., voir section « PJ — assistant de création
+pas-à-pas » plus haut). Le formulaire manuel ne fait rien que l'assistant ne sache pas faire
+en choisissant « Saisir moi-même » à chaque étape — sauf pour les champs 100 % texte libre déjà
+identifiés à l'époque (inventaire détaillé, notes, arme maîtrisée, images), qui restent de
+toute façon accessibles après coup via « ✎ Modifier » sur la fiche (qui ouvre aussi `formPC()`,
+mode `edit`).
+
+Ce doublon avait été **explicitement accepté** à l'implémentation de l'assistant (2026-08-12,
+section « PJ — assistant de création pas-à-pas » ci-dessus : « les trois chemins de création
+coexistent, rien n'a été retiré ») pour rester dans le temps imparti — pas un oubli, mais un
+report de décision.
+
+**Point d'attention pour un futur retrait de « Nouveau PJ » :** `data-new`/`view.mode="new"`
+et `formPC()` sont **partagés avec sept autres onglets** (Événements, Tables, Créatures,
+Sessions, PNJ, Trésors, Sorts — voir les occurrences de `view.mode==="new"` dans `index.html`)
+et avec le mode `edit` d'un PJ existant. Retirer le bouton pour les PJ signifie donc seulement
+ne plus **afficher** l'appel `pageHead("Personnages-joueurs (PJ)", ..., "Nouveau PJ", genBtn)`
+avec ce libellé sur cet onglet précis (ou passer `newLabel`/masquer le bouton via un paramètre
+dédié à `pageHead()`) — sans toucher `formPC()` ni `data-new` eux-mêmes, qui restent
+nécessaires pour les autres onglets et pour l'édition d'un PJ existant.
+
+**Décision de Tristan (2026-08-19) :** retirer le bouton « Nouveau PJ » de l'onglet PJ,
+l'assistant « Créer un personnage » devenant le seul point d'entrée pour la création d'un PJ
+neuf. Mise en œuvre en attente de confirmation (audit seul demandé dans un premier temps).
