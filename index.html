@@ -2948,6 +2948,33 @@ function classAllowedArmor(cd){
   return list.length>1 ? list : [ARMOR_DATA[0], ...ARMOR_DATA.filter(a=>a.id!=="none")];
 }
 function classAllowsShield(cd){ return !cd || !cd.armor || /boucliers?/i.test(cd.armor); }
+/* Restriction armure/arme/bouclier sur la fiche PJ elle-même (2026-08-19, retour de Tristan :
+   une Sorcière pouvait s'équiper d'une armure de plates depuis la case "Équipement porté", alors
+   que sa classe ne l'autorise pas) — jusqu'ici classAllowedArmor/classAllowedWeapons/
+   classAllowsShield n'étaient utilisées qu'à la création (assistant pas-à-pas) ; ces wrappers les
+   réutilisent pour le sélecteur d'équipement de la fiche déjà créée. On garde toujours la valeur
+   actuellement équipée dans la liste même si elle n'est plus autorisée (personnage créé avant ce
+   correctif, ou future capacité de classe/talent qui débloquerait une exception) : le but est
+   d'empêcher de choisir un NOUVEL équipement interdit, pas d'effacer silencieusement un état
+   existant. Pas encore de prise en compte des talents qui élargiraient ces listes en cours de
+   partie (mentionné par Tristan comme point à vérifier plus tard, cas par cas). */
+function pcArmorOptions(cd, currentArmorId){
+  const list = classAllowedArmor(cd);
+  if(currentArmorId && !list.some(a=>a.id===currentArmorId)){
+    const cur = ARMOR_DATA.find(a=>a.id===currentArmorId);
+    if(cur) return [...list, cur];
+  }
+  return list;
+}
+function pcWeaponOptions(cd, currentWeaponId){
+  const list = classAllowedWeapons(cd);
+  if(currentWeaponId && !list.some(w=>w.id===currentWeaponId)){
+    const cur = WEAPONS_DATA.find(w=>w.id===currentWeaponId);
+    if(cur) return [...list, cur];
+  }
+  return list;
+}
+function pcShieldAllowed(cd, d){ return classAllowsShield(cd) || !!(d && d.equippedShield); }
 /* Tirage d'équipement de départ : une armure (pondérée vers "sans armure"/légère, cohérent avec un
    personnage niveau 1 qui n'a pas forcément les moyens d'une armure de plates à 130 po), un
    bouclier si la classe l'autorise (1 chance sur 3), une arme au hasard parmi celles permises. */
@@ -3792,19 +3819,19 @@ function detailPC(p){
       <div class="sheet-banner">Équipement porté</div>
       <div class="row" style="gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
         <div class="field" style="flex:1 1 160px;margin:0"><label style="font-size:.75rem">Armure</label>
-          <select data-pc-armor="1">${ARMOR_DATA.map(a=>`<option value="${a.id}" ${(d.equippedArmor||"none")===a.id?"selected":""}>${esc(a.name)}</option>`).join("")}</select></div>
+          <select data-pc-armor="1">${pcArmorOptions(cd, d.equippedArmor).map(a=>`<option value="${a.id}" ${(d.equippedArmor||"none")===a.id?"selected":""}>${esc(a.name)}</option>`).join("")}</select></div>
         <div class="field" style="flex:0 1 100px;margin:0"><label style="font-size:.75rem">Bonus magique</label>
           <input type="text" data-pc-armor-bonus="1" value="${d.armorMagicBonus?esc(String(d.armorMagicBonus)):""}" placeholder="+0"></div>
       </div>
-      <label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.82rem;margin-bottom:.5rem;cursor:pointer">
-        <input type="checkbox" data-pc-shield="1" ${d.equippedShield?"checked":""} style="width:auto"> Bouclier (+2 CA)
+      <label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.82rem;margin-bottom:.5rem;cursor:${pcShieldAllowed(cd,d)?"pointer":"not-allowed"};${pcShieldAllowed(cd,d)?"":"opacity:.55"}" title="${pcShieldAllowed(cd,d)?"":"Cette classe n'autorise pas les boucliers"}">
+        <input type="checkbox" data-pc-shield="1" ${d.equippedShield?"checked":""} ${pcShieldAllowed(cd,d)?"":"disabled"} style="width:auto"> Bouclier (+2 CA)
         ${d.equippedShield?`<input type="text" data-pc-shield-bonus="1" value="${d.shieldMagicBonus?esc(String(d.shieldMagicBonus)):""}" placeholder="+0" style="width:4rem">`:""}
       </label>
       <div id="pc-weapons-wrap">
         ${(d.weapons||[]).map((w,i)=>`<div class="row" style="gap:.4rem;align-items:flex-end;margin-bottom:.4rem">
           <div class="field" style="flex:1 1 140px;margin:0"><select data-pc-weapon-select="${i}">
             <option value="">— Choisir une arme —</option>
-            ${WEAPONS_DATA.map(wd=>`<option value="${wd.id}" ${w.weaponId===wd.id?"selected":""}>${esc(wd.name)} (${wd.damage})</option>`).join("")}
+            ${pcWeaponOptions(cd, w.weaponId).map(wd=>`<option value="${wd.id}" ${w.weaponId===wd.id?"selected":""}>${esc(wd.name)} (${wd.damage})</option>`).join("")}
           </select></div>
           <div class="field" style="flex:0 1 80px;margin:0"><input type="text" data-pc-weapon-bonus="${i}" value="${w.magicBonus?esc(String(w.magicBonus)):""}" placeholder="+0"></div>
           <button type="button" class="btn danger sm" data-pc-weapon-remove="${i}">✕</button>
