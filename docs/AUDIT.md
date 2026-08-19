@@ -2548,4 +2548,27 @@ nécessaires pour les autres onglets et pour l'édition d'un PJ existant.
 
 **Décision de Tristan (2026-08-19) :** retirer le bouton « Nouveau PJ » de l'onglet PJ,
 l'assistant « Créer un personnage » devenant le seul point d'entrée pour la création d'un PJ
-neuf. Mise en œuvre en attente de confirmation (audit seul demandé dans un premier temps).
+neuf. Tristan tient en revanche à conserver l'apparence dorée (bouton principal `.btn`, sans
+classe `ghost`) et la position du bouton (à droite du header, dans `.page-head .hbtns`) —
+seul le libellé et le handler doivent changer.
+
+**Implémenté (2026-08-19).** `pageHead(title, sub, newLabel, extra)` (~l.551) prenait en dur
+`data-new="1"` sur le bouton doré principal ; ce handler générique (~l.4330, partagé par les
+8 onglets à formulaire) bascule vers `view.mode="new"` → `formPC()` vide. Ajout d'un 5ᵉ
+paramètre optionnel `newBtnAttrs` (défaut `'data-new="1"'` si omis, donc **aucun changement
+pour les 7 autres onglets** qui continuent d'appeler `pageHead()` avec seulement 4 arguments).
+Dans `listPCs()` (~l.2916) : le bouton fantôme `data-pc-wizard-start` a été retiré de `genBtn`
+(qui ne garde plus que « 🎲 Générer un PJ aléatoire », « 🖨 Imprimer des fiches » et le filtre
+favoris) et l'appel devient `pageHead("Personnages-joueurs (PJ)", ..., "Créer un personnage",
+genBtn, 'data-pc-wizard-start="1"')` — le bouton doré affiche donc désormais « ✦ Créer un
+personnage » et déclenche `startPCWizard()` (le handler `data-pc-wizard-start` existant,
+~l.4370, n'a pas eu besoin d'être modifié). `formPC()`, `data-new` et le mode `edit` d'un PJ
+existant (« ✎ Modifier ») restent intacts et inchangés pour tous les autres usages.
+
+**Testé** : `pageHead()` extraite et exécutée en isolation (Node) avec `effectiveRole()` figé
+sur `"gm"` — l'en-tête PJ produit bien `<button class="btn" data-pc-wizard-start="1">✦ Créer
+un personnage</button>` (même classe `btn` que l'ancien bouton « Nouveau PJ », donc même
+rendu doré), tandis que l'en-tête d'un autre onglet (Événements, appelé sans le 5ᵉ argument)
+produit toujours `<button class="btn" data-new="1">✦ Nouvel événement</button>`, inchangé.
+Recherche de `"Nouveau PJ"` dans `index.html` : ne reste que dans les commentaires de code
+expliquant le changement, plus aucune occurrence dans le HTML généré.

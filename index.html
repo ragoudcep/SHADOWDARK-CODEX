@@ -548,10 +548,15 @@ function renderList(){
 <script src="js/cursedscroll.js"></script>
 <script>
 
-function pageHead(title, sub, newLabel, extra){
+function pageHead(title, sub, newLabel, extra, newBtnAttrs){
+  // newBtnAttrs (2026-08-19, audit docs/AUDIT.md « PJ — doublon Nouveau PJ / Créer un
+  // personnage ») : permet à un onglet de rediriger le bouton doré principal vers un autre
+  // handler que le générique data-new="1" (utilisé par l'onglet PJ pour pointer vers
+  // l'assistant data-pc-wizard-start au lieu du formulaire manuel vide) — les autres onglets
+  // ne passent pas ce paramètre et gardent data-new="1" par défaut.
   return `<div class="page-head">
     <div><h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div>
-    ${effectiveRole()==="gm" ? `<div class="hbtns">${extra||""}<button class="btn" data-new="1">✦ ${esc(newLabel)}</button></div>` : ""}
+    ${effectiveRole()==="gm" ? `<div class="hbtns">${extra||""}<button class="btn" ${newBtnAttrs||'data-new="1"'}>✦ ${esc(newLabel)}</button></div>` : ""}
   </div>`;
 }
 function emptyState(icon, msg){ return `<div class="empty"><span class="big">${icon}</span>${esc(msg)}</div>`; }
@@ -2915,10 +2920,14 @@ function generateRandomPC(){
 
 function listPCs(){
   const items = filterFavorites(filterGmCreated(db.pcs), pcFavOnly);
-  const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-pc-wizard-start="1">🧭 Créer un personnage</button>
-    <button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
+  // Bouton doré principal = l'assistant pas-à-pas (data-pc-wizard-start), plus le formulaire
+  // manuel vide (data-new/"Nouveau PJ" — supprimé le 2026-08-19, voir docs/AUDIT.md « PJ —
+  // doublon Nouveau PJ / Créer un personnage » : les deux menaient à la même chose, l'assistant
+  // couvre déjà la saisie manuelle champ par champ via « Saisir moi-même »). formPC() reste
+  // disponible pour éditer une fiche existante via « ✎ Modifier ».
+  const genBtn = effectiveRole()==="gm" ? `<button class="btn ghost sm" data-gen-pc="1">🎲 Générer un PJ aléatoire</button>
     <button class="btn ghost sm" data-print-pcs="1">🖨 Imprimer des fiches</button>${favFilterBtnHTML("pc",pcFavOnly)}` : "";
-  app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Nouveau PJ", genBtn) +
+  app.innerHTML = pageHead("Personnages-joueurs (PJ)", `${items.length} PJ`, "Créer un personnage", genBtn, 'data-pc-wizard-start="1"') +
     (items.length ? `<div class="grid">${items.map(p=>`
       <div class="card" data-open="pc:${p.id}">
         ${favStarHTML("pc",p.id,p.favorite)}
