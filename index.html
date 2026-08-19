@@ -1947,7 +1947,7 @@ function printClassBlock(p){
     }
   }
   let weaponLine = "";
-  if(p.masteredWeapon && p.masteredWeapon.trim()){
+  if(cd.weaponMastery && p.masteredWeapon && p.masteredWeapon.trim()){
     const bonus = 1 + Math.floor((parseInt(p.level)||1)/2);
     weaponLine = `<p><b>Arme maîtrisée</b> : ${esc(p.masteredWeapon)} (+${bonus} attaque/dégâts)</p>`;
   }
@@ -2338,6 +2338,10 @@ const MENTORS = {
 const CLASSES_DATA = {
   "Guerrier": {
     hitDie:8, weapons:"Toutes.", armor:"Toutes les armures, tous les boucliers.",
+    // weaponMastery (2026-08-19, audit de Tristan) : seule classe avec la capacité "Maîtrise
+    // des armes" dans CLASSES_DATA — gate le champ/bonus "Arme maîtrisée" partout ailleurs
+    // dans le code (avant ça, n'importe quelle classe pouvait se donner ce bonus d'attaque).
+    weaponMastery:true,
     feature:[
       {name:"Maîtrise des armes", text:"+1 aux jets d'attaque et de dégâts avec un type d'arme choisi, plus la moitié du niveau arrondi à l'entier inférieur."},
       {name:"Cran", text:"Avantage aux jets de Force ou Dextérité destinés à triompher d'une force opposée."},
@@ -2913,7 +2917,11 @@ function weaponLoadoutLine(w, d){
   const wd = WEAPONS_DATA.find(x=>x.id===w.weaponId);
   if(!wd) return null;
   const magic = Number(w.magicBonus)||0;
-  const mastery = (d.masteredWeapon && d.masteredWeapon.trim().toLowerCase()===wd.name.toLowerCase())
+  // Bonus de maîtrise réservé aux classes ayant réellement la capacité "Maîtrise des armes"
+  // (CLASSES_DATA[cls].weaponMastery, 2026-08-19, audit de Tristan) — avant ce garde-fou,
+  // n'importe quelle classe pouvait remplir "Arme maîtrisée" et obtenir un bonus non mérité.
+  const cdWM = CLASSES_DATA[d.cls];
+  const mastery = (cdWM && cdWM.weaponMastery && d.masteredWeapon && d.masteredWeapon.trim().toLowerCase()===wd.name.toLowerCase())
     ? 1+Math.floor((parseInt(d.level)||1)/2) : 0;
   const atk = weaponAttackAbilityMod(wd,d) + magic + mastery;
   const dmg = wd.damage + (magic ? (magic>0?"+":"")+magic : "");
@@ -3243,6 +3251,9 @@ function pcWizardManualHTML(id, d, currentValue){
     case "languages": return `<div class="field"><label>Langues <span class="hint">(séparées par des virgules)</span></label><input type="text" id="wiz-in" value="${esc((currentValue||[]).join(", "))}"></div>`;
     case "deity": return `<div class="field"><label>Divinité</label><input type="text" id="wiz-in" list="wiz-deities" value="${esc(currentValue||"")}"><datalist id="wiz-deities">${DIVINITES.map(dv=>`<option value="${esc(dv.name)}">`).join("")}</datalist></div>`;
     case "mentor": return `<div class="field"><label>Mentor</label><select id="wiz-in">${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${currentValue===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>`;
+    // Choix restreint aux armes autorisées à la classe (2026-08-19, audit de Tristan) — même
+    // logique que l'étape "equipment" juste en dessous.
+    case "masteredWeapon": { const weapons=classAllowedWeapons(CLASSES_DATA[d.cls]); return `<div class="field"><label>Arme maîtrisée</label><select id="wiz-in">${weapons.map(w=>`<option value="${esc(w.name)}" ${currentValue===w.name?"selected":""}>${esc(w.name)}</option>`).join("")}</select></div>`; }
     case "spells": return `<div class="field"><label>Sorts <span class="hint">(un par ligne)</span></label><textarea id="wiz-in">${esc((currentValue||[]).join("\n"))}</textarea></div>`;
     case "gold": return `<div class="field"><label>Or de départ (po)</label><input type="number" id="wiz-in" value="${esc(currentValue||0)}"></div>`;
     case "equipment": {
@@ -3270,6 +3281,7 @@ function pcWizardReadManual(id, d){
     case "languages": return $("#wiz-in").value.split(",").map(s=>s.trim()).filter(Boolean);
     case "deity": return $("#wiz-in").value.trim();
     case "mentor": return $("#wiz-in").value;
+    case "masteredWeapon": return $("#wiz-in").value;
     case "spells": return $("#wiz-in").value.split("\n").map(s=>s.trim()).filter(Boolean);
     case "gold": return Math.max(0, parseInt($("#wiz-in").value)||0);
     case "equipment": {
@@ -3495,7 +3507,7 @@ function formPC(){
     <div class="row">
       <div class="field"><label>Langues ${rerollBtn("languages")} <span class="hint">(commune + tirages/choix)</span></label><input type="text" id="f-languages" value="${esc(p.languages||"")}" placeholder="Langue commune, Elfique…"></div>
       <div class="field"><label>Divinité ${rerollBtn("deity")} <span class="hint">(surtout pour un Prêtre)</span></label><input type="text" id="f-deity" list="pc-deities" value="${esc(p.deity||"")}" placeholder="Sainte Terragnis…"><datalist id="pc-deities">${DIVINITES.map(d=>`<option value="${esc(d.name)}"></option>`).join("")}</datalist></div>
-      <div class="field"><label>Arme maîtrisée <span class="hint">(surtout pour un Guerrier)</span></label><input type="text" id="f-masteredWeapon" value="${esc(p.masteredWeapon||"")}" placeholder="Épée longue…"></div>
+      <div class="field${(CLASSES_DATA[p.cls]&&CLASSES_DATA[p.cls].weaponMastery)?"":" hidden"}" id="masteredweapon-field"><label>Arme maîtrisée</label><input type="text" id="f-masteredWeapon" value="${esc(p.masteredWeapon||"")}" placeholder="Épée longue…"></div>
       <div class="field${(CLASSES_DATA[p.cls]&&CLASSES_DATA[p.cls].usesMentor)?"":" hidden"}" id="mentor-field"><label>Mentor ${rerollBtn("mentor")}</label><select id="f-mentor"><option value="">— Aucun —</option>${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${p.mentor===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
     </div>
     <div class="field"><label>Compétences ${rerollBtn("origin","Ajouter une origine tirée au hasard")} <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
@@ -3524,6 +3536,12 @@ function formPC(){
     const mf = document.getElementById("mentor-field");
     if(mf) mf.classList.toggle("hidden", !usesMentor);
     if(!usesMentor){ const ms=document.getElementById("f-mentor"); if(ms) ms.value=""; }
+    // Même bascule pour "Arme maîtrisée" (2026-08-19, audit de Tristan) — n'a de sens que pour
+    // une classe avec weaponMastery (Guerrier), même logique que le champ Mentor ci-dessus.
+    const hasWM = !!(cd && cd.weaponMastery);
+    const wmf = document.getElementById("masteredweapon-field");
+    if(wmf) wmf.classList.toggle("hidden", !hasWM);
+    if(!hasWM){ const wi=document.getElementById("f-masteredWeapon"); if(wi) wi.value=""; }
   });
 }
 /* Relance un champ du formulaire PJ (bouton 🎲 à côté du label, voir formPC()) en réutilisant le
@@ -3638,7 +3656,7 @@ function pcClassSectionHTML(p){
     }
   }
   let weaponBlock = "";
-  if(p.masteredWeapon && p.masteredWeapon.trim()){
+  if(cd.weaponMastery && p.masteredWeapon && p.masteredWeapon.trim()){
     const bonus = 1 + Math.floor((parseInt(p.level)||1)/2);
     weaponBlock = `<p style="font-family:var(--ui);font-size:.9rem;margin:.4rem 0"><b>Arme maîtrisée</b> : ${esc(p.masteredWeapon)} (+${bonus} aux jets d'attaque et de dégâts avec cette arme)</p>`;
   }
@@ -3686,7 +3704,7 @@ let pcSheetDraft = null; // { ...champs du PJ..., id } — brouillon local de la
 let pcSheetManualField = null;
 // Champs qui proposent une saisie manuelle en plus de la relance — réutilise le même gabarit
 // d'input que l'assistant pas-à-pas (pcWizardManualHTML/pcWizardReadManual, voir plus haut).
-const PC_SHEET_MANUAL_KINDS = new Set(["name","ancestry","cls","alignment","origin","languages","deity","mentor","hp","abilities"]);
+const PC_SHEET_MANUAL_KINDS = new Set(["name","ancestry","cls","alignment","origin","languages","deity","mentor","hp","abilities","masteredWeapon"]);
 function pcOriginLine(skills){ return firstLine(skills); }
 function pcSetOriginLine(skills, newOrigin){
   const lines = String(skills||"").split(/\r?\n/);
@@ -3709,6 +3727,7 @@ function pcSheetManualCurrentValue(kind, d){
     case "languages": return String(d.languages||"").split(",").map(s=>s.trim()).filter(Boolean);
     case "deity": return d.deity;
     case "mentor": return d.mentor;
+    case "masteredWeapon": return d.masteredWeapon;
   }
 }
 /* Applique une valeur saisie manuellement (lue par pcWizardReadManual) au brouillon de la
@@ -3726,6 +3745,7 @@ function applyPCSheetManualValue(kind, d, raw){
     case "languages": d.languages = raw.join(", "); break;
     case "deity": d.deity = raw; break;
     case "mentor": d.mentor = raw; break;
+    case "masteredWeapon": d.masteredWeapon = raw; break;
   }
 }
 function detailPC(p){
@@ -3767,7 +3787,7 @@ function detailPC(p){
   const sgn = m=>(m>=0?"+":"")+m;
   const weaponLoadout = (d.weapons||[]).map(w=>weaponLoadoutLine(w,d)).filter(Boolean);
   const weaponBlock = [
-    d.masteredWeapon
+    (cd && cd.weaponMastery && d.masteredWeapon)
       ? `${esc(d.masteredWeapon)} (maîtrisée) : +${1+Math.floor((parseInt(d.level)||1)/2)}`
       : (cd ? `Armes autorisées : ${esc(cd.weapons)}` : "—"),
     ...weaponLoadout.map(w=>`${esc(w.name)} : attaque ${sgn(w.atk)}, dégâts ${esc(w.dmg)}`)
@@ -3815,6 +3835,7 @@ function detailPC(p){
       <span class="lbl">Attaques</span>
       <div class="val" style="font-size:.9rem">${weaponBlock}${spellCastLine?`<br>${spellCastLine}`:""}</div>
     </div>
+    ${(cd&&cd.weaponMastery)?box("Arme maîtrisée", esc(d.masteredWeapon||"—"), "masteredWeapon"):""}
     <div class="sheet-box sheet-panel">
       <div class="sheet-banner">Équipement porté</div>
       <div class="row" style="gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
@@ -3950,6 +3971,12 @@ function handlePCSheetReroll(kind){
     }
     case "deity": d.deity = rollDeity(d.alignment); break;
     case "mentor": d.mentor = rollMentor(); break;
+    case "masteredWeapon": {
+      if(!cd || !cd.weaponMastery){ toast("Cette classe n'a pas la capacité Maîtrise des armes."); return; }
+      const weapons = classAllowedWeapons(cd);
+      d.masteredWeapon = weapons[Math.floor(Math.random()*weapons.length)].name;
+      break;
+    }
     case "gold": d.inventory = (d.inventory?d.inventory+"\n":"") + `${rollGold()} po pour acheter votre équipement de départ.`; break;
     // CA retirée d'ici (2026-08-18) : plus de bouton de relance, elle est recalculée à chaque
     // rendu de detailPC() directement depuis l'équipement/les caractéristiques — voir acValue.
