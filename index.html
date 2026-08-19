@@ -2833,6 +2833,50 @@ function rollSpellsKnown(cd, clsName){
   if(!pool.length) spellLines.push(`(Importe d'abord les sorts de ${spellClassLabel(cd.spellClass).toLowerCase()} dans l'onglet Sorts pour un tirage automatique.)`);
   return spellLines;
 }
+/* Sélecteur de sorts connus par checklist (2026-08-19, retour de Tristan : "il faut absolument
+   que la modification des sorts passe par un menu déroulant... pas par un champ de texte avec
+   balise", après avoir trouvé une Augure fichée avec des sorts de Magicien) — remplace tout
+   textarea libre de sorts par une liste à cocher restreinte à db.spells filtré sur
+   CLASSES_DATA[cls].spellClass, groupée par rang. Empêche structurellement d'assigner un sort
+   d'une autre classe. `currentText` est le texte actuellement stocké sur le PJ (une ligne par
+   sort, format "[[Nom]]" comme partout ailleurs dans l'appli) : toute ligne qui matche un sort
+   du catalogue de la classe pré-coche sa case ; toute ligne qui ne matche rien (bonus offert
+   type Renvoi des morts-vivants, sort maison non répertorié, ou sort d'une autre classe déjà
+   présent en base) est préservée telle quelle dans une zone "Autres" à part — rien n'est perdu,
+   juste plus possible d'AJOUTER un sort hors classe par erreur de frappe.
+   `checkClass`/`extraId` permettent de réutiliser ce même widget à plusieurs endroits de la
+   page (fiche PJ ET formulaire de création) sans collision d'id — voir readPcSpellsPicker(). */
+function pcSpellsPickerHTML(clsName, currentText, checkClass, extraId){
+  const cd = CLASSES_DATA[clsName];
+  const pool = (cd && cd.spellClass) ? sortSpellList(db.spells.filter(s=>s.class===cd.spellClass)) : [];
+  const lines = String(currentText||"").split(/\r?\n/).filter(l=>l.trim());
+  const knownNames = new Set();
+  const extraLines = [];
+  lines.forEach(l=>{
+    const m = l.match(/^\[\[([^\]]+)\]\]\s*$/);
+    if(m && pool.some(s=>s.name.toLowerCase()===m[1].trim().toLowerCase())) knownNames.add(m[1].trim().toLowerCase());
+    else extraLines.push(l);
+  });
+  const byTier = {};
+  pool.forEach(s=>{ (byTier[s.tier]=byTier[s.tier]||[]).push(s); });
+  const tiers = Object.keys(byTier).sort((a,b)=>(parseInt(a)||0)-(parseInt(b)||0));
+  return `<div class="field"><label>Sorts connus ${cd&&cd.spellClass?`<span class="hint">(${esc(spellClassLabel(cd.spellClass))})</span>`:""}</label>
+    ${pool.length ? `<div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:.3rem .6rem;background:var(--panel)">
+      ${tiers.map(t=>`<div style="font-family:var(--ui);font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin:.4rem 0 .15rem">Rang ${esc(t)}</div>
+        ${byTier[t].map(s=>`<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;padding:.12rem 0;cursor:pointer"><input type="checkbox" class="${checkClass}" value="${esc(s.name)}" ${knownNames.has(s.name.toLowerCase())?"checked":""} style="width:auto"> ${esc(s.name)}</label>`).join("")}`).join("")}
+    </div>` : `<p class="faint" style="font-family:var(--ui);font-size:.85rem;margin:.2rem 0">${cd&&cd.spellClass?"Aucun sort importé pour cette classe dans l'onglet Sorts.":"Choisis d'abord une classe qui lance des sorts."}</p>`}
+    <label style="display:block;margin-top:.5rem;font-family:var(--ui);font-size:.72rem;color:var(--muted)">Autres <span class="hint">(bonus offerts, sorts maison — pas dans le catalogue)</span></label>
+    <textarea id="${extraId}" style="min-height:46px">${esc(extraLines.join("\n"))}</textarea>
+  </div>`;
+}
+/* Lit l'état du widget ci-dessus et reconstruit le texte à stocker sur le PJ (même format
+   qu'avant : une ligne "[[Nom]]" par sort coché + les lignes "Autres" telles quelles). */
+function readPcSpellsPicker(checkClass, extraId){
+  const checked = [...document.querySelectorAll("."+checkClass+":checked")].map(el=>`[[${el.value}]]`);
+  const extra = document.getElementById(extraId);
+  const extraLines = extra ? extra.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean) : [];
+  return [...checked, ...extraLines].join("\n");
+}
 function rollGold(){ return rollDice(2,6)*5; }
 function computeAC(dexMod){ return 10 + dexMod; }
 /* Équipement de base (2026-08-18, sources/regles/équipement.pdf p.36-37) : règles du jeu, donc
@@ -3254,7 +3298,7 @@ function pcWizardManualHTML(id, d, currentValue){
     // Choix restreint aux armes autorisées à la classe (2026-08-19, audit de Tristan) — même
     // logique que l'étape "equipment" juste en dessous.
     case "masteredWeapon": { const weapons=classAllowedWeapons(CLASSES_DATA[d.cls]); return `<div class="field"><label>Arme maîtrisée</label><select id="wiz-in">${weapons.map(w=>`<option value="${esc(w.name)}" ${currentValue===w.name?"selected":""}>${esc(w.name)}</option>`).join("")}</select></div>`; }
-    case "spells": return `<div class="field"><label>Sorts <span class="hint">(un par ligne)</span></label><textarea id="wiz-in">${esc((currentValue||[]).join("\n"))}</textarea></div>`;
+    case "spells": return pcSpellsPickerHTML(d.cls, (currentValue||[]).join("\n"), "wiz-spell-check", "wiz-in-extra");
     case "gold": return `<div class="field"><label>Or de départ (po)</label><input type="number" id="wiz-in" value="${esc(currentValue||0)}"></div>`;
     case "equipment": {
       const cd = CLASSES_DATA[d.cls];
@@ -3282,7 +3326,7 @@ function pcWizardReadManual(id, d){
     case "deity": return $("#wiz-in").value.trim();
     case "mentor": return $("#wiz-in").value;
     case "masteredWeapon": return $("#wiz-in").value;
-    case "spells": return $("#wiz-in").value.split("\n").map(s=>s.trim()).filter(Boolean);
+    case "spells": return readPcSpellsPicker("wiz-spell-check", "wiz-in-extra").split("\n").filter(Boolean);
     case "gold": return Math.max(0, parseInt($("#wiz-in").value)||0);
     case "equipment": {
       const armorSel = document.getElementById("wiz-in-armor");
@@ -3511,7 +3555,7 @@ function formPC(){
       <div class="field${(CLASSES_DATA[p.cls]&&CLASSES_DATA[p.cls].usesMentor)?"":" hidden"}" id="mentor-field"><label>Mentor ${rerollBtn("mentor")}</label><select id="f-mentor"><option value="">— Aucun —</option>${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${p.mentor===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
     </div>
     <div class="field"><label>Compétences ${rerollBtn("origin","Ajouter une origine tirée au hasard")} <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
-    <div class="field"><label>Sortilèges ${rerollBtn("spells","Piocher des sorts de rang 1 pour la classe actuelle")} <span class="hint">(un par ligne)</span></label><textarea id="f-spells" placeholder="Lumière…&#10;Projectile magique…">${esc(p.spells)}</textarea></div>
+    <div id="spells-field">${pcSpellsPickerHTML(p.cls, p.spells, "f-spell-check", "f-spells-extra")}</div>
     <div class="row">
       <div class="field" style="flex:0 1 220px"><label>Emplacements d'inventaire ${rerollBtn("invSlots","Recalculer depuis la Force et la Constitution actuelles")} <span class="hint">(10 ou Force, la plus haute valeur)</span></label><input type="text" id="f-invSlots" value="${esc(p.invSlots||"")}" placeholder="10"></div>
     </div>
@@ -3542,6 +3586,12 @@ function formPC(){
     const wmf = document.getElementById("masteredweapon-field");
     if(wmf) wmf.classList.toggle("hidden", !hasWM);
     if(!hasWM){ const wi=document.getElementById("f-masteredWeapon"); if(wi) wi.value=""; }
+    // Le picker de sorts dépend de cd.spellClass (2026-08-19) — reconstruit entièrement son
+    // contenu au changement de classe, pas juste une bascule de visibilité (les cases à cocher
+    // proposées ne sont pas les mêmes d'une classe à l'autre). On repart d'un texte vide : les
+    // sorts déjà cochés pour l'ancienne classe n'ont de toute façon plus de sens pour la nouvelle.
+    const sf = document.getElementById("spells-field");
+    if(sf) sf.innerHTML = pcSpellsPickerHTML(clsSel.value, "", "f-spell-check", "f-spells-extra");
   });
 }
 /* Relance un champ du formulaire PJ (bouton 🎲 à côté du label, voir formPC()) en réutilisant le
@@ -3587,12 +3637,6 @@ function handlePCFieldReroll(kind){
     case "deity": $("#f-deity").value = rollDeity($("#f-align").value); break;
     case "mentor": { const sel=$("#f-mentor"); if(sel) sel.value = rollMentor(); break; }
     case "origin": { const ta=$("#f-skills"); ta.value = (ta.value?ta.value+"\n":"") + rollOrigin(); break; }
-    case "spells": {
-      if(!cd || !cd.spellClass){ toast("Cette classe ne lance pas de sorts."); return; }
-      const ta = $("#f-spells");
-      ta.value = (ta.value?ta.value+"\n":"") + rollSpellsKnown(cd, clsVal).join("\n");
-      break;
-    }
     case "gold": { const ta=$("#f-inventory"); ta.value = (ta.value?ta.value+"\n":"") + `${rollGold()} po pour acheter votre équipement de départ.`; break; }
     case "invSlots": {
       const strScore = parseInt($("#f-str").value)||10;
@@ -3615,7 +3659,7 @@ function savePC(){
   o.hpCurrent = $("#f-hpCurrent").value.trim();
   ["str","dex","con","int","wis","cha"].forEach(k=> o[k]=$("#f-"+k).value.trim());
   o.skills = $("#f-skills").value;
-  o.spells = $("#f-spells").value;
+  o.spells = readPcSpellsPicker("f-spell-check", "f-spells-extra");
   o.invSlots = $("#f-invSlots").value.trim();
   o.inventory = $("#f-inventory").value;
   o.info = $("#f-info").value;
