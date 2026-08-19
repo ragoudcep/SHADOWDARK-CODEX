@@ -19,4 +19,8 @@ Si tu es un agent (Claude ou autre) et que tu lis ce fichier depuis GitHub :
 4. Tu n'as en général pas de droit de push sur GitLab depuis une session
    pré-scopée sur GitHub — livre un patch (`git format-patch`) ou le fichier
    modifié à l'utilisateur, qui l'appliquera lui-même sur son propre clone.
+   **Renomme le fichier patch pour qu'il ne contienne aucun tiret** (le
+   téléchargement côté utilisateur les supprime, ce qui casse le nom du
+   fichier et empêche `git apply`/`git am` de le retrouver) — utilise des
+   underscores ou un nom en un seul mot, ex. `patch_nom_de_la_feature.patch`.
 5. N'essaie pas de pousser quoi que ce soit sur ce dépôt GitHub — c'est sans effet utile.
