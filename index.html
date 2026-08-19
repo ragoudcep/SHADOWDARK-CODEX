@@ -4158,7 +4158,13 @@ function detailTreasure(t){
    sort — donc affichée comme rappel calculé (DD = 10 + rang), pas suivie
    par PJ (les PJ n'ont qu'une liste de sorts en texte libre pour l'instant).
    ========================================================================= */
-const SPELL_CLASSES = [["priest","Prêtre"],["wizard","Magicien"],["seer","Augure"],["witch","Sorcier"]];
+// "witch" renommé "Sorcier"->"Sorcière" (2026-08-19, audit de Tristan) pour matcher le nom
+// réel de la classe (CLASSES_DATA["Sorcière"]) et ne plus se confondre avec "Sorcier
+// chaotique" (druid/wizardChaos/wizardLaw : listes de sorts de Magicien réservées par
+// alignement — Cursed Scroll #4/#5/#6 p.16-21/p.8-9/p.19-23, jusqu'ici seulement documentées
+// dans l'onglet Cursed Scroll (js/cursedscroll.js, CS4_SPELLS/CS5_SPELLS/CS6_SPELLS) sans
+// jamais être importées dans l'onglet Sorts — signalé par Tristan comme un manque).
+const SPELL_CLASSES = [["priest","Prêtre"],["wizard","Magicien"],["seer","Augure"],["witch","Sorcière"],["druid","Druide"],["wizardChaos","Sorcier chaotique"],["wizardLaw","Magicien loyal"]];
 function spellClassLabel(k){ const f=SPELL_CLASSES.find(c=>c[0]===k); return f?f[1]:(k||"Sort"); }
 /* DD = 10 + rang du sort (PAS ×2 — erreur corrigée le 2026-08-17, signalée par Tristan ; les
    textes de capacité de classe ci-dessous et docs/regles/cursed-scroll-1.md ont toujours eu la
