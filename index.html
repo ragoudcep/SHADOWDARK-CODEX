@@ -3704,7 +3704,7 @@ let pcSheetDraft = null; // { ...champs du PJ..., id } — brouillon local de la
 let pcSheetManualField = null;
 // Champs qui proposent une saisie manuelle en plus de la relance — réutilise le même gabarit
 // d'input que l'assistant pas-à-pas (pcWizardManualHTML/pcWizardReadManual, voir plus haut).
-const PC_SHEET_MANUAL_KINDS = new Set(["name","ancestry","cls","alignment","origin","languages","deity","mentor","hp","abilities","masteredWeapon"]);
+const PC_SHEET_MANUAL_KINDS = new Set(["name","ancestry","cls","alignment","origin","languages","deity","mentor","hp","abilities","masteredWeapon","spells"]);
 function pcOriginLine(skills){ return firstLine(skills); }
 function pcSetOriginLine(skills, newOrigin){
   const lines = String(skills||"").split(/\r?\n/);
@@ -3728,6 +3728,7 @@ function pcSheetManualCurrentValue(kind, d){
     case "deity": return d.deity;
     case "mentor": return d.mentor;
     case "masteredWeapon": return d.masteredWeapon;
+    case "spells": return String(d.spells||"").split(/\r?\n/).filter(l=>l.trim());
   }
 }
 /* Applique une valeur saisie manuellement (lue par pcWizardReadManual) au brouillon de la
@@ -3746,6 +3747,7 @@ function applyPCSheetManualValue(kind, d, raw){
     case "deity": d.deity = raw; break;
     case "mentor": d.mentor = raw; break;
     case "masteredWeapon": d.masteredWeapon = raw; break;
+    case "spells": d.spells = raw.join("\n"); break;
   }
 }
 function detailPC(p){
@@ -3897,11 +3899,32 @@ function detailPC(p){
       <div class="prose" style="font-family:var(--ui);font-size:.85rem">${renderText(d.info)}</div>
     </div>`:""}
   </div>`;
+  // Sortilèges connus (2026-08-19, retour de Tristan : "il faut que je puisse modifier les
+  // sortilèges connus" — n'avait plus aucun moyen d'être édité depuis le retrait du bouton
+  // "Modifier") : même bascule manuelle que les autres champs (clic sur le titre = saisie en
+  // texte libre, un sort par ligne), + bouton 🎲 pour piocher un sort de rang 1 supplémentaire
+  // pour la classe du PJ (réutilise rollSpellsKnown, même moteur que la création).
+  const spellsBlockHTML = (pcSheetManualField==="spells")
+    ? `<div style="margin:.3rem 0 .5rem">
+        <div style="${CLASS_SUBLABEL_STYLE}">Sortilèges connus</div>
+        ${pcWizardManualHTML("spells", d, pcSheetManualCurrentValue("spells", d))}
+        <div style="margin-top:.45rem;display:flex;gap:.4rem">
+          <button type="button" class="btn ghost sm" data-sheet-manual-confirm="spells">✓ Valider</button>
+          <button type="button" class="btn ghost sm" data-sheet-manual-cancel="1">Annuler</button>
+        </div>
+      </div>`
+    : `<div style="margin:.3rem 0 .5rem">
+        <div style="display:flex;align-items:center;gap:.35rem">
+          ${(cd&&cd.spellClass)?`<button type="button" class="icon-btn sm dice-btn" style="position:static;width:1.3rem;height:1.3rem;padding:0" data-sheet-reroll="spells" title="Piocher un sort de rang 1 supplémentaire">🎲</button>`:""}
+          <span class="clickable-val" style="${CLASS_SUBLABEL_STYLE};margin:0" data-sheet-value="spells" title="Cliquer pour modifier la liste">Sortilèges connus</span>
+        </div>
+        ${pcSpellLinesHTML(d, spellCastMod)}
+      </div>`;
   const rightCol = `<div class="pc-sheet-col">
     <div class="sheet-box sheet-panel">
       <div class="sheet-banner">Talents / Sorts</div>
       ${pcClassSectionHTML(d)}
-      ${pcSpellLinesHTML(d, spellCastMod)}
+      ${spellsBlockHTML}
     </div>
   </div>`;
   app.innerHTML = `<div class="detail">
@@ -3928,10 +3951,9 @@ function detailPC(p){
    que dans un tableau séparé de DD par rang (retiré, jugé inutile par Tristan). */
 function pcSpellLinesHTML(d, spellCastMod){
   const lines = String(d.spells||"").split(/\r?\n/).filter(l=>l.trim());
-  if(!lines.length) return "";
+  if(!lines.length) return `<p class="faint" style="font-family:var(--ui);font-size:.82rem;margin:.1rem 0">(aucun)</p>`;
   const castTxt = spellCastMod!==null ? `1d20${spellCastMod>=0?"+":""}${spellCastMod}` : "";
-  return `<div style="${CLASS_SUBLABEL_STYLE}">Sortilèges connus</div>
-    <div>${lines.map(l=>`<div class="sheet-spell-line"><span>${renderText(l)}</span>${castTxt?`<span class="cast">${castTxt}</span>`:""}</div>`).join("")}</div>`;
+  return `<div>${lines.map(l=>`<div class="sheet-spell-line"><span>${renderText(l)}</span>${castTxt?`<span class="cast">${castTxt}</span>`:""}</div>`).join("")}</div>`;
 }
 /* Relance un champ de la fiche graphique — modifie uniquement pcSheetDraft (jamais db.pcs
    directement), puis réaffiche. Réutilise le même moteur de tirage que l'assistant pas-à-pas
@@ -3975,6 +3997,11 @@ function handlePCSheetReroll(kind){
       if(!cd || !cd.weaponMastery){ toast("Cette classe n'a pas la capacité Maîtrise des armes."); return; }
       const weapons = classAllowedWeapons(cd);
       d.masteredWeapon = weapons[Math.floor(Math.random()*weapons.length)].name;
+      break;
+    }
+    case "spells": {
+      if(!cd || !cd.spellClass){ toast("Cette classe ne lance pas de sorts."); return; }
+      d.spells = (d.spells?d.spells+"\n":"") + rollSpellsKnown(cd, d.cls).join("\n");
       break;
     }
     case "gold": d.inventory = (d.inventory?d.inventory+"\n":"") + `${rollGold()} po pour acheter votre équipement de départ.`; break;
