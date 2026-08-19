@@ -2845,22 +2845,34 @@ function rollSpellsKnown(cd, clsName){
    présent en base) est préservée telle quelle dans une zone "Autres" à part — rien n'est perdu,
    juste plus possible d'AJOUTER un sort hors classe par erreur de frappe.
    `checkClass`/`extraId` permettent de réutiliser ce même widget à plusieurs endroits de la
-   page (fiche PJ ET formulaire de création) sans collision d'id — voir readPcSpellsPicker(). */
-function pcSpellsPickerHTML(clsName, currentText, checkClass, extraId){
+   page (fiche PJ ET formulaire de création) sans collision d'id — voir readPcSpellsPicker().
+   `level` (2026-08-19, retour de Tristan : "on ne peut pas accéder à des sorts de rang 5 dès le
+   niveau 1") : plafonne les rangs proposables via maxSpellTier() — table de progression
+   d'incantation Shadowdark, identique pour toutes les classes qui lancent des sorts (confirmée
+   par docs/regles/cursed-scroll-3.md p.11, table Augure : rang 2 débloqué au niveau 3, rang 3
+   au niveau 5, rang 4 au niveau 7, rang 5 au niveau 9 — soit rang max = ceil(niveau/2)). Un sort
+   d'un rang trop élevé pour le niveau actuel n'apparaît simplement pas dans la liste ; un sort
+   déjà connu au-delà de ce plafond (PJ créé avant ce garde-fou, ou niveau baissé après-coup)
+   reste affiché et coché — même principe que pour l'équipement : on empêche d'en AJOUTER un
+   nouveau hors règles, on n'efface jamais une donnée déjà là. */
+function maxSpellTier(level){ return Math.max(1, Math.ceil((parseInt(level)||1)/2)); }
+function pcSpellsPickerHTML(clsName, currentText, checkClass, extraId, level){
   const cd = CLASSES_DATA[clsName];
-  const pool = (cd && cd.spellClass) ? sortSpellList(db.spells.filter(s=>s.class===cd.spellClass)) : [];
+  const fullPool = (cd && cd.spellClass) ? sortSpellList(db.spells.filter(s=>s.class===cd.spellClass)) : [];
   const lines = String(currentText||"").split(/\r?\n/).filter(l=>l.trim());
   const knownNames = new Set();
   const extraLines = [];
   lines.forEach(l=>{
     const m = l.match(/^\[\[([^\]]+)\]\]\s*$/);
-    if(m && pool.some(s=>s.name.toLowerCase()===m[1].trim().toLowerCase())) knownNames.add(m[1].trim().toLowerCase());
+    if(m && fullPool.some(s=>s.name.toLowerCase()===m[1].trim().toLowerCase())) knownNames.add(m[1].trim().toLowerCase());
     else extraLines.push(l);
   });
+  const maxTier = maxSpellTier(level);
+  const pool = fullPool.filter(s=>(parseInt(s.tier)||1)<=maxTier || knownNames.has(s.name.toLowerCase()));
   const byTier = {};
   pool.forEach(s=>{ (byTier[s.tier]=byTier[s.tier]||[]).push(s); });
   const tiers = Object.keys(byTier).sort((a,b)=>(parseInt(a)||0)-(parseInt(b)||0));
-  return `<div class="field"><label>Sorts connus ${cd&&cd.spellClass?`<span class="hint">(${esc(spellClassLabel(cd.spellClass))})</span>`:""}</label>
+  return `<div class="field"><label>Sorts connus ${cd&&cd.spellClass?`<span class="hint">(${esc(spellClassLabel(cd.spellClass))} — rang max accessible : ${maxTier})</span>`:""}</label>
     ${pool.length ? `<div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:.3rem .6rem;background:var(--panel)">
       ${tiers.map(t=>`<div style="font-family:var(--ui);font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin:.4rem 0 .15rem">Rang ${esc(t)}</div>
         ${byTier[t].map(s=>`<label style="display:flex;align-items:center;gap:.4rem;font-family:var(--ui);font-size:.85rem;padding:.12rem 0;cursor:pointer"><input type="checkbox" class="${checkClass}" value="${esc(s.name)}" ${knownNames.has(s.name.toLowerCase())?"checked":""} style="width:auto"> ${esc(s.name)}</label>`).join("")}`).join("")}
@@ -3298,7 +3310,8 @@ function pcWizardManualHTML(id, d, currentValue){
     // Choix restreint aux armes autorisées à la classe (2026-08-19, audit de Tristan) — même
     // logique que l'étape "equipment" juste en dessous.
     case "masteredWeapon": { const weapons=classAllowedWeapons(CLASSES_DATA[d.cls]); return `<div class="field"><label>Arme maîtrisée</label><select id="wiz-in">${weapons.map(w=>`<option value="${esc(w.name)}" ${currentValue===w.name?"selected":""}>${esc(w.name)}</option>`).join("")}</select></div>`; }
-    case "spells": return pcSpellsPickerHTML(d.cls, (currentValue||[]).join("\n"), "wiz-spell-check", "wiz-in-extra");
+    case "level": return `<div class="field"><label>Niveau</label><input type="number" id="wiz-in" min="1" max="20" value="${esc(currentValue||1)}"></div>`;
+    case "spells": return pcSpellsPickerHTML(d.cls, (currentValue||[]).join("\n"), "wiz-spell-check", "wiz-in-extra", d.level);
     case "gold": return `<div class="field"><label>Or de départ (po)</label><input type="number" id="wiz-in" value="${esc(currentValue||0)}"></div>`;
     case "equipment": {
       const cd = CLASSES_DATA[d.cls];
@@ -3326,6 +3339,7 @@ function pcWizardReadManual(id, d){
     case "deity": return $("#wiz-in").value.trim();
     case "mentor": return $("#wiz-in").value;
     case "masteredWeapon": return $("#wiz-in").value;
+    case "level": return Math.max(1, Math.min(20, parseInt($("#wiz-in").value)||1));
     case "spells": return readPcSpellsPicker("wiz-spell-check", "wiz-in-extra").split("\n").filter(Boolean);
     case "gold": return Math.max(0, parseInt($("#wiz-in").value)||0);
     case "equipment": {
@@ -3555,7 +3569,7 @@ function formPC(){
       <div class="field${(CLASSES_DATA[p.cls]&&CLASSES_DATA[p.cls].usesMentor)?"":" hidden"}" id="mentor-field"><label>Mentor ${rerollBtn("mentor")}</label><select id="f-mentor"><option value="">— Aucun —</option>${Object.keys(MENTORS).map(m=>`<option value="${esc(m)}" ${p.mentor===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
     </div>
     <div class="field"><label>Compétences ${rerollBtn("origin","Ajouter une origine tirée au hasard")} <span class="hint">(une par ligne)</span></label><textarea id="f-skills" placeholder="Discrétion…&#10;Crochetage…">${esc(p.skills)}</textarea></div>
-    <div id="spells-field">${pcSpellsPickerHTML(p.cls, p.spells, "f-spell-check", "f-spells-extra")}</div>
+    <div id="spells-field">${pcSpellsPickerHTML(p.cls, p.spells, "f-spell-check", "f-spells-extra", p.level)}</div>
     <div class="row">
       <div class="field" style="flex:0 1 220px"><label>Emplacements d'inventaire ${rerollBtn("invSlots","Recalculer depuis la Force et la Constitution actuelles")} <span class="hint">(10 ou Force, la plus haute valeur)</span></label><input type="text" id="f-invSlots" value="${esc(p.invSlots||"")}" placeholder="10"></div>
     </div>
@@ -3591,7 +3605,16 @@ function formPC(){
     // proposées ne sont pas les mêmes d'une classe à l'autre). On repart d'un texte vide : les
     // sorts déjà cochés pour l'ancienne classe n'ont de toute façon plus de sens pour la nouvelle.
     const sf = document.getElementById("spells-field");
-    if(sf) sf.innerHTML = pcSpellsPickerHTML(clsSel.value, "", "f-spell-check", "f-spells-extra");
+    const lvlEl = document.getElementById("f-level");
+    if(sf) sf.innerHTML = pcSpellsPickerHTML(clsSel.value, "", "f-spell-check", "f-spells-extra", lvlEl?lvlEl.value:1);
+  });
+  // Le rang max accessible dépend aussi du niveau (2026-08-19, retour de Tristan : "on ne peut
+  // pas accéder à des sorts de rang 5 dès le niveau 1") — reconstruit le picker si le niveau
+  // change en cours de formulaire, en conservant cette fois ce qui est déjà coché.
+  const lvlSel = document.getElementById("f-level");
+  if(lvlSel) lvlSel.addEventListener("change", ()=>{
+    const sf = document.getElementById("spells-field");
+    if(sf) sf.innerHTML = pcSpellsPickerHTML(clsSel?clsSel.value:"", readPcSpellsPicker("f-spell-check","f-spells-extra"), "f-spell-check", "f-spells-extra", lvlSel.value);
   });
 }
 /* Relance un champ du formulaire PJ (bouton 🎲 à côté du label, voir formPC()) en réutilisant le
@@ -3748,7 +3771,10 @@ let pcSheetDraft = null; // { ...champs du PJ..., id } — brouillon local de la
 let pcSheetManualField = null;
 // Champs qui proposent une saisie manuelle en plus de la relance — réutilise le même gabarit
 // d'input que l'assistant pas-à-pas (pcWizardManualHTML/pcWizardReadManual, voir plus haut).
-const PC_SHEET_MANUAL_KINDS = new Set(["name","ancestry","cls","alignment","origin","languages","deity","mentor","hp","abilities","masteredWeapon","spells"]);
+const PC_SHEET_MANUAL_KINDS = new Set(["name","ancestry","cls","alignment","origin","languages","deity","mentor","hp","abilities","masteredWeapon","spells","level"]);
+// Niveau (2026-08-19) : pas de bouton 🎲 — monter de niveau n'est pas un tirage aléatoire,
+// contrairement aux autres champs "manuels" ci-dessus qui ont tous une variante de relance.
+const PC_SHEET_NO_DICE_KINDS = new Set(["level"]);
 function pcOriginLine(skills){ return firstLine(skills); }
 function pcSetOriginLine(skills, newOrigin){
   const lines = String(skills||"").split(/\r?\n/);
@@ -3772,6 +3798,7 @@ function pcSheetManualCurrentValue(kind, d){
     case "deity": return d.deity;
     case "mentor": return d.mentor;
     case "masteredWeapon": return d.masteredWeapon;
+    case "level": return parseInt(d.level)||1;
     case "spells": return String(d.spells||"").split(/\r?\n/).filter(l=>l.trim());
   }
 }
@@ -3791,6 +3818,7 @@ function applyPCSheetManualValue(kind, d, raw){
     case "deity": d.deity = raw; break;
     case "mentor": d.mentor = raw; break;
     case "masteredWeapon": d.masteredWeapon = raw; break;
+    case "level": d.level = String(raw); break;
     case "spells": d.spells = raw.join("\n"); break;
   }
 }
@@ -3823,7 +3851,7 @@ function detailPC(p){
     }
     const canManual = kind && PC_SHEET_MANUAL_KINDS.has(kind);
     return `<div class="sheet-box">
-      ${kind?`<button type="button" class="icon-btn sm dice-btn" data-sheet-reroll="${kind}" title="Relancer">🎲</button>`:""}
+      ${(kind && !PC_SHEET_NO_DICE_KINDS.has(kind))?`<button type="button" class="icon-btn sm dice-btn" data-sheet-reroll="${kind}" title="Relancer">🎲</button>`:""}
       <span class="lbl">${esc(label)}</span>
       <span class="val${canManual?" clickable-val":""}" ${canManual?`data-sheet-value="${kind}" title="Cliquer pour saisir/choisir manuellement"`:""}>${val}</span>${extra||""}
     </div>`;
@@ -3930,7 +3958,10 @@ function detailPC(p){
       ${portraitSrc?`<img class="detail-portrait portrait-gray" src="${portraitSrc}" alt="" style="width:96px;aspect-ratio:63/88;float:none;margin:0;flex:0 0 auto">`:""}
     </div>
     ${ascTrait?`<p class="faint" style="font-family:var(--ui);font-size:.78rem;margin:-.4rem 0 0">${esc(ascTrait)}</p>`:""}
-    ${box("Classe", esc(d.cls||"—"), "cls")}
+    <div class="sheet-row2">
+      ${box("Classe", esc(d.cls||"—"), "cls")}
+      ${box("Niveau", esc(d.level||"1"), "level")}
+    </div>
     ${box("Titre", esc(titre||"—"))}
     ${box("Alignement", esc(cap(d.alignment)||"—"), "alignment")}
     ${box("Origine", esc(origin||"—"), "origin")}
@@ -3962,7 +3993,7 @@ function detailPC(p){
           ${(cd&&cd.spellClass)?`<button type="button" class="icon-btn sm dice-btn" style="position:static;width:1.3rem;height:1.3rem;padding:0" data-sheet-reroll="spells" title="Piocher un sort de rang 1 supplémentaire">🎲</button>`:""}
           <span class="clickable-val" style="${CLASS_SUBLABEL_STYLE};margin:0" data-sheet-value="spells" title="Cliquer pour modifier la liste">Sortilèges connus</span>
         </div>
-        ${pcSpellLinesHTML(d, spellCastMod)}
+        ${pcSpellLinesHTML(d, spellCastMod, cd&&cd.spellClass)}
       </div>`;
   const rightCol = `<div class="pc-sheet-col">
     <div class="sheet-box sheet-panel">
@@ -3990,14 +4021,30 @@ function detailPC(p){
   </div>`;
 }
 /* Sortilèges connus (2026-08-18) : d.spells reste un champ texte libre (un sort par ligne, saisi
-   via le formulaire classique) — le même modificateur d'incantation (spellCastMod, déjà calculé
-   pour spellCastLine ci-dessus) s'applique à tous, donc affiché à droite de CHAQUE ligne plutôt
-   que dans un tableau séparé de DD par rang (retiré, jugé inutile par Tristan). */
-function pcSpellLinesHTML(d, spellCastMod){
+   via le picker — voir pcSpellsPickerHTML) — le même modificateur d'incantation (spellCastMod,
+   déjà calculé pour spellCastLine ci-dessus) s'applique à tous, donc affiché à droite de CHAQUE
+   ligne plutôt que dans un tableau séparé de DD par rang (retiré, jugé inutile par Tristan).
+   `spellClass` (2026-08-19, retour de Tristan : "Jade devrait avoir le charme-personne de
+   magicienne") : plusieurs classes peuvent légitimement connaître un sort de même nom (ex.
+   "Charme-personne" existe pour Sorcière ET Magicien, "Lumière" pour Prêtre ET Magicien — ce
+   n'est pas une erreur de données) ; le lien [[Nom]] générique (findByName) ne résout que le
+   PREMIER trouvé dans db.spells, sans savoir de quelle classe il s'agit. Ici on connaît la
+   classe du PJ, donc on résout chaque ligne en priorité contre LE sort de sa propre classe,
+   pour pointer vers la bonne fiche au lieu d'une homonyme d'une autre classe. */
+function pcSpellLinesHTML(d, spellCastMod, spellClass){
   const lines = String(d.spells||"").split(/\r?\n/).filter(l=>l.trim());
   if(!lines.length) return `<p class="faint" style="font-family:var(--ui);font-size:.82rem;margin:.1rem 0">(aucun)</p>`;
   const castTxt = spellCastMod!==null ? `1d20${spellCastMod>=0?"+":""}${spellCastMod}` : "";
-  return `<div>${lines.map(l=>`<div class="sheet-spell-line"><span>${renderText(l)}</span>${castTxt?`<span class="cast">${castTxt}</span>`:""}</div>`).join("")}</div>`;
+  const renderSpellLine = l=>{
+    const m = l.match(/^\[\[([^\]]+)\]\]$/);
+    if(m && spellClass){
+      const name = m[1].trim();
+      const inClass = db.spells.find(s=>s.class===spellClass && s.name.toLowerCase()===name.toLowerCase());
+      if(inClass) return `<a class="wl spell" data-goto="spell:${inClass.id}">${esc(name)}</a>`;
+    }
+    return renderText(l);
+  };
+  return `<div>${lines.map(l=>`<div class="sheet-spell-line"><span>${renderSpellLine(l)}</span>${castTxt?`<span class="cast">${castTxt}</span>`:""}</div>`).join("")}</div>`;
 }
 /* Relance un champ de la fiche graphique — modifie uniquement pcSheetDraft (jamais db.pcs
    directement), puis réaffiche. Réutilise le même moteur de tirage que l'assistant pas-à-pas
